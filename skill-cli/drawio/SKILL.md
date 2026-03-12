@@ -42,18 +42,64 @@ The draw.io desktop app includes a command-line interface for exporting.
 
 ### Locating the CLI
 
-Try `drawio` first (works if on PATH), then fall back to the platform-specific path:
+First, detect the environment, then locate the CLI accordingly:
 
-- **macOS**: `/Applications/draw.io.app/Contents/MacOS/draw.io`
-- **Linux**: `drawio` (typically on PATH via snap/apt/flatpak)
-- **Windows**: `"C:\Program Files\draw.io\draw.io.exe"`
+#### WSL2 (Windows Subsystem for Linux)
 
-Use `which drawio` (or `where drawio` on Windows) to check if it's on PATH before falling back.
+WSL2 is detected when `/proc/version` contains `microsoft` or `WSL`:
+
+```bash
+grep -qi microsoft /proc/version 2>/dev/null && echo "WSL2"
+```
+
+On WSL2, use the Windows draw.io Desktop executable via `/mnt/c/...`:
+
+```bash
+DRAWIO_CMD=`/mnt/c/Program Files/draw.io/draw.io.exe`
+```
+
+The backtick quoting is required to handle the space in `Program Files` in bash.
+
+If draw.io is installed in a non-default location, check common alternatives:
+
+```bash
+# Default install path
+`/mnt/c/Program Files/draw.io/draw.io.exe`
+
+# Per-user install (if the above does not exist)
+`/mnt/c/Users/$WIN_USER/AppData/Local/Programs/draw.io/draw.io.exe`
+```
+
+#### macOS
+
+```bash
+/Applications/draw.io.app/Contents/MacOS/draw.io
+```
+
+#### Linux (native)
+
+```bash
+drawio   # typically on PATH via snap/apt/flatpak
+```
+
+#### Windows (native, non-WSL2)
+
+```
+"C:\Program Files\draw.io\draw.io.exe"
+```
+
+Use `which drawio` (or `where drawio` on Windows) to check if it's on PATH before falling back to the platform-specific path.
 
 ### Export command
 
 ```bash
 drawio -x -f <format> -e -b 10 -o <output> <input.drawio>
+```
+
+**WSL2 example:**
+
+```bash
+`/mnt/c/Program Files/draw.io/draw.io.exe` -x -f png -e -b 10 -o diagram.drawio.png diagram.drawio
 ```
 
 Key flags:
@@ -70,9 +116,22 @@ Key flags:
 
 ### Opening the result
 
-- **macOS**: `open <file>`
-- **Linux**: `xdg-open <file>`
-- **Windows**: `start <file>`
+| Environment | Command |
+|-------------|---------|
+| macOS | `open <file>` |
+| Linux (native) | `xdg-open <file>` |
+| WSL2 | `cmd.exe /c start "" "$(wslpath -w <file>)"` |
+| Windows | `start <file>` |
+
+**WSL2 notes:**
+- `wslpath -w <file>` converts a WSL2 path (e.g. `/home/user/diagram.drawio`) to a Windows path (e.g. `C:\Users\...`). This is required because `cmd.exe` cannot resolve `/mnt/c/...` style paths.
+- The empty string `""` after `start` is required to prevent `start` from interpreting the filename as a window title.
+
+**WSL2 example:**
+
+```bash
+cmd.exe /c start "" "$(wslpath -w diagram.drawio)"
+```
 
 ## File naming
 
@@ -167,7 +226,7 @@ draw.io does **not** have built-in collision detection for edges. Plan layout an
 
 - Use `edgeStyle=orthogonalEdgeStyle` for right-angle connectors (most common)
 - **Space nodes generously** — at least 60px apart, prefer 200px horizontal / 120px vertical gaps
-- Use `exitX`/`exitY` and `entryX`/`entryY` (values 0–1) to control which side of a node an edge connects to. Spread connections across different sides to prevent overlap
+- Use `exitX`/`exitY` and `entryX`/`entryY` (values 0-1) to control which side of a node an edge connects to. Spread connections across different sides to prevent overlap
 - **Leave room for arrowheads**: The final straight segment of an edge (between the last bend and the target shape, or between the source shape and the first bend) must be long enough to fit the arrowhead. The default arrow size is 6px (configurable via `startSize`/`endSize` styles). If the final segment is too short, the arrowhead overlaps the bend and looks broken. Ensure at least 20px of straight segment before the target and after the source when placing waypoints or positioning nodes
 - When using `orthogonalEdgeStyle`, the auto-router places bends automatically — if source and target are close together or nearly aligned on one axis, the router may place a bend very close to a shape, leaving no room for the arrow. Fix this by either increasing node spacing or adding explicit waypoints that keep the final segment long enough
 - Add explicit **waypoints** when edges would overlap:
@@ -243,3 +302,4 @@ For the XML Schema Definition (XSD): https://www.drawio.com/assets/mxfile.xsd
 - **NEVER use double hyphens (`--`) inside XML comments.** `--` is illegal inside `<!-- -->` per the XML spec and causes parse errors. Use single hyphens or rephrase.
 - Escape special characters in attribute values: `&amp;`, `&lt;`, `&gt;`, `&quot;`
 - Always use unique `id` values for each `mxCell`
+
