@@ -5,6 +5,7 @@ import {
 } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { normalizeDiagramXml, INVALID_DIAGRAM_XML_MESSAGE } from "./normalize-diagram-xml.js";
 
 /**
  * Build the self-contained HTML string that renders diagrams.
@@ -109,6 +110,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs)
     <!-- MCP Apps SDK (inlined, exports stripped, App alias added) -->
     <script>
 ${appWithDepsJs}
+${normalizeDiagramXml.toString()}
 
 // --- Client-side app logic ---
 
@@ -121,6 +123,7 @@ const fullscreenBtn  = document.getElementById("fullscreen-btn");
 const copyXmlBtn     = document.getElementById("copy-xml-btn");
 var drawioEditUrl = null;
 var currentXml = null;
+var invalidDiagramXmlMessage = ${JSON.stringify(INVALID_DIAGRAM_XML_MESSAGE)};
 
 var app = new App({ name: "draw.io Diagram Viewer", version: "1.0.0" });
 
@@ -226,11 +229,20 @@ app.ontoolresult = function(result)
 
   if (textBlock && textBlock.type === "text")
   {
-    renderDiagram(textBlock.text);
+    var normalizedXml = normalizeDiagramXml(textBlock.text);
+
+    if (normalizedXml)
+    {
+      renderDiagram(normalizedXml);
+    }
+    else
+    {
+      showError(invalidDiagramXmlMessage);
+    }
   }
   else
   {
-    showError("No diagram XML received.");
+    showError(invalidDiagramXmlMessage);
   }
 };
 
@@ -356,7 +368,9 @@ export function createServer(html, serverOptions = {})
     },
     async function({ xml })
     {
-      return { content: [{ type: "text", text: xml }] };
+      var normalizedXml = normalizeDiagramXml(xml);
+
+      return { content: [{ type: "text", text: normalizedXml || xml }] };
     }
   );
 

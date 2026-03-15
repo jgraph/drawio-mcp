@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "test": "node --test",
     "build:worker": "node src/build-html.js",
     "dev:worker": "npm run build:worker && wrangler dev",
     "deploy": "npm run build:worker && wrangler deploy"
