@@ -1,11 +1,30 @@
 ---
 name: drawio
-description: Generate draw.io diagrams as .drawio files, optionally export to PNG/SVG/PDF with embedded XML. Use when user asks to 'create a diagram', 'draw a flowchart', 'make an architecture diagram', 'generate an ER diagram', 'sequence diagram', 'class diagram', 'network diagram', or mentions draw.io, .drawio files, or diagram export to PNG/SVG/PDF.
+description: Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF.
 ---
 
 # Draw.io Diagram Skill
 
 Generate draw.io diagrams as native `.drawio` files. Optionally export to PNG, SVG, or PDF with the diagram XML embedded (so the exported file remains editable in draw.io).
+
+## Step 0: Determine diagram type
+
+If the user does NOT specify the type of diagram, you MUST ask by showing this table. Do NOT assume a type. STOP and wait for the user's response.
+
+| #  | Type             | Description                                      | Example use case                        |
+|----|------------------|--------------------------------------------------|-----------------------------------------|
+| 1  | Flowchart        | Process flows, decision trees                    | Login flow, CI/CD pipeline              |
+| 2  | Architecture     | System/software architecture, C4, layers         | Microservices, hexagonal architecture   |
+| 3  | Sequence         | Interaction between actors/systems over time     | API call flow, auth handshake           |
+| 4  | ER (Entity)      | Database entities and relationships              | Schema design, data modeling            |
+| 5  | Class            | OOP class relationships, UML                     | Domain model, design patterns           |
+| 6  | Network          | Infrastructure, servers, topology                | Cloud infra, VPN layout                 |
+| 7  | Wireframe        | UI layout, low-fidelity screen mockups           | Landing page, dashboard, mobile app     |
+| 8  | Mockup           | Mid/high-fidelity UI design                      | Component design, UI prototype          |
+| 9  | State machine    | States and transitions                           | Order lifecycle, auth states            |
+| 10 | Mind map         | Ideas, brainstorming, concept relationships      | Feature planning, knowledge mapping     |
+| 11 | Gantt / Timeline | Project planning, milestones                     | Sprint plan, roadmap                    |
+| 12 | Custom           | Anything not listed above                        | User describes what they need           |
 
 ## How to create a diagram
 
