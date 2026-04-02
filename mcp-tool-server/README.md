@@ -41,7 +41,8 @@ npm start
 
 ## Configuration
 
-### Claude Desktop
+<details>
+<summary>Claude Desktop</summary>
 
 Add to your Claude Desktop configuration file:
 
@@ -59,13 +60,42 @@ Add to your Claude Desktop configuration file:
 }
 ```
 
-### Other MCP Clients
+</details>
+
+<details>
+<summary>Claude Code</summary>
+
+Add the MCP server to Claude Code using the CLI:
+
+```bash
+claude mcp add drawio -- npx -y @drawio/mcp
+```
+
+Or add it manually to your Claude Code settings file (`.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "drawio": {
+      "command": "npx",
+      "args": ["@drawio/mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>Other MCP Clients</summary>
 
 Configure your MCP client to run the server via stdio:
 
 ```bash
 npx @drawio/mcp
 ```
+
+</details>
 
 ## Tools
 
