@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/jgraph-drawio-mcp-badge.png)](https://mseep.ai/app/jgraph-drawio-mcp)
+
 # Draw.io MCP Server
 
 The official [draw.io](https://www.draw.io) MCP (Model Context Protocol) server that enables LLMs to create and open diagrams in the draw.io editor.
