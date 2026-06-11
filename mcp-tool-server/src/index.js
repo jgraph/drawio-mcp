@@ -32,6 +32,45 @@ const mermaidReference = readFileSync(
   existsSync(sharedMermaidPath) ? sharedMermaidPath : localMermaidPath,
   "utf-8"
 );
+const packageJsonPath = join(__dirname, "..", "package.json");
+const packageInfo = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
+
+function printHelp()
+{
+  console.log(`drawio-mcp ${packageInfo.version}
+
+Official draw.io MCP server for opening diagrams in the draw.io editor.
+
+Usage:
+  drawio-mcp              Start the MCP stdio server
+  drawio-mcp --help       Show this help text
+  drawio-mcp --version    Show the package version
+
+Options:
+  -h, --help              Show help
+  -v, --version           Show version`);
+}
+
+function handleCliArgs(args)
+{
+  if (args.length === 0) return false;
+
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "-h"))
+  {
+    printHelp();
+    return true;
+  }
+
+  if (args.length === 1 && (args[0] === "--version" || args[0] === "-v"))
+  {
+    console.log(packageInfo.version);
+    return true;
+  }
+
+  console.error(`Unknown option: ${args[0]}`);
+  console.error("Run `drawio-mcp --help` for usage.");
+  process.exit(1);
+}
 
 /**
  * Opens a URL in the default browser (cross-platform)
@@ -367,6 +406,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 // Start the server
 async function main()
 {
+  if (handleCliArgs(process.argv.slice(2))) return;
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Draw.io MCP server running on stdio");
