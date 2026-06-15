@@ -9,13 +9,15 @@ Generate draw.io diagrams as native `.drawio` files. Optionally export to PNG, S
 
 ## How to create a diagram
 
-1. **Generate draw.io XML** in mxGraphModel format for the requested diagram
-2. **Write the XML** to a `.drawio` file in the current working directory using the Write tool
-3. **Handle the requested output format**:
+1. **Plan the layout before XML**: pick a reading direction, group related nodes into containers, and decide which relationships are edges vs. node text (see [Layout and routing quality](#layout-and-routing-quality))
+2. **Generate draw.io XML** in mxGraphModel format for the requested diagram, following [Layout and routing quality](#layout-and-routing-quality) and using [XML reference](#xml-reference) for draw.io syntax details
+3. **Write the XML** to a `.drawio` file in the current working directory using the Write tool
+4. **Handle the requested output format**:
    - `png` / `svg` / `pdf` → locate the draw.io CLI (see [draw.io CLI](#drawio-cli)), export with `--embed-diagram`, then delete the source `.drawio` file. If the CLI is not found, keep the `.drawio` file and tell the user they can install the draw.io desktop app to enable export, or use `url` mode instead, or open the `.drawio` file directly
    - `url` → generate a browser URL from the XML and open it (see [Browser URL output](#browser-url-output)). Keep the `.drawio` file as a persistent local copy
    - *(no format)* → no extra step; the `.drawio` file is the output
-4. **Open the result** — the exported file if exported, the browser URL if `url`, or the `.drawio` file otherwise. If the open command fails, print the file path (or URL) so the user can open it manually
+5. **Export and inspect complex diagrams**: for architecture, flow, network, or diagrams with more than 8 nodes, export a PNG/SVG preview with draw.io CLI when available and visually check it before finalizing
+6. **Open the result** — the exported file if exported, the browser URL if `url`, or the `.drawio` file otherwise. If the open command fails, print the file path (or URL) so the user can open it manually
 
 ## Choosing the output format
 
@@ -223,6 +225,31 @@ cmd.exe /c start "" "$(wslpath -w diagram.drawio)"
 - For export, use double extensions: `name.drawio.png`, `name.drawio.svg`, `name.drawio.pdf` — this signals the file contains embedded diagram XML
 - After a successful export, delete the intermediate `.drawio` file — the exported file contains the full diagram
 - For `url` mode, keep the `.drawio` file (no double extension) — the URL is a view/edit handle and the local file is the persistent copy
+
+## Layout and routing quality
+
+Readability is part of the deliverable — don't finish a complex diagram while the preview shows tangled routing, duplicated titles, labels sitting on nodes, or large blank page areas. The [XML reference](#xml-reference) holds the general rules: reading direction, grouping nodes in containers, routing convergent edges through a hub, short edge labels, and consistent dashed/color semantics. Follow those, plus the two points below that are specific to native `.drawio` output.
+
+### Static files skip the viewer's auto-layout
+
+The XML reference's automatic ELK edge-routing pass is a *viewer* feature. A `.drawio` file opened in the desktop app or exported via the CLI does **not** get it, so here:
+
+- **Vertex positions are final as written** — plan node placement before emitting XML; nothing repositions them afterward.
+- **Limited manual routing is allowed** — `exitX/exitY`, `entryX/entryY`, or waypoints (stagger parallel lines by 10-20 px), but only for edges that still look tangled in a rendered preview. Prefer adding a hub over hand-routing many lines.
+
+### Visual validation loop
+
+For non-trivial diagrams, validate the rendering, not just the XML:
+
+1. Confirm the XML is well-formed and has no duplicate `mxCell` ids.
+2. Export a preview with the draw.io CLI when available:
+
+   ```bash
+   drawio -x -f png -b 10 -o /tmp/diagram-preview.png DIAGRAM.drawio
+   ```
+
+3. Inspect the image for lines crossing through nodes or containers, labels overlapping nodes or each other, dense bundles of unrelated edges in one lane, duplicate or off-page titles, and large blank regions from stray cells.
+4. Iterate until the preview is readable — prefer reducing edges and adding hubs over tweaking individual tangled lines.
 
 ## XML format
 

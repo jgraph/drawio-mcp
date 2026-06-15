@@ -38,6 +38,8 @@ Pick a `(col, row)` for each node. Don't think about centers, gaps, or overlap �
 - **Use proper draw.io shapes and connectors** — choose the semantically correct shape for each element (e.g., `shape=cylinder3` for databases and tanks, `rhombus` for decisions, `shape=mxgraph.pid2valves.*` for valves in P&IDs). draw.io has extensive shape libraries; prefer domain-appropriate shapes over generic rectangles.
 - **Decide whether to search for shapes** — before generating a diagram, decide if it needs domain-specific shapes from draw.io's extended libraries. **Skip `search_shapes`** for standard diagram types that use basic geometric shapes: flowcharts, UML (class, sequence, state, activity), ERD, org charts, mind maps, Venn diagrams, timelines, wireframes, and any diagram using only rectangles, diamonds, circles, cylinders, and arrows. Also skip if the user explicitly asks to use basic/simple shapes or says not to search. **Use `search_shapes`** when the diagram requires industry-specific or branded icons: cloud architecture (AWS, Azure, GCP), network topology (Cisco, rack equipment), P&ID (valves, instruments, vessels), electrical/circuit diagrams, Kubernetes, BPMN with specific task types, or any domain where the user expects realistic/standardized symbols rather than labeled boxes.
 - **Match the language of labels to the user's language** — if the user writes in German, French, Japanese, etc., all diagram labels, titles, and annotations should be in that same language.
+- **Group related nodes, and surface a hub when edges converge** — put nodes that belong together inside a container or swimlane, and keep external actors (users, files, third-party systems) outside implementation containers. When many edges converge on one area or cross several groups, route them through a single hub/gateway node (a registry, broker, event log, …) instead of drawing every low-level dependency across the canvas — fewer crossings, clearer contract.
+- **Encode secondary detail in node text, not edges** — draw an edge only when the relationship itself carries meaning; push incidental detail into the node label so the connector layer stays readable.
 
 ## Common styles
 
@@ -146,6 +148,10 @@ Just declare `source` and `target` and let ELK do the routing. The ELK pass also
 - `dashed=1` — dashed line
 - `strokeColor=#...`, `strokeWidth=2` — color/width
 - Edge labels: set `value` directly on the edge cell
+
+**Keep edge labels short and meaningful** — one to three words (`Yes`, `async`, `reads`). Drop labels that merely restate an obvious action (`call`, `register`); move longer explanations into node text or a small legend node.
+
+**Visual semantics — stay consistent, add a legend when mixing styles.** Within one diagram apply `dashed=1`, `strokeColor`, and `strokeWidth` consistently for one chosen meaning (e.g. dashed = optional / async / inferred relationship). Don't mix several dashed meanings without a small legend explaining them.
 
 ## Containers and groups
 
@@ -450,6 +456,10 @@ Every XML diagram rendered in the viewer automatically runs an ELK (Eclipse Layo
 You do not need to request this. Place vertices where they belong and write edges naively — the viewer handles connector cleanup.
 
 This also means: there is no server-side post-processing pass. What you generate is what the viewer starts with; the ELK pass is the only correction.
+
+**This automatic cleanup runs only in the viewer.** A static `.drawio` file — opened in the draw.io desktop app, or exported to PNG/SVG with the desktop CLI (what the skill does) — gets no ELK pass. What you wrote is what renders: nodes stay where you placed them, and each edge gets only its edge style's own routing. Orthogonal edges still bend into right angles, but that router will run a line straight through any node in its way and won't space out parallel edges — and nothing cleans up those tangles afterward.
+
+For static-file output, then: place nodes deliberately (good placement is what keeps edges from crossing), export a preview, and look at it. Add manual routing only for the specific edges that still cut through a node or bundle together — `exitX`/`exitY` plus `entryX`/`entryY` to choose where an edge attaches, or waypoints to force its path. Leave edges that already look clean alone.
 
 ## Post-layout (optional, overrides vertex positions)
 
