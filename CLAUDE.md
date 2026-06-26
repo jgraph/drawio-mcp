@@ -4,11 +4,13 @@ The official draw.io MCP (Model Context Protocol) server that enables LLMs to op
 
 ## Repository Structure
 
+- **`.claude-plugin/marketplace.json`** — Claude Code plugin marketplace manifest. Lists this repo's plugins (currently just `drawio`, sourced from `./plugins/claude-code`). Users install with `/plugin marketplace add jgraph/drawio-mcp` then `/plugin install drawio@jgraph`.
 - **`shared/`** — Shared XML generation reference (`xml-reference.md`), the single source of truth for all LLM prompts.
 - **`mcp-app-server/`** — MCP App server (renders diagrams inline in chat via iframe). Hosted at `https://mcp.draw.io/mcp`. Can also be self-hosted via Node.js or Cloudflare Workers.
 - **`mcp-tool-server/`** — Original MCP tool server (stdio-based, opens browser). Published as `@drawio/mcp` on npm.
 - **`project-instructions/`** — Claude Project instructions (no MCP required, no install).
-- **`skill-cli/`** — Claude Code skill (generates native `.drawio` files, opens in desktop app, or as a browser URL via `app.diagrams.net`). No MCP required.
+- **`plugins/`** — Assistant-side plugins grouped by host. One subdirectory per AI assistant.
+  - **`plugins/claude-code/`** — Claude Code plugin: ships the `drawio` skill (generates native `.drawio` files, opens in desktop app, or as a browser URL via `app.diagrams.net`). Installable via the repo-root marketplace or `claude --plugin-dir ./plugins/claude-code`. No MCP required.
 - **`shape-search/`** — Shape search index generator. Loads draw.io's `app.min.js` via jsdom to extract all shape styles and tags into `search-index.json`, which powers the `search_shapes` MCP tool. Re-run after updating `drawio-dev` to pick up new or changed shapes.
 
 Each subdirectory has its own `CLAUDE.md` with implementation details.
@@ -96,7 +98,7 @@ Opens the draw.io editor with a Mermaid.js diagram definition.
 
 ## Shared References (Single Source of Truth)
 
-Two canonical reference files live in `shared/` and feed every delivery mechanism (MCP App Server, MCP Tool Server, Skill + CLI, Project Instructions):
+Two canonical reference files live in `shared/` and feed every delivery mechanism (MCP App Server, MCP Tool Server, Claude Code Plugin, Project Instructions):
 
 - **`shared/xml-reference.md`** — draw.io XML generation reference: styles, edge routing, containers, layers, tags, metadata, dark mode, well-formedness rules. Consumed by `create_diagram` (mcp-app-server) and `open_drawio_xml` (mcp-tool-server).
 - **`shared/mermaid-reference.md`** — Mermaid syntax reference for all 26 supported diagram types (flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, radar, packet, venn, treemap, kanban, zenuml, …) plus flowchart styling (`style`, `classDef`, `linkStyle`). Consumed by `open_drawio_mermaid` (mcp-tool-server).

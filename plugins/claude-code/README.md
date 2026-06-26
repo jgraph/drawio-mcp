@@ -1,6 +1,6 @@
-# Draw.io Skill for Claude Code
+# Draw.io Plugin for Claude Code
 
-A Claude Code skill that generates native `.drawio` files, with optional export to PNG, SVG, or PDF (with embedded XML so the exported file remains editable in draw.io) or as a browser URL that opens the diagram directly in `app.diagrams.net`. No MCP setup required.
+A Claude Code plugin that generates native `.drawio` files, with optional export to PNG, SVG, or PDF (with embedded XML so the exported file remains editable in draw.io) or as a browser URL that opens the diagram directly in `app.diagrams.net`. No MCP setup required.
 
 ## How It Works
 
@@ -21,43 +21,50 @@ When you ask Claude Code to create a diagram, it will:
 
 ## Installation
 
-Copy `drawio/SKILL.md` to your Claude Code skills directory:
+### Via the drawio marketplace (recommended)
 
-**Global (all projects):**
+Inside Claude Code, add this repository as a plugin marketplace, then install:
 
-```bash
-mkdir -p ~/.claude/skills/drawio
-cp drawio/SKILL.md ~/.claude/skills/drawio/SKILL.md
+```
+/plugin marketplace add jgraph/drawio-mcp
+/plugin install drawio@jgraph
 ```
 
-**Per-project:**
+The marketplace manifest lives at [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) at the repo root and points at this directory.
+
+### Local development
+
+To load the plugin directly from a local clone (e.g. while iterating on the skill):
 
 ```bash
-mkdir -p .claude/skills/drawio
-cp drawio/SKILL.md .claude/skills/drawio/SKILL.md
+claude --plugin-dir ./plugins/claude-code
 ```
+
+The plugin loads the `drawio` skill from `skills/drawio/SKILL.md` — nothing else needs to be copied into your `~/.claude/skills/` directory.
 
 ## Usage
 
 ```
-/drawio create a flowchart for user login
+/drawio:drawio create a flowchart for user login
 ```
+
+Claude Code namespaces plugin skills as `/<plugin>:<skill>`, so the invocation is `/drawio:drawio …` — the first `drawio` is the plugin name, the second is the skill folder. Additional skills added to this plugin later (e.g. `/drawio:search-shapes`) share the same prefix.
 
 By default, this writes a `.drawio` file and opens it in draw.io. To export to an image format or open the diagram in the browser, mention the format in your request:
 
 ```
-/drawio png flowchart for user login       → login-flow.drawio.png
-/drawio svg: ER diagram for e-commerce     → er-diagram.drawio.svg
-/drawio pdf architecture overview          → architecture-overview.drawio.pdf
-/drawio url flowchart for user login       → opens app.diagrams.net in browser, keeps login-flow.drawio locally
+/drawio:drawio png flowchart for user login       → login-flow.drawio.png
+/drawio:drawio svg: ER diagram for e-commerce     → er-diagram.drawio.svg
+/drawio:drawio pdf architecture overview          → architecture-overview.drawio.pdf
+/drawio:drawio url flowchart for user login       → opens app.diagrams.net in browser, keeps login-flow.drawio locally
 ```
 
 More examples:
 
 ```
-/drawio sequence diagram for API auth
-/drawio png class diagram for the models in src/
-/drawio url architecture overview
+/drawio:drawio sequence diagram for API auth
+/drawio:drawio png class diagram for the models in src/
+/drawio:drawio url architecture overview
 ```
 
 ## Output Formats
@@ -72,12 +79,12 @@ More examples:
 
 The `.drawio.*` double extension signals that the file contains embedded diagram XML. Open any of these in draw.io to recover and edit the full diagram. The intermediate `.drawio` source file is deleted after image export since the exported file contains the complete diagram. In `url` mode, the `.drawio` file is kept so you have a persistent local copy to re-edit or share.
 
-`url` mode uses only Node.js's built-in `zlib` (deflate-raw compression) and `child_process` (browser open) — no external dependencies. The resulting `https://app.diagrams.net/#create=...` URL is the same format used by the [MCP Tool Server](../mcp-tool-server/README.md), so behavior is identical.
+`url` mode uses only Node.js's built-in `zlib` (deflate-raw compression) and `child_process` (browser open) — no external dependencies. The resulting `https://app.diagrams.net/#create=...` URL is the same format used by the [MCP Tool Server](../../mcp-tool-server/README.md), so behavior is identical.
 
 ## XML Reference
 
 The skill references the shared XML generation guide (edge routing, containers, layers, tags, metadata, dark mode, etc.) from GitHub at runtime:
-[`shared/xml-reference.md`](../shared/xml-reference.md)
+[`shared/xml-reference.md`](../../shared/xml-reference.md)
 
 This is the single source of truth for all draw.io MCP prompts across the repository. No extra files need to be copied during installation.
 
@@ -93,6 +100,6 @@ A `.drawio` file is just mxGraphModel XML. Mermaid and CSV formats require draw.
 
 This repository offers multiple ways to integrate draw.io with AI assistants:
 
-- **[MCP App Server](../mcp-app-server/README.md)** — Inline diagrams in chat (Claude.ai, VS Code)
-- **[MCP Tool Server](../mcp-tool-server/README.md)** — Opens diagrams in browser via MCP (Claude Desktop)
-- **[Project Instructions](../project-instructions/README.md)** — Claude.ai Projects, no install needed
+- **[MCP App Server](../../mcp-app-server/README.md)** — Inline diagrams in chat (Claude.ai, VS Code)
+- **[MCP Tool Server](../../mcp-tool-server/README.md)** — Opens diagrams in browser via MCP (Claude Desktop)
+- **[Project Instructions](../../project-instructions/README.md)** — Claude.ai Projects, no install needed

@@ -1,17 +1,21 @@
-# Skill + CLI
+# Claude Code Plugin: drawio
 
-Claude Code skill that generates native `.drawio` files, with optional export to PNG/SVG/PDF (with embedded XML) using the draw.io desktop CLI, or a browser URL that opens the diagram directly at `app.diagrams.net`. No MCP server required.
+A Claude Code plugin that ships the `drawio` skill: it generates native `.drawio` files, with optional export to PNG/SVG/PDF (with embedded XML) using the draw.io desktop CLI, or a browser URL that opens the diagram directly at `app.diagrams.net`. No MCP server required.
+
+Previously distributed as a bare `SKILL.md` users copied into `~/.claude/skills/`; now packaged as a real plugin so it loads via `claude --plugin-dir ./plugins/claude-code` and is distributed through the [`jgraph` marketplace](../../.claude-plugin/marketplace.json) at the repo root (`/plugin install drawio@jgraph`).
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `drawio/SKILL.md` | Claude Code skill file (users copy this to their skills directory) |
+| `.claude-plugin/plugin.json` | Plugin manifest — name, version, description, author |
+| `skills/drawio/SKILL.md` | The skill itself (its folder name `drawio` becomes the second half of the `/drawio:drawio` invocation) |
 | `README.md` | Installation and usage documentation |
+| `../../.claude-plugin/marketplace.json` | Marketplace manifest at the repo root that lists this plugin with `source: "./plugins/claude-code"` |
 
 ## How It Works
 
-1. User invokes `/drawio` or Claude detects a diagram request
+1. User invokes `/drawio:drawio` or Claude detects a diagram request
 2. Claude generates mxGraphModel XML for the requested diagram
 3. The XML is written to a `.drawio` file in the working directory via the Write tool
 4. Format-specific handling:
@@ -20,7 +24,7 @@ Claude Code skill that generates native `.drawio` files, with optional export to
    - **default** — no extra step, the `.drawio` file is the output
 5. The result is opened for viewing (`open` / `xdg-open` / `start`; on Windows/WSL2, `url` mode uses a temp `.url` file because `cmd.exe` strips the `#create=...` fragment)
 
-Default output is `.drawio` (no export). The user requests another output mode by mentioning the format: `/drawio png ...`, `/drawio svg: ...`, `/drawio url ...`, etc.
+Default output is `.drawio` (no export). The user requests another output mode by mentioning the format: `/drawio:drawio png ...`, `/drawio:drawio svg: ...`, `/drawio:drawio url ...`, etc.
 
 ## URL Mode Compatibility
 

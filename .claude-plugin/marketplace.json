@@ -1,0 +1,23 @@
+{
+  "name": "jgraph",
+  "owner": {
+    "name": "JGraph Ltd.",
+    "url": "https://www.jgraph.com"
+  },
+  "description": "Official draw.io plugins for AI coding assistants.",
+  "plugins": [
+    {
+      "name": "drawio",
+      "source": "./plugins/claude-code",
+      "description": "Generate native .drawio diagrams from Claude Code — optionally export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL.",
+      "category": "diagrams",
+      "version": "1.0.0",
+      "author": {
+        "name": "JGraph Ltd."
+      },
+      "homepage": "https://github.com/jgraph/drawio-mcp/tree/main/plugins/claude-code",
+      "repository": "https://github.com/jgraph/drawio-mcp",
+      "license": "Apache-2.0"
+    }
+  ]
+}

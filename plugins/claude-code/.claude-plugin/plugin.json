@@ -1,0 +1,9 @@
+{
+  "name": "drawio",
+  "description": "Generate native .drawio diagrams from Claude Code — optionally export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL.",
+  "version": "1.0.0",
+  "author": { "name": "JGraph Ltd." },
+  "homepage": "https://github.com/jgraph/drawio-mcp",
+  "repository": "https://github.com/jgraph/drawio-mcp",
+  "license": "Apache-2.0"
+}
