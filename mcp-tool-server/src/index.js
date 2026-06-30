@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import pako from "pako";
 import { routeXml } from "./libavoid-pass.js";
+import { buildTagMap, searchShapes } from "./shape-search.js";
 import { spawn } from "child_process";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
@@ -73,6 +74,28 @@ const mermaidReference = readFileSync(
   existsSync(sharedMermaidPath) ? sharedMermaidPath : localMermaidPath,
   "utf-8"
 );
+
+// Same dual-path lookup for the shape search index.
+const sharedShapeIndexPath = join(__dirname, "..", "..", "shape-search", "search-index.json");
+const localShapeIndexPath = join(__dirname, "search-index.json");
+const finalShapeIndexPath = existsSync(sharedShapeIndexPath) ? sharedShapeIndexPath : (existsSync(localShapeIndexPath) ? localShapeIndexPath : null);
+
+let shapeIndex = null;
+let tagMap = null;
+
+if (finalShapeIndexPath)
+{
+  try
+  {
+    shapeIndex = JSON.parse(readFileSync(finalShapeIndexPath, "utf-8"));
+    tagMap = buildTagMap(shapeIndex);
+  }
+  catch (e)
+  {
+    console.error("Failed to parse shape index:", e.message);
+  }
+}
+
 
 /**
  * Opens a URL in the default browser (cross-platform)
@@ -284,8 +307,44 @@ const tools =
       },
       required: ["content"],
     },
-  },
 ];
+
+if (shapeIndex && shapeIndex.length > 0)
+{
+  tools.push({
+    name: "search_shapes",
+    description:
+      "Search the draw.io shape library by keywords. Returns matching shapes with " +
+      "their exact style strings, dimensions, and titles. Use ONLY for diagrams that " +
+      "need industry-specific or branded icons (cloud architecture, network topology, " +
+      "P&ID, electrical, Cisco, Kubernetes, BPMN). Do NOT use for standard diagram " +
+      "types like flowcharts, UML, ERD, org charts, or mind maps — these use basic " +
+      "geometric shapes (rectangles, diamonds, circles, cylinders) that are already " +
+      "covered in the XML reference. Also skip if the user asks to use basic/simple " +
+      "shapes or says not to search. The style string from the results can be " +
+      "used directly in mxCell style attributes.",
+    inputSchema:
+    {
+      type: "object",
+      properties:
+      {
+        query:
+        {
+          type: "string",
+          description:
+            "Space-separated search keywords (e.g. 'pid globe valve', 'aws lambda', 'cisco router', 'kubernetes pod')",
+        },
+        limit:
+        {
+          type: "number",
+          description: "Maximum number of results to return (default: 10, max: 50)",
+        },
+      },
+      required: ["query"],
+    },
+  });
+}
+
 
 // Create the MCP server
 const server = new Server(
@@ -314,6 +373,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 
   try
   {
+    if (name === "search_shapes")
+    {
+      if (!shapeIndex || shapeIndex.length === 0)
+      {
+        return {
+          content:
+          [
+            {
+              type: "text",
+              text: "Error: Shape search index is not loaded.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const query = args?.query;
+
+      if (!query)
+      {
+        return {
+          content:
+          [
+            {
+              type: "text",
+              text: "Error: query parameter is required",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const limit = Math.min(args?.limit || 10, 50);
+      const results = searchShapes(shapeIndex, tagMap, query, limit);
+
+      if (results.length === 0)
+      {
+        return {
+          content:
+          [
+            {
+              type: "text",
+              text: `No shapes found for query: ${query}`,
+            },
+          ],
+        };
+      }
+
+      return {
+        content:
+        [
+          {
+            type: "text",
+            text: JSON.stringify(results, null, 2),
+          },
+        ],
+      };
+    }
+
     let content;
     let type;
     const lightbox = args?.lightbox === true;

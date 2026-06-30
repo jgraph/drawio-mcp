@@ -8,7 +8,7 @@
     "drawio-mcp": "./src/index.js"
   },
   "scripts": {
-    "copy-shared": "cp ../shared/xml-reference.md src/xml-reference.md && cp ../shared/mermaid-reference.md src/mermaid-reference.md && cp ../shared/libavoid-routing.js src/libavoid-routing.js",
+    "copy-shared": "cp ../shared/xml-reference.md src/xml-reference.md && cp ../shared/mermaid-reference.md src/mermaid-reference.md && cp ../shared/libavoid-routing.js src/libavoid-routing.js && cp ../shared/shape-search.js src/shape-search.js && cp ../shape-search/search-index.json src/search-index.json",
     "start": "node src/index.js",
     "prestart": "npm run copy-shared",
     "prepack": "npm run copy-shared"
