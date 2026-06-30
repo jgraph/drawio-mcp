@@ -307,6 +307,7 @@ const tools =
       },
       required: ["content"],
     },
+  },
 ];
 
 if (shapeIndex && shapeIndex.length > 0)
