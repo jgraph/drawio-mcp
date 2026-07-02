@@ -14,6 +14,12 @@ Artifacts:
   wasm via `fs.readFileSync` (no fetch).
 - `libavoid.wasm` — the Emscripten binary (~492 KB). Loaded by path:
   `await AvoidLib.load(join(__dirname, "vendor/libavoid/libavoid.wasm"))`.
+- `libavoid-routing.js` — the shared routing core (`globalThis.AvoidRouting`:
+  `computeRoutes` incl. fixed-connection-point pins and jettySize stub
+  checkpoints, plus the pure geometry helpers). **Verbatim copy** — the
+  canonical source is `drawio-dev src/main/webapp/js/libavoid-js/
+  libavoid-routing.js` (the same artifact the draw.io editor bundles and the
+  app server inlines); copy it over when it changes there.
 - `libavoid.d.ts` — TypeScript typings.
 - `LICENSE` — libavoid-js is LGPL-2.1-or-later.
 
@@ -21,14 +27,13 @@ Artifacts:
 
 ```js
 import { AvoidLib } from "./vendor/libavoid/libavoid-node.mjs";
-import { computeLibavoidRoutes } from "./libavoid-routing.js"; // copied from shared/
+// Plain browser script that assigns globalThis.AvoidRouting — a script
+// without import/export is valid ESM, so import it for its side effect:
+await import("./vendor/libavoid/libavoid-routing.js");
 await AvoidLib.load(join(__dirname, "vendor", "libavoid", "libavoid.wasm"));
 const Avoid = AvoidLib.getInstance();
-const routes = computeLibavoidRoutes(Avoid, vertices, edges); // edgeId -> waypoints
+const routes = globalThis.AvoidRouting.computeRoutes(Avoid, vertices, edges); // edgeId -> waypoints
 ```
-
-The routing math lives in `shared/libavoid-routing.js` (copied into `src/` by
-the `copy-shared` npm script), shared verbatim with the app server.
 
 ## Versioning
 
@@ -43,3 +48,7 @@ cp package/dist/libavoid.wasm   vendor/libavoid/libavoid.wasm
 cp package/dist/index-node.d.ts vendor/libavoid/libavoid.d.ts
 cp package/LICENSE              vendor/libavoid/LICENSE
 ```
+
+`libavoid-routing.js` is NOT part of the upstream package — refresh it from
+drawio-dev (`cp ../drawio-dev/src/main/webapp/js/libavoid-js/libavoid-routing.js
+vendor/libavoid/`).

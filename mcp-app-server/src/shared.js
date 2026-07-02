@@ -6,7 +6,6 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { normalizeDiagramXml, INVALID_DIAGRAM_XML_MESSAGE } from "./normalize-diagram-xml.js";
-import { computeLibavoidRoutes } from "../../shared/libavoid-routing.js";
 import { buildTagMap, searchShapes } from "../../shared/shape-search.js";
 
 /**
@@ -24,7 +23,7 @@ import { buildTagMap, searchShapes } from "../../shared/shape-search.js";
  * @param {object} [options] - Optional configuration.
  * @param {string} [options.viewerJs] - If provided, inlines this JS instead of loading viewer-static.min.js from CDN.
  * @param {string} [options.elkJs] - If provided, inlines this drawio-elk bundle instead of loading it from CDN. Defines `var ELK` (engine) plus `ElkLayout`/`ElkAdapter`/`ElkApplier` (the mxGraph bridge + postLayout facade), consumed by drawio-mermaid and the postLayout pass. Loaded before mermaid.
- * @param {string} [options.libavoidJs] - The processed libavoid-js bundle (exports stripped, `globalThis.AvoidLib` aliased, loader patched to read `globalThis.__LIBAVOID_WASM_BINARY`). Powers the `routing: "libavoid"` edge-routing pass.
+ * @param {string} [options.libavoidJs] - The processed libavoid-js bundle (exports stripped, `globalThis.AvoidLib` aliased, loader patched to read `globalThis.__LIBAVOID_WASM_BINARY`) with the vendored libavoid-routing.js (defines `globalThis.AvoidRouting` — the shared routing core, canonical in drawio-dev js/libavoid-js/) appended. Powers the `routing: "libavoid"` edge-routing pass.
  * @param {string} [options.libavoidWasmB64] - The libavoid.wasm binary, base64-encoded. Decoded to a Uint8Array and handed to the Emscripten module as `wasmBinary` so the router instantiates with no fetch.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Exposed as window.__DRAWIO_BUILD in the iframe.
  * @returns {string} Self-contained HTML string.
@@ -455,7 +454,6 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
     <script>
 ${appWithDepsJs}
 ${normalizeDiagramXml.toString()}
-${computeLibavoidRoutes.toString()}
 
 // --- XML healing for partial/streaming XML ---
 
@@ -1708,6 +1706,52 @@ function getAbsoluteModelBounds(graph, cell)
 }
 
 /**
+ * A fixed connection point on one end of an edge (exitX/exitY for the source,
+ * entryX/entryY for the target) as {x, y, dir} via
+ * AvoidRouting.constraintForPoint (from the vendored libavoid-routing.js —
+ * clamps to the pin's [0,1] domain, derives the ConnDirFlags from the
+ * original values). null for a floating endpoint. Mirrors
+ * LibavoidRouting.fixedConstraint in the draw.io editor.
+ */
+function libavoidFixedConstraint(style, source)
+{
+  return AvoidRouting.constraintForPoint(
+    parseFloat(mxUtils.getValue(style, source ? 'exitX' : 'entryX', null)),
+    parseFloat(mxUtils.getValue(style, source ? 'exitY' : 'entryY', null)));
+}
+
+/**
+ * Resolved jetty size (minimum first/last segment length, px) for one end of
+ * an edge, mirroring mxEdgeStyle.getJettySize: sourceJettySize/targetJettySize
+ * over jettySize, with 'auto' derived from the end's arrow size. A missing
+ * jettySize resolves as 'auto' — that's what the write-back sets, so the route
+ * matches a later in-editor re-route.
+ */
+function libavoidJettyFor(style, source)
+{
+  var value = mxUtils.getValue(style, source ? 'sourceJettySize' : 'targetJettySize',
+    mxUtils.getValue(style, 'jettySize', 'auto'));
+
+  if (value == 'auto')
+  {
+    var type = mxUtils.getValue(style, source ? 'startArrow' : 'endArrow', 'none');
+
+    if (type != 'none')
+    {
+      var size = mxUtils.getNumber(style, source ? 'startSize' : 'endSize', 6);
+      value = Math.max(2, Math.ceil((size + 10) / 10)) * 10; // orthBuffer 10
+    }
+    else
+    {
+      value = 20; // 2 * orthBuffer
+    }
+  }
+
+  value = parseFloat(value);
+  return isNaN(value) ? 0 : value;
+}
+
+/**
  * Run libavoid over the current graph: register every vertex as an obstacle,
  * route every edge (whose endpoints are known vertices) around them with
  * orthogonal obstacle-avoiding paths, and write the resulting bend points
@@ -1715,10 +1759,12 @@ function getAbsoluteModelBounds(graph, cell)
  * the complement to applyPostLayout (which moves vertices). Synchronous once
  * Avoid is ready; the caller awaits readiness via applyRouting().
  *
- * The libavoid-driving core lives in the shared computeLibavoidRoutes() helper
- * (inlined into this bundle via toString() — see buildHtml) so it stays in sync
- * with the mcp-tool-server's server-side routing. Here we only do the mxGraph-
- * specific extract (vertices/edges in absolute coords) and write-back.
+ * The libavoid-driving core is AvoidRouting.computeRoutes from the vendored
+ * libavoid-routing.js (canonical source: drawio-dev js/libavoid-js/ — the same
+ * artifact the draw.io editor and the mcp-tool-server run), inlined with the
+ * libavoid glue. Here we only do the mxGraph-specific extract (vertices/edges
+ * in absolute coords) and write-back — incl. fixed connection points (directed
+ * pins) and per-end jetty stubs, like the editor's routeCells.
  */
 function routeWithLibavoid(graph, Avoid)
 {
@@ -1749,13 +1795,20 @@ function routeWithLibavoid(graph, Avoid)
       var t = model.getTerminal(c, false);
       if (s != null && t != null && s.vertex && t.vertex)
       {
-        edges.push({ id: id, source: s.id, target: t.id });
+        // Fixed connection points (exitX/entryX…) route via directed pins and
+        // the per-end jettySize gives their minimum stub — like the editor.
+        var st = graph.getCellStyle(c);
+        edges.push({ id: id, source: s.id, target: t.id,
+          sourceConstraint: libavoidFixedConstraint(st, true),
+          targetConstraint: libavoidFixedConstraint(st, false),
+          sourceJetty: libavoidJettyFor(st, true),
+          targetJetty: libavoidJettyFor(st, false) });
         edgeCells[id] = c;
       }
     }
   }
 
-  var routes = computeLibavoidRoutes(Avoid, vertices, edges);
+  var routes = AvoidRouting.computeRoutes(Avoid, vertices, edges);
   var routedIds = Object.keys(routes);
   if (routedIds.length === 0) return false;
 
@@ -1796,7 +1849,12 @@ function routeWithLibavoid(graph, Avoid)
       style = mxUtils.setStyle(style, 'curved', null);
       style = mxUtils.setStyle(style, 'libavoidRouting', '1');
       style = mxUtils.setStyle(style, 'orthogonalLoop', '1');
-      style = mxUtils.setStyle(style, 'jettySize', 'auto');
+      // Preserve an explicit jettySize (the route was computed with it — see
+      // libavoidJettyFor); only a missing one gets the editor default 'auto'.
+      if (!(/(^|;)jettySize=/.test(style)))
+      {
+        style = mxUtils.setStyle(style, 'jettySize', 'auto');
+      }
       style = mxUtils.setStyle(style, 'html', '1');
       model.setStyle(edge, style);
     }

@@ -1,5 +1,4 @@
 node_modules/
 src/xml-reference.md
 src/mermaid-reference.md
-src/libavoid-routing.js
 src/shape-search.js

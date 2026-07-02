@@ -7,7 +7,7 @@ The original draw.io MCP server. Opens diagrams directly in the draw.io editor v
 | File | Purpose |
 |------|---------|
 | `src/index.js` | Single-file server (stdio transport, vanilla JS, no build step) |
-| `src/libavoid-pass.js` | Server-side libavoid edge-routing pass for `open_drawio_xml` (`routing: "libavoid"`) — parses the mxGraphModel XML, runs the shared `computeLibavoidRoutes`, writes waypoints back |
+| `src/libavoid-pass.js` | Server-side libavoid edge-routing pass for `open_drawio_xml` (`routing: "libavoid"`) — parses the mxGraphModel XML, runs the vendored routing core (`AvoidRouting.computeRoutes`), writes waypoints back |
 | `vendor/libavoid/` | Vendored libavoid-js **node** build + `libavoid.wasm` (see its README). Loaded by path in plain Node — no inlining/base64 (that's the app server's sandbox concern) |
 
 ## Tools
@@ -16,7 +16,7 @@ The original draw.io MCP server. Opens diagrams directly in the draw.io editor v
 
 Opens draw.io with native XML content. Full control over styling and positioning.
 
-**`routing: "libavoid"`** (optional) runs an obstacle-avoiding orthogonal edge-routing pass server-side before the URL is built: vertices stay put, connectors are recomputed to route *around* shapes in clean right angles (draw.io's built-in router has no obstacle avoidance). The routing math is the shared `computeLibavoidRoutes` (canonical in `shared/libavoid-routing.js`, copied into `src/` by `copy-shared`), identical to the app server's. Fails safe — any parse/route issue returns the original XML unrouted.
+**`routing: "libavoid"`** (optional) runs an obstacle-avoiding orthogonal edge-routing pass server-side before the URL is built: vertices stay put, connectors are recomputed to route *around* shapes in clean right angles (draw.io's built-in router has no obstacle avoidance). The routing math is `AvoidRouting.computeRoutes` from the vendored `vendor/libavoid/libavoid-routing.js` — a verbatim copy of the canonical `drawio-dev js/libavoid-js/libavoid-routing.js`, identical to the app server's and the draw.io editor's. Fails safe — any parse/route issue returns the original XML unrouted.
 
 ### `open_drawio_csv`
 
@@ -52,7 +52,7 @@ To keep the npm package lean, the ~4.6 MB `search-index.json` is **not** bundled
 
 ## XML Reference
 
-The `open_drawio_xml` tool description is loaded at startup from `shared/xml-reference.md` (single source of truth for all prompts). The `copy-shared` script (run on `prestart` and `prepack`) copies it — plus `shared/libavoid-routing.js` and `shared/shape-search.js` — into `src/` so the npm package is self-contained. These copies are gitignored; `libavoid-pass.js` and the `search_shapes` loader import the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
+The `open_drawio_xml` tool description is loaded at startup from `shared/xml-reference.md` (single source of truth for all prompts). The `copy-shared` script (run on `prestart` and `prepack`) copies it — plus `shared/mermaid-reference.md` and `shared/shape-search.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The libavoid routing core is NOT part of copy-shared — it lives in `vendor/libavoid/libavoid-routing.js`, synced from drawio-dev. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
 
 ## Coding Conventions
 

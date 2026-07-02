@@ -87,9 +87,14 @@ if (process.env.MERMAID_PATH)
 // The wasm (~492 KB) is a separate artifact with no SINGLE_FILE build, so we
 // base64-inline it and hand the bytes in as wasmBinary — no fetch (the sandbox
 // has no allow-same-origin and the CSP forbids data: URIs in connect-src).
+// The shared routing core (libavoid-routing.js, defines
+// globalThis.AvoidRouting; canonical source: drawio-dev js/libavoid-js/) is
+// appended to the glue.
 const libavoidJs = processLibavoidBundle(fs.readFileSync(
   path.join(__dirname, "..", "vendor", "libavoid", "libavoid.min.js"), "utf-8"
-));
+)) + "\n" + fs.readFileSync(
+  path.join(__dirname, "..", "vendor", "libavoid", "libavoid-routing.js"), "utf-8"
+);
 const libavoidWasmB64 = fs.readFileSync(
   path.join(__dirname, "..", "vendor", "libavoid", "libavoid.wasm")
 ).toString("base64");

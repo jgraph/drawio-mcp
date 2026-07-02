@@ -21,6 +21,13 @@ Artifacts:
   `Module.wasmBinary` (a `Uint8Array`), so the router instantiates with
   **no `fetch`** — the sandboxed iframe has no `allow-same-origin` and the
   host CSP's `connect-src` doesn't permit `data:` URIs.
+- `libavoid-routing.js` — the shared routing core (`globalThis.AvoidRouting`:
+  `computeRoutes` incl. fixed-connection-point pins and jettySize stub
+  checkpoints, plus the pure geometry helpers). Appended to the processed glue
+  and inlined with it (`build-html.js` / `index.js`). **Verbatim copy** — the
+  canonical source is `drawio-dev src/main/webapp/js/libavoid-js/
+  libavoid-routing.js` (the same artifact the draw.io editor bundles and the
+  tool server imports); copy it over when it changes there.
 - `libavoid.d.ts` — TypeScript typings for the `Avoid` API
   (`Router`, `ShapeRef`, `ConnRef`, `ConnEnd`, `Rectangle`, `Point`,
   `displayRoute()`, `processTransaction()`, routing parameters/options).
