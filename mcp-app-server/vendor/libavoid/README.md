@@ -1,69 +1,43 @@
-# libavoid Vendor
+# libavoid (app server) — loaded from the CDN
 
 Obstacle-avoiding orthogonal **edge routing** (the `routing: "libavoid"`
-pass), vendored from the upstream [`libavoid-js`](https://github.com/Aksem/libavoid-js)
-npm package. Unlike drawio-elk (which both *places* nodes and routes
-edges), libavoid never moves a vertex — it only computes edge paths that
-route around the vertices as obstacles. (drawio-elk and drawio-mermaid load
-from the `viewer.diagrams.net` CDN; libavoid stays vendored because WASM
-can't be a plain CDN `<script src>`.)
+pass). Since the draw.io release that ships `js/libavoid-js/` on
+`viewer.diagrams.net`, the viewer HTML loads libavoid from the CDN like
+drawio-elk and drawio-mermaid — nothing is vendored here anymore:
 
-Artifacts:
+```html
+<script src="https://viewer.diagrams.net/js/libavoid-js/libavoid.min.js"></script>
+<script src="https://viewer.diagrams.net/js/libavoid-js/libavoid-wasm.js"></script>
+<script src="https://viewer.diagrams.net/js/libavoid-js/libavoid-loader.js"></script>
+<script src="https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js"></script>
+```
 
-- `libavoid.min.js` — the browser glue (`libavoid-js` `dist/index.js`).
-  Ships as ESM (`export { … as AvoidLib }`) and uses `import.meta.url`.
-  `processLibavoidBundle` in `shared.js` neutralizes `import.meta.url`,
-  patches the loader to accept an inlined `wasmBinary`, then strips the
-  export and aliases `globalThis.AvoidLib`.
-- `libavoid.wasm` — the Emscripten WebAssembly binary (~492 KB). There is
-  **no** SINGLE_FILE build, so the wasm is a separate artifact. It is
-  base64-inlined into the HTML and handed to the Emscripten module as
-  `Module.wasmBinary` (a `Uint8Array`), so the router instantiates with
-  **no `fetch`** — the sandboxed iframe has no `allow-same-origin` and the
-  host CSP's `connect-src` doesn't permit `data:` URIs.
-- `libavoid-routing.js` — the shared routing core (`globalThis.AvoidRouting`:
-  `computeRoutes` incl. fixed-connection-point pins and jettySize stub
-  checkpoints, plus the pure geometry helpers). Appended to the processed glue
-  and inlined with it (`build-html.js` / `index.js`). **Verbatim copy** — the
-  canonical source is `drawio-dev src/main/webapp/js/libavoid-js/
-  libavoid-routing.js` (the same artifact the draw.io editor bundles and the
-  tool server imports); copy it over when it changes there.
+(glue → base64 wasm payload → loader → shared routing core; see
+`buildHtml`'s `libavoidBlock` in `src/shared.js`). The wasm rides as base64
+inside `libavoid-wasm.js` and is decoded by the loader — still **no
+`fetch`**, so the sandboxed iframe (no `allow-same-origin`, no `data:` in
+`connect-src`) is satisfied by plain `script-src`. The loader parks
+`window.__libavoidReady` (resolves to the `Avoid` namespace, or `null` on
+failure); the routing core defines `globalThis.AvoidRouting` — the same
+canonical artifact the draw.io editor bundles into `extensions.min.js` and
+the mcp-tool-server vendors (`mcp-tool-server/vendor/libavoid/`, which stays
+vendored: it runs server-side in Node and ships in the npm package).
+
+`buildHtml` still supports inlining a local build instead (pass
+`options.libavoidJs` — a `processLibavoidBundle`-processed glue with
+`libavoid-routing.js` appended — plus `options.libavoidWasmB64`), e.g. for
+testing unreleased libavoid changes.
+
+Remaining files:
+
 - `libavoid.d.ts` — TypeScript typings for the `Avoid` API
   (`Router`, `ShapeRef`, `ConnRef`, `ConnEnd`, `Rectangle`, `Point`,
-  `displayRoute()`, `processTransaction()`, routing parameters/options).
-- `LICENSE` — libavoid-js is LGPL-2.1-or-later.
-
-## Browser API
-
-```js
-await AvoidLib.load();               // wasmBinary is injected by the loader
-var Avoid = AvoidLib.getInstance();
-var router = new Avoid.Router(Avoid.OrthogonalRouting);
-new Avoid.ShapeRef(router, new Avoid.Rectangle(topLeft, bottomRight)); // obstacle per vertex
-var conn = new Avoid.ConnRef(router, srcConnEnd, dstConnEnd);          // one per edge
-router.processTransaction();
-var route = conn.displayRoute();     // PolyLine: route.size(), route.at(i).{x,y}
-```
+  `displayRoute()`, `processTransaction()`, routing parameters/options) —
+  kept as a dev reference for the viewer-side routing code in `shared.js`.
+- `LICENSE` — libavoid-js is LGPL-2.1-or-later (kept for reference; the
+  binaries are served by the CDN, not shipped from this repo).
 
 > ⚠️ WebAssembly must instantiate inside the Claude.ai MCP-app iframe,
 > which requires the host CSP to allow wasm compilation
-> (`'wasm-unsafe-eval'`). This works locally (no CSP) but must be
-> confirmed on staging in the real sandbox.
-
-## Versioning
-
-Vendored from `libavoid-js@0.5.0-beta.5`. The package has no version
-banner in the dist, so the version is recorded here.
-
-## Refreshing
-
-```sh
-npm pack libavoid-js
-tar -xzf libavoid-js-*.tgz
-cp package/dist/index.js   vendor/libavoid/libavoid.min.js
-cp package/dist/libavoid.wasm vendor/libavoid/libavoid.wasm
-cp package/typings/libavoid.d.ts vendor/libavoid/libavoid.d.ts
-cp package/LICENSE         vendor/libavoid/LICENSE
-```
-
-Then update the version recorded above.
+> (`'wasm-unsafe-eval'`) and `viewer.diagrams.net` in `script-src` (the
+> same allowance drawio-elk/drawio-mermaid already rely on).

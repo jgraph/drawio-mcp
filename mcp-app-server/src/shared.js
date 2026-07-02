@@ -10,12 +10,13 @@ import { buildTagMap, searchShapes } from "../../shared/shape-search.js";
 
 /**
  * Build the self-contained HTML string that renders diagrams.
- * The MCP Apps App class, pako deflate, and (optionally) libavoid are
- * inlined. The draw.io viewer, drawio-elk, and drawio-mermaid load from
- * the viewer.diagrams.net CDN by default — cached cross-session and kept
- * in version-sync with each draw.io release. Pass viewerJs/elkJs/mermaidJs
- * to inline a local build instead (for dev — see VIEWER_PATH/ELK_PATH/
- * MERMAID_PATH in index.js).
+ * The MCP Apps App class and pako deflate are inlined. The draw.io viewer,
+ * drawio-elk, drawio-mermaid, and libavoid (glue + wasm payload + loader +
+ * routing core from js/libavoid-js/) load from the viewer.diagrams.net CDN
+ * by default — cached cross-session and kept in version-sync with each
+ * draw.io release. Pass viewerJs/elkJs/mermaidJs (or libavoidJs +
+ * libavoidWasmB64) to inline a local build instead (for dev — see
+ * VIEWER_PATH/ELK_PATH/MERMAID_PATH in index.js).
  *
  * @param {string} appWithDepsJs - The processed MCP Apps SDK bundle (exports stripped, App alias added).
  * @param {string} pakoDeflateJs - The pako deflate browser bundle.
@@ -23,8 +24,8 @@ import { buildTagMap, searchShapes } from "../../shared/shape-search.js";
  * @param {object} [options] - Optional configuration.
  * @param {string} [options.viewerJs] - If provided, inlines this JS instead of loading viewer-static.min.js from CDN.
  * @param {string} [options.elkJs] - If provided, inlines this drawio-elk bundle instead of loading it from CDN. Defines `var ELK` (engine) plus `ElkLayout`/`ElkAdapter`/`ElkApplier` (the mxGraph bridge + postLayout facade), consumed by drawio-mermaid and the postLayout pass. Loaded before mermaid.
- * @param {string} [options.libavoidJs] - The processed libavoid-js bundle (exports stripped, `globalThis.AvoidLib` aliased, loader patched to read `globalThis.__LIBAVOID_WASM_BINARY`) with the vendored libavoid-routing.js (defines `globalThis.AvoidRouting` — the shared routing core, canonical in drawio-dev js/libavoid-js/) appended. Powers the `routing: "libavoid"` edge-routing pass.
- * @param {string} [options.libavoidWasmB64] - The libavoid.wasm binary, base64-encoded. Decoded to a Uint8Array and handed to the Emscripten module as `wasmBinary` so the router instantiates with no fetch.
+ * @param {string} [options.libavoidJs] - If provided (together with libavoidWasmB64), inlines this processed libavoid-js bundle (exports stripped, `globalThis.AvoidLib` aliased, loader patched to read `globalThis.__LIBAVOID_WASM_BINARY` — see processLibavoidBundle) with libavoid-routing.js (defines `globalThis.AvoidRouting`) appended, instead of loading the libavoid block from the CDN. Powers the `routing: "libavoid"` edge-routing pass.
+ * @param {string} [options.libavoidWasmB64] - The libavoid.wasm binary, base64-encoded, for the inline case. Decoded to a Uint8Array and handed to the Emscripten module as `wasmBinary` so the router instantiates with no fetch.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Exposed as window.__DRAWIO_BUILD in the iframe.
  * @returns {string} Self-contained HTML string.
  */
@@ -76,7 +77,16 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       '      window.__LIBAVOID_WASM_B64 = "' + libavoidWasmB64 + '";\n' +
       '      ' + libavoidLoader +
       '    </script>'
-    : '';
+    : '<!-- libavoid-js (WASM edge router) + shared routing core from the viewer.diagrams.net CDN,\n' +
+      '         like drawio-elk/drawio-mermaid: cached cross-session, version-synced with each draw.io\n' +
+      '         release, and byte-identical to what the draw.io editor bundles. The wasm rides as\n' +
+      '         base64 inside libavoid-wasm.js; libavoid-loader.js decodes it and parks\n' +
+      '         window.__libavoidReady — still no fetch, so the sandbox CSP is satisfied by plain\n' +
+      '         script-src. Fixed order: glue -> wasm payload -> loader -> routing core. -->\n' +
+      '    <script src="https://viewer.diagrams.net/js/libavoid-js/libavoid.min.js"></script>\n' +
+      '    <script src="https://viewer.diagrams.net/js/libavoid-js/libavoid-wasm.js"></script>\n' +
+      '    <script src="https://viewer.diagrams.net/js/libavoid-js/libavoid-loader.js"></script>\n' +
+      '    <script src="https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js"></script>';
 
   return `<!DOCTYPE html>
 <html lang="en">

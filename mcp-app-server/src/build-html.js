@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildHtml, processAppBundle, processLibavoidBundle } from "./shared.js";
+import { buildHtml, processAppBundle } from "./shared.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -64,22 +64,10 @@ const pakoDeflateJs = fs.readFileSync(
 // out of generated-html.js (~1.5 MB), lets browsers cache them cross-session,
 // and keeps their versions in sync with the viewer per draw.io release.
 
-// Read + process the libavoid-js bundle (WASM obstacle-avoiding edge router —
-// see vendor/libavoid/README.md). The glue ships as ESM + import.meta.url;
-// processLibavoidBundle neutralizes that, patches the loader to read
-// globalThis.__LIBAVOID_WASM_BINARY, and aliases globalThis.AvoidLib. The wasm
-// is a separate artifact (no SINGLE_FILE build) base64-inlined and handed in as
-// wasmBinary so the router instantiates with no fetch. The shared routing core
-// (libavoid-routing.js, defines globalThis.AvoidRouting; canonical source:
-// drawio-dev js/libavoid-js/) is appended to the glue.
-const libavoidBundlePath = path.join(__dirname, "..", "vendor", "libavoid", "libavoid.min.js");
-const libavoidRaw = fs.readFileSync(libavoidBundlePath, "utf-8");
-const libavoidRoutingJs = fs.readFileSync(
-  path.join(__dirname, "..", "vendor", "libavoid", "libavoid-routing.js"), "utf-8");
-const libavoidJs = processLibavoidBundle(libavoidRaw) + "\n" + libavoidRoutingJs;
-const libavoidWasmPath = path.join(__dirname, "..", "vendor", "libavoid", "libavoid.wasm");
-const libavoidWasmB64 = fs.readFileSync(libavoidWasmPath).toString("base64");
-console.log(`libavoid bundle: ${libavoidBundlePath} (${(libavoidRaw.length / 1024).toFixed(1)} KB glue + ${(libavoidRoutingJs.length / 1024).toFixed(1)} KB routing core, ${(libavoidWasmB64.length / 1024).toFixed(1)} KB wasm base64)`);
+// libavoid (WASM edge router) is NOT inlined — the HTML loads glue + base64
+// wasm payload + loader + shared routing core from the viewer.diagrams.net
+// CDN, like drawio-elk and drawio-mermaid (see buildHtml's libavoidBlock).
+// Keeps ~700 KB out of generated-html.js.
 
 // Read the shared XML reference (single source of truth for all prompts)
 const xmlReference = fs.readFileSync(
@@ -118,7 +106,7 @@ console.log(`Favicon: ${faviconPath} (${(faviconBase64.length / 1024).toFixed(1)
 // worker can echo it in every tool response.
 const buildId = getBuildId();
 console.log(`Build ID: ${buildId}`);
-const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { libavoidJs, libavoidWasmB64, buildId });
+const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId });
 const outPath = path.join(__dirname, "generated-html.js");
 
 fs.writeFileSync(outPath,

@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, processLibavoidBundle, createServer } from "./shared.js";
+import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer } from "./shared.js";
 
 // Build identifier: git SHA + ISO timestamp + "-dirty" if uncommitted
 // changes. Same logic as build-html.js — kept in sync for the Node
@@ -80,24 +80,11 @@ if (process.env.MERMAID_PATH)
   console.log("Inlining local drawio-mermaid from", process.env.MERMAID_PATH);
 }
 
-// Inline the libavoid-js bundle (WASM obstacle-avoiding edge router, powers
-// the routing: "libavoid" pass). The glue (~44 KB) ships as ESM and uses
-// import.meta.url; processLibavoidBundle neutralizes that, patches the loader
-// to read globalThis.__LIBAVOID_WASM_BINARY, and aliases globalThis.AvoidLib.
-// The wasm (~492 KB) is a separate artifact with no SINGLE_FILE build, so we
-// base64-inline it and hand the bytes in as wasmBinary — no fetch (the sandbox
-// has no allow-same-origin and the CSP forbids data: URIs in connect-src).
-// The shared routing core (libavoid-routing.js, defines
-// globalThis.AvoidRouting; canonical source: drawio-dev js/libavoid-js/) is
-// appended to the glue.
-const libavoidJs = processLibavoidBundle(fs.readFileSync(
-  path.join(__dirname, "..", "vendor", "libavoid", "libavoid.min.js"), "utf-8"
-)) + "\n" + fs.readFileSync(
-  path.join(__dirname, "..", "vendor", "libavoid", "libavoid-routing.js"), "utf-8"
-);
-const libavoidWasmB64 = fs.readFileSync(
-  path.join(__dirname, "..", "vendor", "libavoid", "libavoid.wasm")
-).toString("base64");
+// libavoid (WASM obstacle-avoiding edge router, powers the routing: "libavoid"
+// pass) is NOT inlined — the HTML loads glue + base64 wasm payload + loader +
+// shared routing core from the viewer.diagrams.net CDN, like drawio-elk and
+// drawio-mermaid (see buildHtml's libavoidBlock). Cached cross-session,
+// version-synced with each draw.io release, and drops ~700 KB from the HTML.
 
 // Optionally inline a local viewer build (for testing GraphViewer changes).
 // Set VIEWER_PATH env var to the path of viewer-static.min.js (or a directory
@@ -156,7 +143,7 @@ if (fs.existsSync(shapeIndexPath))
 
 // Pre-build the HTML once. The buildId is baked into the HTML so the
 // iframe exposes it via window.__DRAWIO_BUILD (visible in DevTools).
-const html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, { viewerJs, elkJs, libavoidJs, libavoidWasmB64, buildId });
+const html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, { viewerJs, elkJs, buildId });
 
 // --- Transport setup ---
 
