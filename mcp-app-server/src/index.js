@@ -8,6 +8,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer } from "./shared.js";
+import { libavoidUrls } from "./libavoid-versions.js";
 
 // Build identifier: git SHA + ISO timestamp + "-dirty" if uncommitted
 // changes. Same logic as build-html.js — kept in sync for the Node
@@ -85,6 +86,14 @@ if (process.env.MERMAID_PATH)
 // shared routing core from the viewer.diagrams.net CDN, like drawio-elk and
 // drawio-mermaid (see buildHtml's libavoidBlock). Cached cross-session,
 // version-synced with each draw.io release, and drops ~700 KB from the HTML.
+// The URLs are ETag-versioned at startup (and daily on the HTTP transport)
+// so a release busts the CDN's 30-day browser cache immediately — see
+// libavoid-versions.js; on a failed startup check the plain URLs are used.
+// Deliberate startup cost: up to one HEAD timeout (~5s) when the CDN is
+// blackholed — bounded and rare (plain offline fails fast); resolving in
+// the background instead would leave the once-built stdio HTML permanently
+// unversioned.
+var libavoidScriptUrls = await libavoidUrls();
 
 // Optionally inline a local viewer build (for testing GraphViewer changes).
 // Set VIEWER_PATH env var to the path of viewer-static.min.js (or a directory
@@ -143,7 +152,10 @@ if (fs.existsSync(shapeIndexPath))
 
 // Pre-build the HTML once. The buildId is baked into the HTML so the
 // iframe exposes it via window.__DRAWIO_BUILD (visible in DevTools).
-const html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, { viewerJs, elkJs, buildId });
+// `let` — the daily libavoid version check rebuilds it in place (each
+// /mcp request creates its McpServer from the current value).
+let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
+  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls });
 
 // --- Transport setup ---
 
@@ -155,6 +167,27 @@ async function startStreamableHTTPServer()
     ? process.env.ALLOWED_HOSTS.split(",").map(function(h) { return h.trim(); })
     : undefined;
   const app = createMcpExpressApp({ host: "0.0.0.0", allowedHosts });
+
+  // Re-check the libavoid CDN ETags daily and rebuild the HTML when a
+  // draw.io release changed them — each /mcp request creates its McpServer
+  // from the current html, so new sessions pick the fresh URLs up
+  // immediately. unref() keeps the timer from holding the process open.
+  setInterval(async function()
+  {
+    try
+    {
+      const urls = await libavoidUrls(libavoidScriptUrls);
+
+      if (urls.join("\n") !== libavoidScriptUrls.join("\n"))
+      {
+        libavoidScriptUrls = urls;
+        html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
+          { viewerJs, elkJs, buildId, libavoidUrls: urls });
+        console.log("libavoid CDN versions changed; HTML rebuilt");
+      }
+    }
+    catch (e) {}
+  }, 24 * 60 * 60 * 1000).unref();
 
   // Serve favicon
   const faviconPath = path.join(__dirname, "..", "favicon.png");
