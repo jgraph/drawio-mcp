@@ -86,6 +86,16 @@ Each entry is `{"layout": <algorithm>, "config": { … }}`:
 - **Algorithms**: `elkLayered`, `elkTree`, `elkRadial`, `elkOrganic`, `elkStress`, `elkBox`.
 - **`config`**: keys starting with `elk.` are ELK options — e.g. `elk.direction` (`UP` / `DOWN` / `LEFT` / `RIGHT`), `elk.spacing.nodeNode`, `elk.layered.spacing.nodeNodeBetweenLayers`. The keys `edgeStyle` (e.g. `orthogonal`) and `corners` (e.g. `rounded`) control connector rendering.
 
+### Orthogonal edge routing
+
+`--layout libavoid` routes the **edges** orthogonally around the shapes (the editor's *Arrange ▸ Layout ▸ Orthogonal Routing*) without moving any vertex — the complement of the node layouts above. Use it as an in-place pass on hand-positioned XML whose connectors cross shapes:
+
+```bash
+drawio -x -f xml --layout libavoid -o diagram.drawio diagram.drawio
+```
+
+Skip it after a flow/tree preset — those already route their edges.
+
 **When to use it:** author the graph structure as XML without worrying about coordinates, then apply `verticalFlow` / `horizontalFlow` for flow-style diagrams or `organic` for networks. Mermaid-authored diagrams are already laid out — don't add `--layout`.
 
 ## Mermaid syntax reference
@@ -289,7 +299,8 @@ drawio -x -f <format> -e -b 10 -o "<output>" "<input.drawio>"
 Key flags:
 - `-x` / `--export`: export mode (also used for Mermaid conversion and layout passes)
 - `-f` / `--format`: output format (`xml`, png, svg, pdf, jpg) — use `xml` to produce a `.drawio` from Mermaid or a layout pass
-- `--layout`: run an ELK layout preset name or custom-layout JSON array before writing the output
+- `--layout`: run a layout before writing the output — an ELK preset name, the `libavoid` edge-routing pass, or a custom-layout JSON array
+- `--mermaid-image 1`: convert Mermaid to a single static SVG image cell (the Mermaid source stays on the cell for re-editing) instead of an editable diagram — only when the user explicitly asks for a non-editable image cell
 - `-e` / `--embed-diagram`: embed diagram XML in the output (PNG, SVG, PDF only)
 - `-o` / `--output`: output file path
 - `-b` / `--border`: border width around diagram (default: 0)
@@ -363,7 +374,7 @@ https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md
 | draw.io CLI not found | Desktop app not installed or not on PATH | Author as XML and deliver a `.drawio` file or `url` (Mermaid conversion, ELK layout, and image export all need the desktop app). Tell the user they can install the draw.io desktop app to enable those |
 | Mermaid → PNG export crashes | Direct `.mmd` → PNG with `-e` is broken in current draw.io Desktop (embedded-XML step) | Use the two-step path: convert Mermaid to `.drawio` first (`-f xml`), then export the `.drawio` to PNG — the intermediate file embeds correctly |
 | Blank diagram from Mermaid | Misspelled type keyword, or a syntax error (bad node ID, unquoted label) | Check the [Mermaid reference](#mermaid-syntax-reference); the first non-directive line's keyword selects the diagram type |
-| Layout does nothing / errors | Unknown preset name, or custom JSON not an array | Use a preset from [Layout presets](#layout-presets), or a JSON array starting with `[` |
+| Layout does nothing / errors | Unknown preset name, custom JSON not an array, or a desktop build too old for `--layout` / `.mmd` input | Use a preset from [Layout presets](#layout-presets) or a JSON array starting with `[`; on an old desktop build, author as XML with explicit positions and tell the user updating draw.io Desktop enables Mermaid conversion and layouts |
 | Export produces empty/corrupt file | Invalid XML (e.g. double hyphens in comments, unescaped special characters) | Validate XML well-formedness before writing; see the XML well-formedness section below |
 | Diagram opens but looks blank | Missing root cells `id="0"` and `id="1"` | Ensure the basic mxGraphModel structure is complete |
 | Edges not rendering | Edge mxCell is self-closing (no child mxGeometry element) | Every edge must have `<mxGeometry relative="1" as="geometry" />` as a child element |
