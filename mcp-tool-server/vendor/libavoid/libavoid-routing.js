@@ -87,15 +87,44 @@
 	};
 
 	/**
+	 * True when the point lies strictly inside any of the obstacles. A pinned
+	 * anchor sits ON its own shape's boundary, so the strict test never
+	 * matches the point's own shape.
+	 */
+	AvoidRouting.insideAny = function(x, y, obstacles)
+	{
+		if (obstacles != null)
+		{
+			for (var i = 0; i < obstacles.length; i++)
+			{
+				var v = obstacles[i];
+
+				if (v != null && x > v.x && x < v.x + v.w && y > v.y && y < v.y + v.h)
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	};
+
+	/**
 	 * The stub tip a jetty checkpoint pins the route through: the constrained
 	 * anchor on bounds b ({x,y,w,h}), moved jetty px outward along the pin's
 	 * single ConnDirFlags direction. Returns {x, y} or null when there is
 	 * nothing to enforce: no constraint, non-positive jetty, an ambiguous
 	 * direction (corner/interior anchors carry 2+ direction bits), or a tip
-	 * strictly inside an obstacle ({x,y,w,h} array) — forcing the route
-	 * through a shape is worse than a short stub.
+	 * inside an obstacle ({x,y,w,h} array) INFLATED by the solve's buffer —
+	 * libavoid's orthogonal visibility network stays clear of the buffered
+	 * zones, so a checkpoint there is unreachable and libavoid warns
+	 * ("Warning: skipping checkpoint for connector ...") on the console and
+	 * ignores it; not requesting it keeps the route identical without the
+	 * noise. The stub's OWN shape (matched by bounds) is exempt from the
+	 * inflation — the pin's lead-out segment crosses its own buffer zone
+	 * legitimately (verified against the WASM: no warning there).
 	 */
-	AvoidRouting.jettyStub = function(constraint, jetty, b, obstacles)
+	AvoidRouting.jettyStub = function(constraint, jetty, b, obstacles, buffer)
 	{
 		if (constraint == null || !(jetty > 0))
 		{
@@ -117,11 +146,20 @@
 
 		if (obstacles != null)
 		{
+			var inflate = (buffer > 0) ? buffer : 0;
+
 			for (var i = 0; i < obstacles.length; i++)
 			{
 				var v = obstacles[i];
 
-				if (v != null && x > v.x && x < v.x + v.w && y > v.y && y < v.y + v.h)
+				if (v == null ||
+					(v.x == b.x && v.y == b.y && v.w == b.w && v.h == b.h))
+				{
+					continue;
+				}
+
+				if (x > v.x - inflate && x < v.x + v.w + inflate &&
+					y > v.y - inflate && y < v.y + v.h + inflate)
 				{
 					return null;
 				}
@@ -132,11 +170,129 @@
 	};
 
 	/**
+	 * One end's jetty capped to the clearance toward the OTHER terminal along
+	 * the stub's own axis: half the directed gap (stub's base side to the
+	 * facing side of the other shape) minus the 4px routing channel — so two
+	 * facing stubs can never cross and a capped tip lands on the corridor
+	 * channel's boundary; an uncapped stub in a tight gap puts its checkpoint
+	 * past the channel and libavoid answers with a self-overlapping hairpin
+	 * that nudging splays into flat side-loops. No cap when the end floats,
+	 * the anchor is a corner/interior one (2+ direction bits — jettyStub
+	 * skips those ends anyway), the stub points away from the other shape, or
+	 * the shapes overlap along the stub's axis: such a stub never enters the
+	 * pair's corridor, so a narrow gap along the OTHER axis must not shorten
+	 * it (only the center segment squeezes through that gap, e.g. an L around
+	 * a 15px horizontal gap keeps its full vertical lead-out).
+	 */
+	AvoidRouting.cappedJetty = function(jetty, constraint, from, to)
+	{
+		var DIR = AvoidRouting.DIR;
+		var d = (constraint != null) ? constraint.dir : 0;
+		var dgap = (d == DIR.down) ? to.y - (from.y + from.h) :
+			((d == DIR.up) ? from.y - (to.y + to.h) :
+			((d == DIR.right) ? to.x - (from.x + from.w) :
+			((d == DIR.left) ? from.x - (to.x + to.w) : 0)));
+
+		if (dgap > 0)
+		{
+			var half = Math.max(2, Math.floor((dgap - 4) / 2));
+
+			if (jetty > half)
+			{
+				return half;
+			}
+		}
+
+		return jetty;
+	};
+
+	/**
+	 * Obstacles minus ENCLOSING shapes: a shape whose bounds fully contain a
+	 * routed edge's terminal (and that is not itself a terminal of one of the
+	 * edges) is the container/pool/group the terminal lives IN, not something
+	 * to route around. Registering it starves the solve of corridors (both
+	 * endpoints sit inside a hard obstacle, so routes escape it or degenerate)
+	 * and suppresses the terminals' jetty stubs (jettyStub refuses tips inside
+	 * any obstacle). Model ancestry is unknown here (this file is model-free),
+	 * so containment is geometric: rect-contains-rect, inclusive. Terminals of
+	 * the routed edges are never dropped (their ShapeRefs carry the connection
+	 * pins). Returns a filtered copy; the input arrays are not modified.
+	 */
+	AvoidRouting.filterEnclosing = function(vertices, edges)
+	{
+		if (vertices == null || edges == null || edges.length === 0)
+		{
+			return vertices;
+		}
+
+		var terminalIds = {};
+		var i;
+
+		for (i = 0; i < edges.length; i++)
+		{
+			if (edges[i] != null)
+			{
+				terminalIds[edges[i].source] = true;
+				terminalIds[edges[i].target] = true;
+			}
+		}
+
+		var terminals = [];
+
+		for (i = 0; i < vertices.length; i++)
+		{
+			var v = vertices[i];
+
+			if (v != null && terminalIds[v.id] === true)
+			{
+				terminals.push(v);
+			}
+		}
+
+		var out = [];
+
+		for (i = 0; i < vertices.length; i++)
+		{
+			var v = vertices[i];
+
+			if (v == null)
+			{
+				continue;
+			}
+
+			var enclosing = false;
+
+			if (terminalIds[v.id] !== true)
+			{
+				for (var j = 0; j < terminals.length; j++)
+				{
+					var t = terminals[j];
+
+					if (v.x <= t.x && v.y <= t.y &&
+						v.x + v.w >= t.x + t.w && v.y + v.h >= t.y + t.h)
+					{
+						enclosing = true;
+						break;
+					}
+				}
+			}
+
+			if (!enclosing)
+			{
+				out.push(v);
+			}
+		}
+
+		return out;
+	};
+
+	/**
 	 * Compute obstacle-avoiding orthogonal routes for a set of edges.
 	 *
 	 * @param {object} Avoid - the libavoid instance (AvoidLib.getInstance()).
 	 * @param {Array<{id:string,x:number,y:number,w:number,h:number}>} vertices
-	 *        Obstacles, in ABSOLUTE coordinates.
+	 *        Obstacles, in ABSOLUTE coordinates. Shapes enclosing a terminal
+	 *        of a routed edge are dropped (filterEnclosing).
 	 * @param {Array<{id,source,target,sourceConstraint?,targetConstraint?,
 	 *        sourceJetty?,targetJetty?}>} edges
 	 *        Edges referencing vertex ids (endpoints not both known vertices
@@ -145,7 +301,8 @@
 	 *        absent => the endpoint floats at the shape centre. *Jetty = the
 	 *        minimum length of the first/last segment in px (draw.io's
 	 *        jettySize), enforced for CONSTRAINED ends by a routing checkpoint
-	 *        at the stub tip.
+	 *        at the stub tip — requested lazily, only for edges whose natural
+	 *        route falls short of the minimum.
 	 * @param {{shapeBufferDistance?:number,idealNudgingDistance?:number}} [opts]
 	 *        Defaults: 16 / 14.
 	 * @returns {Object<string, Array<{x:number,y:number}>>} edge id -> interior
@@ -166,6 +323,10 @@
 
 		var buffer = (opts && opts.shapeBufferDistance != null) ? opts.shapeBufferDistance : 16;
 		var nudge = (opts && opts.idealNudgingDistance != null) ? opts.idealNudgingDistance : 14;
+
+		// Containers the terminals live in are not obstacles (also feeds the
+		// jettyStub checks below, so stubs inside a container are preserved).
+		vertices = AvoidRouting.filterEnclosing(vertices, edges);
 
 		function collinear(a, b, c)
 		{
@@ -279,22 +440,42 @@
 
 			// Jetty stubs: force the route through a checkpoint jetty px
 			// outward of each constrained anchor, so the first/last segment is
-			// at least that long. Skipped for ends where there is nothing to
-			// enforce (jettyStub), and for the whole edge when the anchors are
-			// closer than the summed stubs — the same too-short guard as
-			// mxEdgeStyle.OrthConnector — so a short edge isn't forced to
-			// double back through its checkpoints.
-			var scp = AvoidRouting.jettyStub(e.sourceConstraint, e.sourceJetty, sb, vertices);
-			var tcp = AvoidRouting.jettyStub(e.targetConstraint, e.targetJetty, tb, vertices);
+			// at least that long. Capped per end to the clearance the terminal
+			// pair's gap allows along the stub's axis (cappedJetty). Skipped
+			// for ends where there is nothing to enforce (jettyStub), and for
+			// the whole edge when the anchors are closer than the summed
+			// stubs — the same too-short guard as mxEdgeStyle.OrthConnector —
+			// so a short edge isn't forced to double back through its
+			// checkpoints. The stubs are computed here but requested LAZILY
+			// after the first solve (see below).
+			var sourceJetty = AvoidRouting.cappedJetty(e.sourceJetty, e.sourceConstraint, sb, tb);
+			var targetJetty = AvoidRouting.cappedJetty(e.targetJetty, e.targetConstraint, tb, sb);
+			var sa = anchor(sb, e.sourceConstraint);
+			var ta = anchor(tb, e.targetConstraint);
+
+			// A pinned anchor buried inside ANOTHER obstacle (a shape dragged
+			// over the terminal) puts the whole route into libavoid's escape /
+			// degenerate mode: checkpoints on such a route are unreachable and
+			// libavoid warns ("skipping checkpoint") for EVERY end — including
+			// tips in perfectly clear space — before discarding them. Skip BOTH
+			// stubs for the edge instead (verified against the WASM: same
+			// route, no console noise).
+			var buried = (e.sourceConstraint != null &&
+					AvoidRouting.insideAny(sa.x, sa.y, vertices)) ||
+				(e.targetConstraint != null &&
+					AvoidRouting.insideAny(ta.x, ta.y, vertices));
+
+			var scp = buried ? null :
+				AvoidRouting.jettyStub(e.sourceConstraint, sourceJetty, sb, vertices, buffer);
+			var tcp = buried ? null :
+				AvoidRouting.jettyStub(e.targetConstraint, targetJetty, tb, vertices, buffer);
 
 			if (scp != null || tcp != null)
 			{
-				var sa = anchor(sb, e.sourceConstraint);
-				var ta = anchor(tb, e.targetConstraint);
 				var dx = ta.x - sa.x;
 				var dy = ta.y - sa.y;
-				var total = ((scp != null) ? e.sourceJetty : 0) +
-					((tcp != null) ? e.targetJetty : 0);
+				var total = ((scp != null) ? sourceJetty : 0) +
+					((tcp != null) ? targetJetty : 0);
 
 				if (dx * dx + dy * dy < total * total)
 				{
@@ -303,18 +484,8 @@
 				}
 			}
 
-			if (scp != null || tcp != null)
-			{
-				// In route order (source first); setRoutingCheckpoints copies
-				// the vector, so free the wrapper.
-				var cps = new Avoid.CheckpointVector();
-				addCheckpoint(cps, scp);
-				addCheckpoint(cps, tcp);
-				conn.setRoutingCheckpoints(cps);
-				cps.delete();
-			}
-
-			conns.push({id: e.id, conn: conn});
+			conns.push({id: e.id, conn: conn, scp: scp, tcp: tcp,
+				sourceJetty: sourceJetty, targetJetty: targetJetty});
 		}
 
 		if (conns.length === 0)
@@ -324,6 +495,84 @@
 		}
 
 		router.processTransaction();
+
+		// LAZY jetty enforcement: the first solve runs WITHOUT the stub
+		// checkpoints; they are requested only for edges whose natural route
+		// violates a jetty minimum, and the transaction re-processed once. A
+		// checkpoint is a hard point the route must touch: when libavoid
+		// TURNS at one instead of crossing it mid-segment, the adjacent bend
+		// is pinned at the stub tip and nudging cannot center the segment in
+		// its channel — lopsided lead-outs (e.g. 30/10 on one edge next to a
+		// centered 20/20 twin) on routes that met the minimum for free.
+		// Enforcing lazily keeps the nudged, evenly distributed route
+		// wherever it already satisfies the jetty, and falls back to the
+		// checkpointed solve only where it does not.
+		function endSegment(route, atStart)
+		{
+			var n = route.size();
+
+			if (n < 2)
+			{
+				// Degenerate route; checkpoints cannot improve it.
+				return Infinity;
+			}
+
+			var a = route.at(atStart ? 0 : n - 1);
+			var b = route.at(atStart ? 1 : n - 2);
+			var horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+			var len = 0;
+
+			// Merge collinear raw points (libavoid may split a straight
+			// lead-out): the run ends at the first point that leaves the
+			// terminal's row/column.
+			for (var k = atStart ? 1 : n - 2; k >= 0 && k < n; k += atStart ? 1 : -1)
+			{
+				var p = route.at(k);
+
+				if (Math.abs(horizontal ? p.y - a.y : p.x - a.x) > 0.5)
+				{
+					break;
+				}
+
+				len = Math.abs(horizontal ? p.x - a.x : p.y - a.y);
+			}
+
+			return len;
+		}
+
+		var dirty = false;
+
+		for (i = 0; i < conns.length; i++)
+		{
+			var c = conns[i];
+
+			if (c.scp == null && c.tcp == null)
+			{
+				continue;
+			}
+
+			// 0.5px tolerance: sub-pixel misses vanish in the output rounding
+			// and do not warrant pinning the route to the checkpoints.
+			var r0 = c.conn.displayRoute();
+
+			if ((c.scp != null && endSegment(r0, true) < c.sourceJetty - 0.5) ||
+				(c.tcp != null && endSegment(r0, false) < c.targetJetty - 0.5))
+			{
+				// In route order (source first); setRoutingCheckpoints copies
+				// the vector, so free the wrapper.
+				var cps = new Avoid.CheckpointVector();
+				addCheckpoint(cps, c.scp);
+				addCheckpoint(cps, c.tcp);
+				c.conn.setRoutingCheckpoints(cps);
+				cps.delete();
+				dirty = true;
+			}
+		}
+
+		if (dirty)
+		{
+			router.processTransaction();
+		}
 
 		for (i = 0; i < conns.length; i++)
 		{

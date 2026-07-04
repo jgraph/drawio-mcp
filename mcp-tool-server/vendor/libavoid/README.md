@@ -19,7 +19,12 @@ Artifacts:
   checkpoints, plus the pure geometry helpers). **Verbatim copy** — the
   canonical source is `drawio-dev src/main/webapp/js/libavoid-js/
   libavoid-routing.js` (the same artifact the draw.io editor bundles and the
-  app server inlines); copy it over when it changes there.
+  app server loads from the CDN); copy it over when it changes there. At
+  runtime `libavoid-pass.js` first fetches the CURRENT core from
+  `https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js` (so
+  draw.io releases ship routing fixes here automatically) and uses this copy
+  only as the fallback — CDN unreachable, path not yet in a release, or the
+  fetched source failing the sanity check.
 - `libavoid.d.ts` — TypeScript typings.
 - `LICENSE` — libavoid-js is LGPL-2.1-or-later.
 

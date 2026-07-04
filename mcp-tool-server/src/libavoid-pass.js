@@ -19,22 +19,64 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WASM_PATH = join(__dirname, "..", "vendor", "libavoid", "libavoid.wasm");
 
-// The routing core is the vendored libavoid-routing.js (canonical source:
-// drawio-dev js/libavoid-js/ — the same artifact the draw.io editor bundles
-// and the app server inlines). It is a plain browser script that assigns
-// globalThis.AvoidRouting, so import it for its side effect and read the
-// global (works because a script without import/export is valid ESM).
+// The routing core is libavoid-routing.js (canonical source: drawio-dev
+// js/libavoid-js/ — the same artifact the draw.io editor bundles and the app
+// server loads from the CDN). It is a plain browser script that assigns
+// globalThis.AvoidRouting. Fetched LAZILY from the viewer.diagrams.net CDN —
+// the same origin the app server's HTML loads it from — so routing fixes ship
+// with draw.io releases without re-vendoring here; the vendored copy is the
+// fallback (CDN unreachable, path not yet in a release, or the fetched source
+// failing the sanity check below). The WASM glue + binary stay vendored
+// either way: the CDN only serves the browser build of the glue, and the core
+// is deliberately compatible with the bindings both builds expose. One fetch
+// per process (memoized like the wasm), so a routed batch pays the latency
+// once.
+const ROUTING_CDN_URL =
+  "https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js";
+const ROUTING_FETCH_TIMEOUT_MS = 5000;
+
 let routingPromise = null;
 
 function getRouting()
 {
   if (routingPromise == null)
   {
-    routingPromise = import("../vendor/libavoid/libavoid-routing.js")
-      .then(function() { return globalThis.AvoidRouting; });
+    routingPromise = fetchRoutingFromCdn().catch(function(e)
+    {
+      // stderr — stdout carries the MCP protocol
+      console.error("[libavoid] routing core CDN fetch failed (" +
+        (e && e.message) + "); using the vendored copy");
+
+      // A script without import/export is valid ESM; import it for its
+      // side effect and read the global.
+      return import("../vendor/libavoid/libavoid-routing.js");
+    }).then(function() { return globalThis.AvoidRouting; });
   }
 
   return routingPromise;
+}
+
+async function fetchRoutingFromCdn()
+{
+  const res = await fetch(ROUTING_CDN_URL,
+    { signal: AbortSignal.timeout(ROUTING_FETCH_TIMEOUT_MS) });
+
+  if (!res.ok)
+  {
+    throw new Error("HTTP " + res.status);
+  }
+
+  const src = await res.text();
+
+  // Indirect eval runs in global scope, where the script's IIFE assigns
+  // globalThis.AvoidRouting — the same effect as the side-effect import.
+  (0, eval)(src);
+
+  if (globalThis.AvoidRouting == null ||
+    typeof globalThis.AvoidRouting.computeRoutes !== "function")
+  {
+    throw new Error("AvoidRouting missing after eval");
+  }
 }
 
 // Lazy, memoized — the wasm only loads when routing is actually requested.
