@@ -11,7 +11,8 @@
     "copy-shared": "cp ../shared/xml-reference.md src/xml-reference.md && cp ../shared/mermaid-reference.md src/mermaid-reference.md && cp ../shared/shape-search.js src/shape-search.js",
     "start": "node src/index.js",
     "prestart": "npm run copy-shared",
-    "prepack": "npm run copy-shared"
+    "prepack": "npm run copy-shared",
+    "postinstall": "node src/postinstall.js"
   },
   "keywords": [
     "mcp",

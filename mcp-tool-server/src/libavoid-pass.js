@@ -22,54 +22,30 @@ const WASM_PATH = join(__dirname, "..", "vendor", "libavoid", "libavoid.wasm");
 // The routing core is libavoid-routing.js (canonical source: drawio-dev
 // js/libavoid-js/ — the same artifact the draw.io editor bundles and the app
 // server loads from the CDN). It is a plain browser script that assigns
-// globalThis.AvoidRouting. Fetched LAZILY from the viewer.diagrams.net CDN —
-// the same origin the app server's HTML loads it from — so routing fixes ship
-// with draw.io releases without re-vendoring here; the vendored copy is the
-// fallback (CDN unreachable, path not yet in a release, or the fetched source
-// failing the sanity check below). The WASM glue + binary stay vendored
-// either way: the CDN only serves the browser build of the glue, and the core
-// is deliberately compatible with the bindings both builds expose. One fetch
-// per process (memoized like the wasm), so a routed batch pays the latency
-// once.
-const ROUTING_CDN_URL =
-  "https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js";
-const ROUTING_FETCH_TIMEOUT_MS = 5000;
+// globalThis.AvoidRouting. Loaded through the ETag-revalidated per-user disk
+// cache (routing-core-cache.js: primed by npm postinstall, refreshed from the
+// viewer.diagrams.net CDN only when the file actually changed — a 304
+// otherwise), so routing fixes ship with draw.io releases without
+// re-vendoring here; the vendored copy is the last fallback (CDN unreachable
+// with a cold cache, path not yet in a release, or the source failing the
+// sanity check below). The WASM glue + binary stay vendored either way: the
+// CDN only serves the browser build of the glue, and the core is
+// deliberately compatible with the bindings both builds expose. One
+// revalidation per process (memoized like the wasm load).
+import { loadCoreSource } from "./routing-core-cache.js";
 
 let routingPromise = null;
 
-function getRouting()
+// Indirect eval runs in global scope, where the script's IIFE assigns
+// globalThis.AvoidRouting — the same effect as a side-effect import. Throws
+// on unusable source, so loadCoreSource never caches or returns one. The
+// global is cleared first: loadCoreSource validates the cached copy before
+// a download, and its leftover global must not vouch for a fresh body that
+// fails to define AvoidRouting itself.
+function evalRoutingCore(src)
 {
-  if (routingPromise == null)
-  {
-    routingPromise = fetchRoutingFromCdn().catch(function(e)
-    {
-      // stderr — stdout carries the MCP protocol
-      console.error("[libavoid] routing core CDN fetch failed (" +
-        (e && e.message) + "); using the vendored copy");
+  delete globalThis.AvoidRouting;
 
-      // A script without import/export is valid ESM; import it for its
-      // side effect and read the global.
-      return import("../vendor/libavoid/libavoid-routing.js");
-    }).then(function() { return globalThis.AvoidRouting; });
-  }
-
-  return routingPromise;
-}
-
-async function fetchRoutingFromCdn()
-{
-  const res = await fetch(ROUTING_CDN_URL,
-    { signal: AbortSignal.timeout(ROUTING_FETCH_TIMEOUT_MS) });
-
-  if (!res.ok)
-  {
-    throw new Error("HTTP " + res.status);
-  }
-
-  const src = await res.text();
-
-  // Indirect eval runs in global scope, where the script's IIFE assigns
-  // globalThis.AvoidRouting — the same effect as the side-effect import.
   (0, eval)(src);
 
   if (globalThis.AvoidRouting == null ||
@@ -77,6 +53,36 @@ async function fetchRoutingFromCdn()
   {
     throw new Error("AvoidRouting missing after eval");
   }
+}
+
+function getRouting()
+{
+  if (routingPromise == null)
+  {
+    routingPromise = loadCoreSource(evalRoutingCore).then(function(src)
+    {
+      // Evaluate the returned choice: a NEWER download that failed
+      // validation is evaluated (clearing the global) AFTER the cached
+      // copy loadCoreSource falls back to, so the last eval doesn't
+      // necessarily match the returned source. Eval is idempotent and the
+      // file is tiny.
+      evalRoutingCore(src);
+
+      return globalThis.AvoidRouting;
+    }).catch(function(e)
+    {
+      // stderr — stdout carries the MCP protocol
+      console.error("[libavoid] routing core CDN/cache unavailable (" +
+        (e && e.message) + "); using the vendored copy");
+
+      // A script without import/export is valid ESM; import it for its
+      // side effect and read the global.
+      return import("../vendor/libavoid/libavoid-routing.js")
+        .then(function() { return globalThis.AvoidRouting; });
+    });
+  }
+
+  return routingPromise;
 }
 
 // Lazy, memoized — the wasm only loads when routing is actually requested.

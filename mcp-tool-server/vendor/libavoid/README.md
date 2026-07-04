@@ -20,11 +20,14 @@ Artifacts:
   canonical source is `drawio-dev src/main/webapp/js/libavoid-js/
   libavoid-routing.js` (the same artifact the draw.io editor bundles and the
   app server loads from the CDN); copy it over when it changes there. At
-  runtime `libavoid-pass.js` first fetches the CURRENT core from
-  `https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js` (so
-  draw.io releases ship routing fixes here automatically) and uses this copy
-  only as the fallback — CDN unreachable, path not yet in a release, or the
-  fetched source failing the sanity check.
+  runtime `libavoid-pass.js` loads the CURRENT core through an
+  ETag-revalidated per-user disk cache (`src/routing-core-cache.js`, primed
+  by npm postinstall, revalidated against
+  `https://viewer.diagrams.net/js/libavoid-js/libavoid-routing.js` once per
+  process — a 304 unless a draw.io release changed it), so routing fixes
+  ship here automatically. This copy is the last fallback — CDN unreachable
+  with a cold cache, path not yet in a release, or the source failing the
+  sanity check.
 - `libavoid.d.ts` — TypeScript typings.
 - `LICENSE` — libavoid-js is LGPL-2.1-or-later.
 
