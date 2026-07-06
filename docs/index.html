@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>draw.io MCP — Diagrams, generated where you work</title>
+<meta name="description" content="The official draw.io MCP server. Give any LLM the ability to draw — interactive draw.io diagrams inline in chat, in the editor, or as native .drawio files.">
+<meta property="og:title" content="draw.io MCP">
+<meta property="og:description" content="The official draw.io MCP server that enables LLMs to create and open diagrams in the draw.io editor.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://jgraph.github.io/drawio-mcp/">
+<link rel="icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1319;
+    --panel: #161c26;
+    --panel-2: #131926;
+    --line: #1e2632;
+    --line-2: #2b3646;
+    --text: #e6eaf1;
+    --muted: #9aa5b4;
+    --faint: #5d6b80;
+    --orange: #F08705;
+    --green: #6fbf73;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 44px; }
+
+  /* nav */
+  nav { border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; padding-top: 18px; padding-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand-mark { width: 26px; height: 26px; background: var(--orange); border-radius: 5px; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 14px; }
+  .brand-name { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+  .nav-links { display: flex; align-items: center; gap: 24px; font-size: 13.5px; color: var(--muted); }
+  .nav-links a { color: inherit; text-decoration: none; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-gh { color: var(--text) !important; border: 1px solid var(--line-2); border-radius: 7px; padding: 7px 14px; font-weight: 600; }
+  .nav-gh:hover { border-color: var(--faint); }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: 440px 1fr; gap: 44px; align-items: center; padding: 64px 0 60px; }
+  .kicker { font-family: var(--mono); font-size: 12.5px; color: var(--orange); margin-bottom: 18px; }
+  h1 { margin: 0; font-size: 46px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 700; text-wrap: balance; }
+  .sub { margin: 18px 0 0; font-size: 16.5px; line-height: 1.6; color: var(--muted); text-wrap: pretty; }
+  .sub code, .cell code { font-family: var(--mono); font-size: 0.88em; }
+  .installs { display: flex; flex-direction: column; gap: 10px; margin-top: 28px; }
+  .install { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 9px; padding: 12px 14px; font-family: var(--mono); font-size: 14px; }
+  .install .comment { color: var(--faint); }
+  .install .prompt { color: var(--green); }
+  .copy-btn { border-radius: 6px; padding: 7px 13px; font-size: 12.5px; cursor: pointer; font-family: var(--mono); flex: none; }
+  .copy-primary { background: var(--orange); border: none; color: #101418; font-weight: 700; }
+  .copy-primary:hover { background: #ff9a1f; }
+  .copy-ghost { background: transparent; border: 1px solid var(--line-2); color: var(--text); font-weight: 600; }
+  .copy-ghost:hover { border-color: var(--faint); }
+
+  .demo { border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; background: #0b0e13; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+  .demo-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  .demo-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); flex: none; }
+  .demo video { width: 100%; display: block; background: #0b0e13; }
+
+  /* tools strip */
+  .tools { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .tool { padding: 22px 44px; }
+  .tool + .tool { border-left: 1px solid var(--line); }
+  .tool-name { font-family: var(--mono); font-size: 14px; color: var(--orange); }
+  .tool p { margin: 6px 0 0; font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+  /* matrix */
+  .matrix-section { padding: 54px 0; }
+  h2 { margin: 0 0 4px; font-size: 26px; letter-spacing: -0.01em; }
+  .matrix-section > .lede { margin: 0 0 26px; font-size: 15px; color: var(--muted); }
+  .matrix { display: grid; grid-template-columns: 190px 1.2fr 1fr 1.2fr 110px; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .matrix .h { padding: 12px 18px; background: var(--panel-2); font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  .matrix .cell { padding: 16px 18px; border-top: 1px solid var(--line); color: var(--muted); }
+  .matrix .cell.name { color: var(--text); font-weight: 700; }
+  .matrix .cell.name a { text-decoration: none; }
+  .matrix .cell.name a:hover { color: var(--orange); }
+  .matrix .none { color: var(--green); }
+  .matrix-note { margin: 14px 2px 0; font-size: 13px; color: var(--faint); }
+  .matrix-note a { color: var(--muted); }
+
+  /* footer */
+  footer { border-top: 1px solid var(--line); }
+  footer .wrap { display: flex; align-items: center; justify-content: space-between; padding-top: 24px; padding-bottom: 24px; font-size: 13px; color: var(--faint); font-family: var(--mono); }
+  .foot-links { display: flex; gap: 22px; }
+  .foot-links a { color: var(--muted); text-decoration: none; }
+  .foot-links a:hover { color: var(--text); }
+
+  @media (max-width: 980px) {
+    .wrap { padding: 0 24px; }
+    .hero { grid-template-columns: 1fr; padding: 44px 0; }
+    .tools { grid-template-columns: 1fr; }
+    .tool { padding: 22px 24px; }
+    .tool + .tool { border-left: none; border-top: 1px solid var(--line); }
+    .matrix { display: block; border: none; }
+    .matrix .h { display: none; }
+    .matrix .cell { border: none; padding: 3px 0; }
+    .matrix .cell.name { padding: 18px 0 3px; font-size: 16px; }
+    .matrix .cell[data-l]::before { content: attr(data-l) " · "; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+    .nav-links a:not(.nav-gh) { display: none; }
+    h1 { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="brand-mark">d</span>
+      <span class="brand-name">drawio-mcp</span>
+    </a>
+    <div class="nav-links">
+      <a href="#approaches">Approaches</a>
+      <a href="#tools">Tools</a>
+      <a href="https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-reference.md">Reference</a>
+      <a class="nav-gh" href="https://github.com/jgraph/drawio-mcp">GitHub <span id="star-count">★</span></a>
+    </div>
+  </div>
+</nav>
+
+<header class="wrap hero">
+  <div>
+    <div class="kicker">jgraph/drawio-mcp · official</div>
+    <h1>Diagrams, generated where you work.</h1>
+    <p class="sub">Give any LLM the ability to draw. Interactive draw.io diagrams inline in chat, in the editor, or as native <code>.drawio</code> files on disk.</p>
+    <div class="installs">
+      <div class="install">
+        <span><span class="comment"># remote, zero install</span><br>https://mcp.draw.io/mcp</span>
+        <button class="copy-btn copy-primary" data-copy="https://mcp.draw.io/mcp">Copy</button>
+      </div>
+      <div class="install">
+        <span><span class="comment"># local tool server</span><br><span class="prompt">$</span> npx @drawio/mcp</span>
+        <button class="copy-btn copy-ghost" data-copy="npx @drawio/mcp">Copy</button>
+      </div>
+    </div>
+  </div>
+  <div class="demo">
+    <div class="demo-bar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span style="margin-left:8px">create_diagram → inline render</span>
+    </div>
+    <video src="drawio-mcp-demo.mp4" autoplay loop muted playsinline></video>
+  </div>
+</header>
+
+<section class="tools" id="tools">
+  <div class="wrap" style="display:contents">
+    <div class="tool">
+      <div class="tool-name">create_diagram</div>
+      <p>Renders draw.io XML as an interactive diagram, inline in the conversation.</p>
+    </div>
+    <div class="tool">
+      <div class="tool-name">search_shapes</div>
+      <p>Keyword search over 10,000+ shapes — AWS, Azure, GCP, K8s, UML, BPMN — returns exact style strings.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap matrix-section" id="approaches">
+  <h2>Four ways to integrate</h2>
+  <p class="lede">One shared XML reference keeps all of them consistent.</p>
+  <div class="matrix">
+    <div class="h"></div><div class="h">OUTPUT</div><div class="h">FORMATS</div><div class="h">WORKS WITH</div><div class="h">INSTALL</div>
+
+    <div class="cell name"><a href="https://github.com/jgraph/drawio-mcp/blob/main/mcp-app-server/README.md">App Server</a></div>
+    <div class="cell" data-l="output">Interactive viewer inline in chat</div>
+    <div class="cell" data-l="formats">XML</div>
+    <div class="cell" data-l="works with">Claude.ai, VS Code, MCP Apps hosts</div>
+    <div class="cell none" data-l="install">none</div>
+
+    <div class="cell name"><a href="https://github.com/jgraph/drawio-mcp/blob/main/mcp-tool-server/README.md">Tool Server</a></div>
+    <div class="cell" data-l="output">draw.io editor in a new tab</div>
+    <div class="cell" data-l="formats">XML · CSV · Mermaid</div>
+    <div class="cell" data-l="works with">Claude Desktop, any MCP client</div>
+    <div class="cell" data-l="install">npm</div>
+
+    <div class="cell name"><a href="https://github.com/jgraph/drawio-mcp/blob/main/skill-cli/README.md">Skill + CLI</a></div>
+    <div class="cell" data-l="output">.drawio files · PNG/SVG/PDF export</div>
+    <div class="cell" data-l="formats">XML</div>
+    <div class="cell" data-l="works with">Claude Code</div>
+    <div class="cell" data-l="install">skill file</div>
+
+    <div class="cell name"><a href="https://github.com/jgraph/drawio-mcp/blob/main/project-instructions/README.md">Project Instructions</a></div>
+    <div class="cell" data-l="output">Clickable draw.io links</div>
+    <div class="cell" data-l="formats">XML · CSV · Mermaid</div>
+    <div class="cell" data-l="works with">Claude.ai Projects</div>
+    <div class="cell none" data-l="install">none</div>
+  </div>
+  <p class="matrix-note">Each name links to full documentation. Canonical XML guidance lives in <a href="https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-reference.md">shared/xml-reference.md</a>.</p>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>© 2026 JGraph Ltd · Apache-2.0</div>
+    <div class="foot-links">
+      <a href="https://www.draw.io">draw.io</a>
+      <a href="https://www.npmjs.com/package/@drawio/mcp">npm</a>
+      <a href="https://github.com/jgraph/drawio-mcp/blob/main/shared/xml-reference.md">xml-reference.md</a>
+      <a href="https://modelcontextprotocol.io/">MCP spec</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Fallback for servers without media streaming support (e.g. preview envs):
+  // if direct playback fails, load the file as a blob instead.
+  var demoVideo = document.querySelector('.demo video');
+  demoVideo.addEventListener('error', function () {
+    fetch('drawio-mcp-demo.mp4')
+      .then(function (r) { return r.blob(); })
+      .then(function (b) { demoVideo.src = URL.createObjectURL(b); demoVideo.play(); })
+      .catch(function () {});
+  }, { once: true });
+
+  // Live star count from the GitHub API; falls back to plain "★" on failure.
+  fetch('https://api.github.com/repos/jgraph/drawio-mcp')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || typeof d.stargazers_count !== 'number') return;
+      var n = d.stargazers_count;
+      var label = n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n);
+      document.getElementById('star-count').textContent = '★ ' + label;
+    })
+    .catch(function () {});
+
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText(btn.getAttribute('data-copy')).then(function () {
+        var old = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function () { btn.textContent = old; }, 1600);
+      });
+    });
+  });
+</script>
+
+</body>
+</html>
