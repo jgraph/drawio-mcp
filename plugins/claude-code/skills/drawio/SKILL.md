@@ -35,12 +35,13 @@ Every diagram becomes a native `.drawio` file first, then is delivered in the re
    - **XML**: write the mxGraphModel XML to `diagram.drawio` (see [XML format](#xml-format)). Optionally apply an ELK layout (see [ELK layout for XML](#elk-layout-for-xml)).
 2. **Deliver** (identical for both sources):
    - *(no format)* → keep `diagram.drawio` and open it.
-   - **png / svg / pdf** → export from the `.drawio` with embedded XML, then delete the source `.drawio`:
+   - **png / svg / pdf** → export from the `.drawio` with embedded XML. Keep the source until visual validation passes, then delete it:
      ```bash
      drawio -x -f png -e -b 10 -o diagram.drawio.png diagram.drawio
      ```
    - **url** → build a browser URL from the `.drawio` XML, open it, and keep the `.drawio` as a local copy (see [Browser URL output](#browser-url-output)).
 3. **Open the result** — the exported file, the URL, or the `.drawio`. If the open command fails, print the absolute path (or URL) so the user can open it manually.
+4. **Visually validate non-trivial diagrams** — inspect the rendered result before reporting completion. Confirm that connectors do not cross unrelated shapes, container headers, or labels; text is not clipped; decision branches and feedback paths are unambiguous; and adjacent nodes have enough separation. If you change geometry or routing, render again and re-inspect the full diagram because a local fix can create a collision elsewhere.
 
 **Always convert Mermaid to `.drawio` first, then export** — do not export a `.mmd` straight to an image. Direct Mermaid → PNG export with `-e` is broken in current draw.io Desktop (the embedded-XML step crashes); the two-step path (convert, then export the `.drawio`) is reliable and produces an editable embed. See [Troubleshooting](#troubleshooting).
 

@@ -471,6 +471,19 @@ The four combinations:
 - The user has asked for specific positions (swim lanes with exact lanes, architecture diagrams with meaningful spatial arrangement).
 - The diagram relies on containers/grouping where spatial layout encodes information.
 
+## Rendered-diagram quality gate
+
+Well-formed XML, valid edge endpoints, and a successful export prove that a diagram can render; they do not prove that the rendered layout is readable. Visually inspect non-trivial diagrams after layout or routing and before delivery.
+
+Check the rendered result for all of the following:
+
+- Connectors do not cross unrelated vertices, container headers, or text labels.
+- Arrowheads and edge labels do not overlap node content or borders, and decision branches are clearly distinguishable.
+- Node labels fit inside their shapes without clipping or unintended wrapping.
+- Adjacent decisions, outcomes, and feedback paths have enough separation to remain unambiguous.
+
+If a check fails, adjust the node placement or routing, render again, and inspect the entire diagram rather than only the edited area. A local routing fix can move the same collision to another node or header.
+
 ## Style reference
 
 Complete style reference (all shape types, style properties, color palettes, HTML labels, and more): https://github.com/jgraph/drawio-mcp/blob/main/shared/style-reference.md
