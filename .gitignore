@@ -36,6 +36,10 @@ pnpm-lock.yaml
 # TypeScript cache
 *.tsbuildinfo
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Claude Code
 .claude/
 /test/

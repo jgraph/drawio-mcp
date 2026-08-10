@@ -1,0 +1,41 @@
+name: Test Scripts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/tests/**"
+      - "plugins/claude-code/skills/drawio/scripts/**"
+      - "plugins/codex/drawio/skills/drawio/scripts/**"
+      - "plugins/copilot/skills/drawio/scripts/**"
+      - ".github/workflows/test-scripts.yml"
+  pull_request:
+    paths:
+      - "plugins/tests/**"
+      - "plugins/claude-code/skills/drawio/scripts/**"
+      - "plugins/codex/drawio/skills/drawio/scripts/**"
+      - "plugins/copilot/skills/drawio/scripts/**"
+      - ".github/workflows/test-scripts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run the test suite
+        run: python -m unittest discover -s plugins/tests -v
