@@ -33,22 +33,42 @@ Every diagram becomes a native `.drawio` file first, then is delivered in the re
      ```
      Delete the `.mmd` afterward — the `.drawio` is the artifact. draw.io's Mermaid parser has already laid the diagram out, so no `--layout` is needed.
    - **XML**: write the mxGraphModel XML to `diagram.drawio` (see [XML format](#xml-format)). Optionally apply an ELK layout (see [ELK layout for XML](#elk-layout-for-xml)).
-2. **Deliver** (identical for both sources):
+2. **Fix edge parents** — see [Edge parents](#edge-parents):
+   ```bash
+   python3 scripts/fix_edge_parents.py diagram.drawio
+   ```
+3. **Deliver** (identical for both sources):
    - *(no format)* → keep `diagram.drawio` and open it.
    - **png / svg / pdf** → export from the `.drawio` with embedded XML, then delete the source `.drawio`:
      ```bash
      drawio -x -f png -e -b 10 -o diagram.drawio.png diagram.drawio
      ```
    - **url** → build a browser URL from the `.drawio` XML, open it, and keep the `.drawio` as a local copy (see [Browser URL output](#browser-url-output)).
-3. **Open the result** — the exported file, the URL, or the `.drawio`. If the open command fails, print the absolute path (or URL) so the user can open it manually.
+4. **Open the result** — the exported file, the URL, or the `.drawio`. If the open command fails, print the absolute path (or URL) so the user can open it manually.
 
 **Always convert Mermaid to `.drawio` first, then export** — do not export a `.mmd` straight to an image. Direct Mermaid → PNG export with `-e` is broken in current draw.io Desktop (the embedded-XML step crashes); the two-step path (convert, then export the `.drawio`) is reliable and produces an editable embed. See [Troubleshooting](#troubleshooting).
 
 If Mermaid was requested but no desktop CLI is available, fall back to authoring the same diagram directly as XML.
 
+## Edge parents
+
+An edge's `parent` must be the **nearest common ancestor** of its `source` and `target` cells — the innermost container holding both endpoints, or the layer when there is none. Otherwise a layout pass lays the diagram out wrongly. This overrides the "cross-container edges use `parent="1"`" advice in the [XML reference](#xml-reference).
+
+Don't work it out by hand — a script bundled with this skill fixes every edge in place:
+
+```bash
+python3 scripts/fix_edge_parents.py diagram.drawio
+```
+
+- The path is relative to this `SKILL.md`; use the absolute path from another working directory.
+- Run it on **every** `.drawio` — Mermaid output too, since `subgraph` blocks become containers — and **before** any `--layout` pass. Running it twice is a no-op.
+- If `python3` is unavailable, set each edge's `parent` to the nearest common ancestor while authoring instead.
+
 ## ELK layout for XML
 
 XML-authored diagrams can be auto-positioned by the CLI's `--layout` pass — the same ELK layouts as the editor's *Arrange ▸ Layout* menu and the same engine the draw.io MCP app server uses. Generate the cells with approximate (or even `0,0`) positions and let ELK place them; you only have to get the graph *structure* — nodes and edges — right.
+
+Run `python3 scripts/fix_edge_parents.py diagram.drawio` first — see [Edge parents](#edge-parents).
 
 Add `--layout <name>` to any CLI call that reads your XML. The simplest form lays out in place after you write the file (reading and overwriting the same path is supported):
 
@@ -359,6 +379,7 @@ Every diagram must have this structure:
 - Cell `id="0"` is the root layer
 - Cell `id="1"` is the default parent layer
 - All diagram elements use `parent="1"` unless using multiple layers
+- An edge's `parent` is the nearest common ancestor of its `source` and `target`, not necessarily `1` — see [Edge parents](#edge-parents)
 
 (The example above uses an XML comment only to point out where cells go — never emit comments in real output; see [XML well-formedness](#critical-xml-well-formedness).)
 
@@ -374,6 +395,7 @@ https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md
 | draw.io CLI not found | Desktop app not installed or not on PATH | Author as XML and deliver a `.drawio` file or `url` (Mermaid conversion, ELK layout, and image export all need the desktop app). Tell the user they can install the draw.io desktop app to enable those |
 | Mermaid → PNG export crashes | Direct `.mmd` → PNG with `-e` is broken in current draw.io Desktop (embedded-XML step) | Use the two-step path: convert Mermaid to `.drawio` first (`-f xml`), then export the `.drawio` to PNG — the intermediate file embeds correctly |
 | Blank diagram from Mermaid | Misspelled type keyword, or a syntax error (bad node ID, unquoted label) | Check the [Mermaid reference](#mermaid-syntax-reference); the first non-directive line's keyword selects the diagram type |
+| Layout comes out wrong after a `--layout` pass | An edge's `parent` is not the nearest common ancestor of its `source` and `target` | Run `python3 scripts/fix_edge_parents.py diagram.drawio` before the `--layout` call |
 | Layout does nothing / errors | Unknown preset name, custom JSON not an array, or a desktop build too old for `--layout` / `.mmd` input | Use a preset from [Layout presets](#layout-presets) or a JSON array starting with `[`; on an old desktop build, author as XML with explicit positions and tell the user updating draw.io Desktop enables Mermaid conversion and layouts |
 | Export produces empty/corrupt file | Invalid XML (e.g. double hyphens in comments, unescaped special characters) | Validate XML well-formedness before writing; see the XML well-formedness section below |
 | Diagram opens but looks blank | Missing root cells `id="0"` and `id="1"` | Ensure the basic mxGraphModel structure is complete |

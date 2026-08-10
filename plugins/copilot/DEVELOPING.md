@@ -8,8 +8,8 @@ embedded XML) via the desktop CLI, or a browser URL that opens the diagram direc
 
 This is the Copilot counterpart of the [Claude Code plugin](../claude-code/README.md). The
 skill body is host-agnostic — it drives the draw.io Desktop CLI directly — so
-`skills/drawio/SKILL.md` is kept **byte-identical** to the Claude plugin's `SKILL.md`. That
-includes the `/drawio:drawio` lines in its examples section: those are model-facing
+`skills/drawio/SKILL.md` and the helper it ships (`skills/drawio/scripts/fix_edge_parents.py`)
+are kept **byte-identical** to the Claude plugin's copies. That includes the `/drawio:drawio` lines in its examples section: those are model-facing
 (request → output mapping), while the user-facing explicit command in Copilot is plain
 `/drawio` — Copilot does not prefix skills with the plugin name. Only the host wrapping
 differs: the manifest (root `plugin.json` vs `.claude-plugin/plugin.json`) and the
@@ -21,6 +21,7 @@ marketplace manifest location and schema.
 |------|---------|
 | `plugin.json` | Copilot plugin manifest at the plugin root — name, version, description, author, license, keywords, and the `skills` directory list |
 | `skills/drawio/SKILL.md` | The skill itself (its frontmatter `name` becomes the `/drawio` command); byte-identical to the Claude plugin's copy |
+| `skills/drawio/scripts/fix_edge_parents.py` | Bundled helper the skill runs on every generated `.drawio` — sets each edge's `parent` to the nearest common ancestor of its `source` and `target`, which a layout pass needs in order to lay the diagram out correctly; byte-identical to the Claude plugin's copy (documented in [its DEVELOPING.md](../claude-code/DEVELOPING.md#edge-parents)) |
 | `README.md` | Installation and usage documentation |
 | `../../.github/plugin/marketplace.json` | Copilot marketplace manifest at the repo root; lists this plugin with `source: "./plugins/copilot"` |
 
@@ -33,6 +34,7 @@ Codex), so this directory is itself the plugin root — the same shape as `claud
 plugins/copilot/        ← Copilot plugin root
 ├── plugin.json
 ├── skills/drawio/SKILL.md
+├── skills/drawio/scripts/fix_edge_parents.py
 ├── README.md
 └── DEVELOPING.md
 ```

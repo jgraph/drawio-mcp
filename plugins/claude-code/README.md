@@ -8,16 +8,18 @@ When you ask Claude Code to create a diagram, it will:
 
 1. Choose how to author it — **Mermaid** for standard types (flowchart, sequence, class, state, ER, gantt, mindmap…) when the desktop app is installed, or **draw.io XML** for custom styling, precise positioning, specific shape libraries, or when no desktop app is present
 2. Produce a native `.drawio` file — convert the Mermaid with the desktop CLI, or write the XML directly (optionally running an ELK `--layout` pass so you don't hand-place cells)
-3. Handle the requested output:
+3. Run the bundled `fix_edge_parents.py` over the file so every connector is parented to the innermost container holding both of its endpoints — the rule the draw.io editor applies, and what keeps a layout pass from laying the diagram out wrongly
+4. Handle the requested output:
    - PNG / SVG / PDF — export using the draw.io desktop CLI
    - `url` — compress the XML with Node.js's built-in `zlib` and open `https://app.diagrams.net/#create=...` in your browser (keeps the `.drawio` file as a local copy)
    - *(default)* — leave the `.drawio` file as-is
-4. Open the result
+5. Open the result
 
 ## Prerequisites
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed
 - [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases) installed — required for Mermaid conversion, ELK layout, and PNG/SVG/PDF export. Not needed for plain XML `.drawio` or `url` output, which Claude can produce with no desktop app
+- Python 3 on your `PATH` — used by the bundled edge-parent fixer (standard library only, no packages to install). Without it Claude sets the edge parents itself while authoring
 
 ## Installation
 

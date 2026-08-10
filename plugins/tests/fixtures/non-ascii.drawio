@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxGraphModel adaptiveColors="auto">
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    <mxCell id="容器" value="コンテナ" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="40" y="20" width="360" height="220" as="geometry"/>
+    </mxCell>
+    <mxCell id="ノード①" value="日本語ノード — ダッシュ" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="容器">
+      <mxGeometry x="20" y="40" width="120" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="ノード②" value="🚀 emoji 𝔘𝔫𝔦𝔠𝔬𝔡𝔢" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="容器">
+      <mxGeometry x="220" y="40" width="120" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="引用" value="&#26085;&#26412;&#35486;" style='html=1;label=&#34;quoted&#34;;' vertex="1" parent="容器">
+      <mxGeometry x="20" y="130" width="120" height="60" as="geometry"/>
+    </mxCell>
+    <mxCell id="外" value="&lt;b&gt;太字&lt;/b&gt; &amp; 記号 ✓" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+      <mxGeometry x="440" y="80" width="120" height="60" as="geometry"/>
+    </mxCell>
+    <!-- the `parent` of this edge should be "容器". -->
+    <mxCell id="辺①" value="矢印①②③" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" parent="1" source="ノード①" target="ノード②">
+      <mxGeometry relative="1" as="geometry">
+        <Array as="points">
+          <mxPoint x="240" y="130"/>
+        </Array>
+        <mxPoint x="10" y="-10" as="offset"/>
+      </mxGeometry>
+    </mxCell>
+    <mxCell id="辺②" value="外への矢印" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" parent="1" source="ノード②" target="外">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>

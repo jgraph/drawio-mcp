@@ -41,7 +41,8 @@ plugins/
 ├── claude-code/             ← Claude Code plugin (plugin root)
 ├── codex/                   ← Codex host group
 │   └── drawio/              ← Codex plugin root (folder name == plugin.json "name")
-└── copilot/                 ← GitHub Copilot CLI plugin (plugin root)
+├── copilot/                 ← GitHub Copilot CLI plugin (plugin root)
+└── tests/                   ← tests for the scripts the plugins bundle
 ```
 
 Codex normalizes a plugin's root folder name to match its `plugin.json` `"name"`, so the
@@ -49,6 +50,10 @@ Codex plugin root is nested one level (`codex/drawio/`) inside the host group di
 Claude Code and Copilot have no such rule, so `claude-code/` and `copilot/` are themselves
 the plugin roots. If another assistant (Cursor, etc.) is added later, it follows the same
 pattern in its own way.
+
+[`tests/`](tests/README.md) is not a plugin: it holds the Python `unittest` suite for the
+scripts the plugins bundle (`python3 -m unittest discover -s plugins/tests` from the repo
+root).
 
 The draw.io guidance itself — *how* to generate `.drawio` files, embed XML in PNG/SVG/PDF, and produce `app.diagrams.net` URLs — is shared. Only the wrapping (manifest format, file layout, invocation prefix) differs per host, and each host has its own plugin/skill model, so the wrapping is not assumed to be uniform.
 

@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "plugins/claude-code/skills/drawio/SKILL.md"
-      - "plugins/codex/drawio/skills/drawio/SKILL.md"
-      - "plugins/copilot/skills/drawio/SKILL.md"
+      - "plugins/claude-code/skills/drawio/**"
+      - "plugins/codex/drawio/skills/drawio/**"
+      - "plugins/copilot/skills/drawio/**"
   pull_request:
     paths:
-      - "plugins/claude-code/skills/drawio/SKILL.md"
-      - "plugins/codex/drawio/skills/drawio/SKILL.md"
-      - "plugins/copilot/skills/drawio/SKILL.md"
+      - "plugins/claude-code/skills/drawio/**"
+      - "plugins/codex/drawio/skills/drawio/**"
+      - "plugins/copilot/skills/drawio/**"
   workflow_dispatch:
 
 permissions:
@@ -24,27 +24,30 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Verify port SKILL.md copies are byte-identical to the Claude Code copy
+      - name: Verify port skill copies are byte-identical to the Claude Code copies
         run: |
-          claude="plugins/claude-code/skills/drawio/SKILL.md"
           status=0
 
-          for port in \
-            "plugins/codex/drawio/skills/drawio/SKILL.md" \
-            "plugins/copilot/skills/drawio/SKILL.md"; do
+          for file in "SKILL.md" "scripts/fix_edge_parents.py"; do
+            claude="plugins/claude-code/skills/drawio/$file"
 
-            if [ ! -f "$port" ]; then
-              echo "$port does not exist (port not present) — nothing to check."
-              continue
-            fi
+            for port in \
+              "plugins/codex/drawio/skills/drawio/$file" \
+              "plugins/copilot/skills/drawio/$file"; do
 
-            if cmp -s "$claude" "$port"; then
-              echo "OK: $port is byte-identical to $claude."
-            else
-              echo "::error file=$port::Must be byte-identical to $claude — mirror the edit to both copies."
-              diff -u "$claude" "$port" || true
-              status=1
-            fi
+              if [ ! -f "$port" ]; then
+                echo "$port does not exist (port not present) — nothing to check."
+                continue
+              fi
+
+              if cmp -s "$claude" "$port"; then
+                echo "OK: $port is byte-identical to $claude."
+              else
+                echo "::error file=$port::Must be byte-identical to $claude — mirror the edit to both copies."
+                diff -u "$claude" "$port" || true
+                status=1
+              fi
+            done
           done
 
           exit $status
