@@ -25,4 +25,13 @@ catch (e)
   // CDN unreachable or the path isn't in a release yet - fine either way.
 }
 
-process.exit(0);
+// No explicit process.exit() here - on Windows, calling it immediately after
+// an awaited fetch() can race libuv's async-handle teardown for the
+// fetch/undici internals and crash with "Assertion failed:
+// !(handle->flags & UV_HANDLE_CLOSING)" (nodejs/node#56645, fixed for
+// Node itself in nodejs/node#61999, but still hit on affected versions).
+// Setting exitCode and letting the event loop drain naturally is the
+// workaround the Node core team documented for callers on unpatched
+// versions - fetch's keep-alive sockets unref themselves once idle, so
+// this script still exits promptly with nothing else pending.
+process.exitCode = 0;
