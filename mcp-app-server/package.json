@@ -25,5 +25,22 @@
   },
   "devDependencies": {
     "wrangler": "4.76.0"
+  },
+  "overrides": {
+    "@modelcontextprotocol/ext-apps": {
+      "fast-uri": "4.1.3"
+    },
+    "@modelcontextprotocol/sdk": {
+      "fast-uri": "4.1.3"
+    },
+    "ajv": {
+      "fast-uri": "4.1.3"
+    },
+    "ajv-formats": {
+      "fast-uri": "4.1.3"
+    },
+    "fast-uri": {
+      "fast-uri": "4.1.3"
+    }
   }
 }
