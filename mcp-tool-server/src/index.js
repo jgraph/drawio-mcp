@@ -117,7 +117,7 @@ function loadShapeSearch()
       }
       else
       {
-        const res = await fetch(SHAPE_INDEX_URL);
+        const res = await fetch(SHAPE_INDEX_URL, { signal: AbortSignal.timeout(5000) });
 
         if (!res.ok)
         {
