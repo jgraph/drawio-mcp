@@ -308,6 +308,40 @@ function buildEdgeBlock(cell, wps)
  */
 export async function routeXml(xml)
 {
+  if (typeof xml !== "string" || xml.indexOf("<mxCell") === -1) return xml;
+
+  // Cell IDs and obstacle geometry belong to one page. Scanning an entire
+  // mxfile together lets later pages replace earlier cells with the same ID,
+  // and even unique IDs introduce obstacles from unrelated pages.
+  var models = [];
+  var re = /<mxGraphModel\b[^>]*>[\s\S]*?<\/mxGraphModel>/g;
+  var match;
+
+  while ((match = re.exec(xml)) !== null)
+  {
+    models.push({ start: match.index, text: match[0] });
+  }
+
+  // Preserve support for a bare cell/root fragment. Compressed pages have no
+  // mxCell tags and remain untouched, including inside a mixed-page mxfile.
+  if (models.length === 0) return routePageXml(xml);
+
+  var out = xml;
+
+  // Splice from the end so offsets and every byte outside a model stay valid.
+  for (var i = models.length - 1; i >= 0; i--)
+  {
+    var model = models[i];
+    var routed = await routePageXml(model.text);
+    out = out.substring(0, model.start) + routed +
+      out.substring(model.start + model.text.length);
+  }
+
+  return out;
+}
+
+async function routePageXml(xml)
+{
   try
   {
     if (typeof xml !== "string" || xml.indexOf("<mxCell") === -1) return xml;
