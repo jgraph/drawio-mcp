@@ -11,6 +11,7 @@ Renders draw.io diagrams inline in AI chat interfaces using the MCP Apps protoco
 | `src/worker.js` | Cloudflare Workers entry (Web Standard fetch handler) |
 | `src/build-html.js` | Build script: generates `generated-html.js` for the Worker |
 | `server.json` | MCP Community Registry manifest (`io.draw/mcp`, remote `https://mcp.draw.io/mcp`) — publish runbook in README "Publishing to the MCP Registry"; keep `version` in lockstep with `package.json` |
+| `openai-plugin/` | OpenAI Plugins Directory package (`.codex-plugin/plugin.json`: names, descriptions, starter prompts, policy URLs, icon; `.mcp.json`: the server, which can never change on an existing plugin) — zipped and uploaded as a new version in the portal; its own `version`, runbook in `OPENAI-SUBMISSION.md` |
 
 ## Architecture
 

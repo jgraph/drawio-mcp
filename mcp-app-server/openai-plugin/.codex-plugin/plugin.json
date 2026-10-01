@@ -1,0 +1,29 @@
+{
+  "name": "drawio",
+  "version": "1.0.1",
+  "description": "Describe the diagram you need, and draw.io creates it in the conversation: flowcharts, sequence and class diagrams, entity-relationship diagrams, cloud and network architecture diagrams, org charts and more.\n\nZoom, pan, show or hide layers and view the diagram full screen without leaving the conversation. To keep working on it, open it in the draw.io editor, where you can edit, save and export it.\n\nFor technical diagrams, draw.io looks up the matching symbols in its shape libraries, including AWS, Azure, Google Cloud, Kubernetes, Cisco, UML, BPMN, electrical and P&ID shapes, and in its icon collection.\n\ndraw.io receives only what it needs to draw the diagram. It doesn't need an account, and it can't access your files or your conversation.",
+  "author": {
+    "name": "draw.io"
+  },
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "brandColor": "#F08705",
+    "capabilities": [],
+    "category": "Creativity",
+    "composerIcon": "./assets/drawio-logo.png",
+    "defaultPrompt": [
+      "Create a flowchart for a user login flow, including the password-reset branch.",
+      "Draw an AWS architecture diagram for a serverless image-upload pipeline.",
+      "Turn our release process into a swimlane diagram I can edit in draw.io."
+    ],
+    "developerName": "draw.io",
+    "displayName": "draw.io",
+    "logo": "./assets/drawio-logo.png",
+    "longDescription": "Describe the diagram you need, and draw.io creates it in the conversation: flowcharts, sequence and class diagrams, entity-relationship diagrams, cloud and network architecture diagrams, org charts and more.\n\nZoom, pan, show or hide layers and view the diagram full screen without leaving the conversation. To keep working on it, open it in the draw.io editor, where you can edit, save and export it.\n\nFor technical diagrams, draw.io looks up the matching symbols in its shape libraries, including AWS, Azure, Google Cloud, Kubernetes, Cisco, UML, BPMN, electrical and P&ID shapes, and in its icon collection.\n\ndraw.io receives only what it needs to draw the diagram. It doesn't need an account, and it can't access your files or your conversation.",
+    "privacyPolicyURL": "https://www.drawio.com/trust/privacy-ai-assistants/",
+    "shortDescription": "Create editable diagrams",
+    "supportURL": "https://github.com/jgraph/drawio-mcp/issues",
+    "termsOfServiceURL": "https://www.drawio.com/trust/terms-of-use/",
+    "websiteURL": "https://www.drawio.com"
+  }
+}
