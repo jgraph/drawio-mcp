@@ -37,6 +37,10 @@
  *    minimum stub needs a routing checkpoint at the stub tip. Checkpoint
  *    DIRECTION flags have an inverted vertical convention in this build —
  *    use plain 1-arg checkpoints only.
+ *  - setRoutingCheckpoints does not queue the connector for rerouting in
+ *    draw.io's own build (drawio-libavoid; the libavoid-js WASM build
+ *    does), so a processTransaction after it keeps the old route: set an
+ *    end of the connector again (setSourceEndpoint) to queue it
  */
 (function()
 {
@@ -1090,7 +1094,8 @@
 				conns.push({edge: e, conn: conn, scp: scp, tcp: tcp,
 					sourceJetty: sourceJetty, targetJetty: targetJetty,
 					sourcePins: absolutePins(sb, sPins),
-					targetPins: absolutePins(tb, tPins)});
+					targetPins: absolutePins(tb, tPins),
+					sourceEnd: [e.source, sb, sPins, e.sourcePoint]});
 			}
 
 			if (conns.length === 0)
@@ -1140,6 +1145,12 @@
 					addCheckpoint(cps, c.tcp);
 					c.conn.setRoutingCheckpoints(cps);
 					cps.delete();
+
+					// Queues the reroute: see the setRoutingCheckpoints gotcha
+					// in the header
+					var se2 = makeEnd.apply(null, c.sourceEnd);
+					c.conn.setSourceEndpoint(se2);
+					se2.delete();
 					dirty = true;
 				}
 			}
