@@ -15,6 +15,17 @@ import { normalizeDiagram } from "../../shared/normalize-model.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
+ * Mermaid defaults version of the diagrams this app creates
+ * (drawio-mermaid's mxMermaidToDrawio.DEFAULTS_VERSION): Mermaid 12's layout,
+ * theme and look per diagram type, as draw.io gives a new diagram. The
+ * preview, the mermaidData of "Open in draw.io" and the #create= links all
+ * use it, so a diagram looks the same in the preview and when it is opened
+ * or edited in draw.io. Bundles and draw.io builds without defaults versions
+ * ignore it (Mermaid 11's defaults).
+ */
+export const MERMAID_DEFAULTS_VERSION = "12";
+
+/**
  * Build the self-contained HTML string that renders diagrams.
  * The MCP Apps App class and pako deflate are inlined. The draw.io viewer,
  * drawio-elk, drawio-mermaid, and libavoid (pure-JS router bundle + routing
@@ -533,6 +544,9 @@ function healPartialXml(partialXml)
 }
 
 // --- Mermaid streaming: heal partial text + content-address cell IDs ---
+
+// See MERMAID_DEFAULTS_VERSION in shared.js
+var MERMAID_DEFAULTS_VERSION = ${JSON.stringify(MERMAID_DEFAULTS_VERSION)};
 
 // De-dupe: last healed+parsed text we merged. Reset on endStreaming.
 var lastMergedMermaidText = null;
@@ -1312,18 +1326,17 @@ function convertMermaidToXml(mermaidText)
     return Promise.reject(new Error("drawio-mermaid bundle not loaded"));
   }
 
-  // Always render with the 'default' theme: its palette is expressed in
-  // light-dark() adaptive colors, so a single render is correct in BOTH light
-  // and dark hosts (the viewer/editor color-scheme selects the variant). The
-  // named 'dark' theme is mermaid's STATIC dark palette — forcing it on a dark
-  // host bakes in fixed dark colors that then render wrong if the same diagram
-  // is later opened or exported in light mode. light-dark() is the dark-mode
-  // support; don't override it based on the host's current color-scheme.
-  var config = { theme: 'default' };
+  // No theme is forced: the diagram gets the defaults of
+  // MERMAID_DEFAULTS_VERSION (the theme draw.io gives a new diagram, and the
+  // one it re-converts with on edit), and its own theme still wins. Never
+  // pass the host's color-scheme as theme 'dark': that is mermaid's STATIC
+  // dark palette, which renders wrong once the diagram is opened or exported
+  // in light mode. draw.io adapts the light themes to dark hosts itself.
+  var opts = { version: MERMAID_DEFAULTS_VERSION };
 
   try
   {
-    var xml = mxMermaidToDrawio.parseText(mermaidText, config);
+    var xml = mxMermaidToDrawio.parseText(mermaidText, null, opts);
 
     if (xml == null)
     {
@@ -1451,7 +1464,10 @@ function commitDiagramXml(xml)
       // transparentBounds group starts exactly at (0,0) — without it the
       // padded bounds begin at (-groupPadding,-groupPadding) and draw.io
       // extends the page above/left of the origin on "Open in draw.io".
-      out = mxMermaidToDrawio.wrapGroup(xml, wrapText, null, {normalize: true});
+      // version: stored in mermaidData, so draw.io re-converts the source
+      // with the defaults it was previewed with when it is edited
+      out = mxMermaidToDrawio.wrapGroup(xml, wrapText, null,
+        {normalize: true, version: MERMAID_DEFAULTS_VERSION});
     }
     catch (e)
     {
@@ -5603,9 +5619,9 @@ function handleMermaidPartial(partialMermaid)
   var xml;
   try
   {
-    // 'default' = light-dark() adaptive palette, correct in both light and
-    // dark hosts (see convertMermaidToXml for the rationale).
-    xml = mxMermaidToDrawio.parseText(healed, { theme: 'default' });
+    // Same config and defaults version as convertMermaidToXml
+    xml = mxMermaidToDrawio.parseText(healed, null,
+      { version: MERMAID_DEFAULTS_VERSION });
   }
   catch (e)
   {
@@ -6583,6 +6599,11 @@ function drawioCreateUrl(data, type)
   }).join(""));
 
   const createObj = { type: type, compressed: true, data: base64, effect: "pop" };
+
+  if (type === "mermaid")
+  {
+    createObj.version = MERMAID_DEFAULTS_VERSION;
+  }
 
   return "https://app.diagrams.net/?pv=0&grid=0#create=" +
     encodeURIComponent(JSON.stringify(createObj));

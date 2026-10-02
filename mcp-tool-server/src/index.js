@@ -18,6 +18,13 @@ import { tmpdir } from "os";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DRAWIO_BASE_URL = process.env.DRAWIO_BASE_URL || "https://app.diagrams.net/";
 
+// Mermaid defaults version of the diagrams created from #create=type:mermaid
+// links: draw.io converts them with Mermaid 12's defaults (ELK layout,
+// redux-color theme, neo look for most types) and stores the version in the
+// diagram, so it keeps that look when it is edited later. Same value as the
+// app server's MERMAID_DEFAULTS_VERSION. Older draw.io builds ignore it.
+const MERMAID_DEFAULTS_VERSION = "12";
+
 // Single source for the version reported by --version and the MCP handshake.
 const packageInfo = JSON.parse(
   readFileSync(join(__dirname, "..", "package.json"), "utf-8")
@@ -318,6 +325,11 @@ function generateDrawioUrl(data, type, options = {})
     compressed: true,
     data: compressedData,
   };
+
+  if (type === "mermaid")
+  {
+    createObj.version = MERMAID_DEFAULTS_VERSION;
+  }
 
   const params = new URLSearchParams();
 

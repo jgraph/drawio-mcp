@@ -51,7 +51,9 @@ Opens draw.io with CSV data converted to a diagram. Useful for org charts, but C
 
 Opens draw.io with Mermaid.js syntax. **Recommended default** — handles flowcharts, sequences, ER diagrams, Gantt charts, and more reliably.
 
-**`postLayout: "elk"`** (optional) switches a Mermaid **flowchart** to the layered ELK layout. Nothing is computed here: selecting ELK is a text transform on the source (`withElkLayout` from `shared/mermaid-elk.js` writes the `config: { layout: elk }` frontmatter), and draw.io runs the layout itself when it converts the Mermaid behind the `#create=` URL — `EditorUi.isMermaidElkFlowchart` fires and routes the parsed XML through `applyMermaidElkPostPass`. Non-flowchart types are left alone and the tool result says so (type detection is `mermaidDiagramType`, a verbatim port of drawio-dev's `getMermaidDiagramType`).
+**`postLayout: "elk"`** (optional) switches a Mermaid **flowchart** to the layered ELK layout. Nothing is computed here: selecting ELK is a text transform on the source (`withElkLayout` from `shared/mermaid-elk.js` writes the `config: { layout: elk }` frontmatter), and draw.io runs the layout itself when it converts the Mermaid behind the `#create=` URL (drawio-mermaid lays ELK flowcharts out with Mermaid's own ELK options; older draw.io builds re-run their ElkLayout via `EditorUi.isMermaidElkFlowchart` / `applyMermaidElkPostPass`).
+
+**Mermaid defaults version.** `#create=` links of type `mermaid` carry `version: "12"` (`MERMAID_DEFAULTS_VERSION`): draw.io converts them with Mermaid 12's defaults (ELK layout, `redux-color` theme, `neo` look for flowchart, class, state, ER, requirement, sequence, swimlane, venn, use case and agent flow) and stores the version in the diagram, so it keeps that look on later edits. It matches the app server's `MERMAID_DEFAULTS_VERSION`; older draw.io builds ignore it. Non-flowchart types are left alone and the tool result says so (type detection is `mermaidDiagramType`, a verbatim port of drawio-dev's `getMermaidDiagramType`).
 
 ### `search_shapes`
 
