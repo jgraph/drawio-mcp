@@ -231,6 +231,12 @@ Major libraries:
 | `glass` | `0`, `1` | `0` | Glass/shine overlay effect |
 | `shadow` | `0`, `1` | `0` | Drop shadow (also controlled globally on mxGraphModel) |
 
+From version 32.4.5 onwards:
+
+| Property | Values | Default | Description |
+|---|---|---|---|
+| `opacityGroup` | `0`, `1` | `0` | Applies `opacity` to the shape as a whole, so that overlapping parts (the line under a filled arrow head, the stroke over the fill) do not get darker. Set together with the opacity in the _Style_ tab |
+
 ### 4.2 Shape Geometry
 
 | Property | Values | Default | Description |
@@ -250,7 +256,9 @@ From version 31.7.1 onwards:
 
 | Property | Values | Default | Description |
 |---|---|---|---|
-| `roundedPerimeter` | `0`, `1` | `0` | With `rounded=1` on rectangles and labels, perimeter connection points and floating edges end on the rounded outline instead of the bounding box. Corner connection points sit at 45° on the arc. Ignored by other shapes |
+| `roundedPerimeter` | `0`, `1` | `0` | With `rounded=1` on rectangles and labels, perimeter connection points and floating edges end on the rounded outline instead of the bounding box. Corner connection points sit at 45° on the arc. Other shapes: see below |
+
+From version 32.4.5 onwards, `roundedPerimeter` also applies to `process` and `internalStorage`, and to `triangle`, `rhombus`, `hexagon`, `parallelogram`, `trapezoid` and `step` with their default perimeter, where connectors end on the rounded corners as painted. Other shapes ignore it. The _Rounded_ option has set the key on all shapes since version 31.7.1, so connectors on these shapes move onto the rounded corners in diagrams saved since then.
 
 ### 4.3 Text and Labels
 
@@ -301,6 +309,12 @@ From version 31.7.1 onwards:
 | `jumpSize` | number | `6` | Jump width at crossings |
 | `jumpLayers` | `0`, `1` | `1` | `0` only adds jumps for crossings with edges in the same layer as this edge |
 | `followTerminals` | `0`, `1` | `0` | Waypoints move with the terminals when these are moved, resized or arranged: orthogonal edges keep axis-parallel segments, other edges keep each waypoint's relative position along and distance from the line between the terminal centres. No effect with `libavoidRouting=1` |
+
+From version 32.4.5 onwards:
+
+| Property | Values | Default | Description |
+|---|---|---|---|
+| `libavoidSpacing` | number | `16` | With `libavoidRouting=1`: distance between the edge and the shapes it routes around (_Spacing_ in the _Line_ section of the _Style_ tab) |
 
 ### 4.5 Arrow Markers
 
@@ -456,7 +470,7 @@ From version 32.3.1 onwards, `flowLayout`, `treeLayout` and `organicLayout` run 
 | `cloneable` | `0`, `1` | `1` | Allow cloning |
 | `foldable` | `0`, `1` | — | Allow fold/collapse |
 | `connectable` | `0`, `1` | `1` | Allow connections |
-| `newEdgeStyle` | URL-encoded JSON style | — | Style of new connectors drawn from this shape. Set it with _Set as Default for New Connections_ on a connector from this shape, and remove it with _Clear Default for New Connections_ on the shape |
+| `newEdgeStyle` | URL-encoded JSON style | — | Style of new connectors drawn from this shape. Set it with _Use for New Connections from Source_ (_Set New Connection Default_ before version 32.4.5) on a connector from this shape, and remove it with _Clear Style for New Connections_ (_Clear New Connection Default_ before version 32.4.5) on the shape |
 | `pointerEvents` | `0`, `1` | `1` | Enable mouse events |
 | `autosize` | `0`, `1` | `0` | Auto-size to fit content |
 
