@@ -367,8 +367,7 @@ const tools =
     description:
       "Opens the draw.io editor with a diagram from XML content. " +
       "Use this to view, edit, or create diagrams in draw.io format. " +
-      "The XML should be valid draw.io/mxGraph XML format.\n\n" +
-      xmlReference,
+      "The XML should be valid draw.io/mxGraph XML format.",
     inputSchema:
     {
       type: "object",
@@ -453,8 +452,7 @@ const tools =
     description:
       "Opens the draw.io editor with a diagram generated from Mermaid.js syntax. " +
       "Supports flowcharts, sequence diagrams, class diagrams, state diagrams, " +
-      "entity relationship diagrams, and more using Mermaid.js syntax.\n\n" +
-      mermaidReference,
+      "entity relationship diagrams, and more using Mermaid.js syntax.",
     inputSchema:
     {
       type: "object",
