@@ -88,7 +88,7 @@ These shapes are defined in the mxGraph core library:
 | `rhombus` | Diamond | Use `perimeter=rhombusPerimeter` |
 | `triangle` | Triangle | Use `perimeter=trianglePerimeter` |
 | `hexagon` | Hexagon | Use `perimeter=hexagonPerimeter2` |
-| `cloud` | Cloud | |
+| `cloud` | Cloud | Use `perimeter=cloudPerimeter` |
 | `cylinder` | 3D Cylinder | |
 | `line` | Horizontal line | |
 | `arrow` | Block arrow | |
@@ -541,6 +541,7 @@ The perimeter determines how connection points are calculated on a shape's borde
 | `backbonePerimeter` | Backbone/bus shapes |
 | `centerPerimeter` | Single center point |
 | `stepPerimeter` | Step/chevron shapes |
+| `cloudPerimeter` | Clouds: connectors end on the outline of the cloud as drawn (without it, `ellipse;shape=cloud` uses the ellipse) |
 
 **Important:** When using non-rectangular shapes, always set the matching perimeter. Otherwise edges will connect to the rectangular bounding box instead of the visible shape border.
 
