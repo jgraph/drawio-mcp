@@ -9,7 +9,7 @@ Since 1.2.3 the plugin also bundles the hosted draw.io MCP server (`https://mcp.
 When you ask Claude Code to create a diagram, it will:
 
 1. Choose how to author it — **Mermaid** for standard types (flowchart, sequence, class, state, ER, gantt, mindmap…) when the desktop app is installed, or **draw.io XML** for custom styling, precise positioning, specific shape libraries, or when no desktop app is present
-2. Produce a native `.drawio` file — convert the Mermaid with the desktop CLI, or write the XML directly (optionally running an ELK `--layout` pass so you don't hand-place cells)
+2. Produce a native `.drawio` file — convert the Mermaid with the desktop CLI, or write the XML directly (optionally running an ELK `--layout` step so you don't hand-place cells)
 3. Handle the requested output:
    - PNG / SVG / PDF — export using the draw.io desktop CLI
    - `url` — compress the XML with Node.js's built-in `zlib` and open `https://app.diagrams.net/#R...` in your browser (keeps the `.drawio` file as a local copy)

@@ -258,10 +258,10 @@ If neither exists, the install is on another drive or in a custom directory — 
 ls /mnt/*/Program\ Files/draw.io/draw.io.exe 2>/dev/null | head -1
 
 # Registry — the installer records the directory the user picked
-for KEY in 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall' \
-           'HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall' \
-           'HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'; do
-  WIN_DIR=$(reg.exe query "$KEY" /s /v InstallLocation 2>/dev/null |
+for REG_PATH in 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall' \
+                'HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall' \
+                'HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall'; do
+  WIN_DIR=$(reg.exe query "$REG_PATH" /s /v InstallLocation 2>/dev/null |
             grep -i 'REG_SZ.*draw\.io' | head -1 |
             sed 's/.*REG_SZ[[:space:]]*//' | tr -d '\r')
   [ -n "$WIN_DIR" ] && DRAWIO_CMD="$(wslpath -u "${WIN_DIR%\\}")/draw.io.exe" && break
