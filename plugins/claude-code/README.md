@@ -1,6 +1,8 @@
 # Draw.io Plugin for Claude Code
 
-A Claude Code plugin that generates native `.drawio` files. Claude authors each diagram as **Mermaid** (converted and laid out by the draw.io desktop CLI) or as **draw.io XML** directly — with optional **ELK auto-layout** for XML, export to PNG/SVG/PDF (with embedded XML so the file remains editable in draw.io), or a browser URL that opens the diagram directly in `app.diagrams.net`. No MCP setup required.
+A Claude Code plugin that generates native `.drawio` files. Claude authors each diagram as **Mermaid** (converted and laid out by the draw.io desktop CLI) or as **draw.io XML** directly — with optional **ELK auto-layout** for XML, export to PNG/SVG/PDF (with embedded XML so the file remains editable in draw.io), or a browser URL that opens the diagram directly in `app.diagrams.net`.
+
+Since 1.2.3 the plugin also bundles the hosted draw.io MCP server (`https://mcp.draw.io/mcp`, in [`.mcp.json`](.mcp.json)). Where Claude shows apps in the chat, such as Claude.ai, diagrams then render inline as interactive draw.io diagrams; in Claude Code's terminal the skill keeps writing files, as before. See [Data](#data) for what that server receives.
 
 ## How It Works
 
@@ -108,6 +110,10 @@ A `.drawio` file is native mxGraphModel XML. Claude produces one two ways:
 - **XML** — generated directly, for custom styling, precise positioning, or specific shape libraries. Needs no desktop app, so it's the universal fallback (`.drawio` file or `url`).
 
 Both routes end up as the same native `.drawio` format, immediately editable in draw.io. Mermaid conversion and ELK layout run locally via the desktop CLI — there is no server dependency.
+
+## Data
+
+The skill works on your machine: it writes `.drawio` files locally and exports them with your local draw.io Desktop. The bundled hosted server is used for diagrams shown inline in a chat, and those diagrams are sent to `mcp.draw.io` to render them. It doesn't store them, and no account is needed: see the [privacy policy for AI assistants](https://www.drawio.com/trust/privacy-ai-assistants/). To keep everything local, remove or disable the `drawio` MCP server that comes with the plugin (`/mcp` in Claude Code), or point [`.mcp.json`](.mcp.json) at a self-hosted [MCP App Server](../../mcp-app-server/README.md).
 
 ## Other Variants
 

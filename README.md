@@ -57,7 +57,7 @@ Setup instructions are available for Claude Desktop, Claude Code, VS Code (GitHu
 
 ## Assistant Plugins (Claude Code, Codex CLI, GitHub Copilot)
 
-The `drawio` skill packaged as a plugin for AI coding assistants (under [`plugins/`](plugins/README.md)): it generates native `.drawio` files, with optional export to PNG, SVG, or PDF (with embedded XML so the exported file remains editable in draw.io) — or a browser URL that opens the diagram directly in `app.diagrams.net`. No MCP setup required. The same skill ships for three hosts:
+The `drawio` skill packaged as a plugin for AI coding assistants (under [`plugins/`](plugins/README.md)): it generates native `.drawio` files, with optional export to PNG, SVG, or PDF (with embedded XML so the exported file remains editable in draw.io) — or a browser URL that opens the diagram directly in `app.diagrams.net`. The Claude Code and Cursor plugins also bundle the hosted MCP App Server, so diagrams show inline where the host supports it; the Codex and Copilot ports need no MCP setup. The same skill ships for four hosts:
 
 **Claude Code** ([full documentation →](plugins/claude-code/README.md)) — install from this repo's marketplace:
 
@@ -136,7 +136,7 @@ nothing is sent.
 | **MCP App Server — hosted (`mcp.draw.io`)** | **Yes** — it is sent to the draw.io server as the MCP request. Self-host instead (below) to keep it local. |
 | **MCP App Server — self-hosted** (local Node, the `jgraph/drawio-mcp` Docker image, or your own Cloudflare) | No — processed by your server and embedded in HTML that renders client-side. |
 | **MCP Tool Server** (`@drawio/mcp`) | No — carried in the URL `#fragment`, which browsers do not transmit to the server. |
-| **Assistant Plugins** (Claude Code, Codex CLI, GitHub Copilot, Cursor) | No — written locally and exported by your local draw.io Desktop CLI. The Cursor plugin also adds the hosted App Server for inline diagrams, which does send them (row above). |
+| **Assistant Plugins** (Claude Code, Codex CLI, GitHub Copilot, Cursor) | No — written locally and exported by your local draw.io Desktop CLI. The Claude Code and Cursor plugins also bundle the hosted App Server: diagrams drawn with it are sent to `mcp.draw.io` (row above). |
 
 By default the servers do not write diagram content to their logs — only request
 metadata (method, session, status, timing). The Cloudflare-hosted App Server logs

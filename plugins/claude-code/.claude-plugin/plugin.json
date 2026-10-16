@@ -1,7 +1,7 @@
 {
   "name": "drawio",
-  "description": "Generate native .drawio diagrams from Claude Code — author as Mermaid or XML with optional ELK auto-layout, export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL.",
-  "version": "1.2.2",
+  "description": "Generate native .drawio diagrams from Claude — author as Mermaid or XML with optional ELK auto-layout, export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL. Bundles the hosted draw.io MCP server for diagrams shown inline in chat.",
+  "version": "1.2.3",
   "author": {
     "name": "draw.io"
   },
