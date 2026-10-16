@@ -174,21 +174,33 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       }
       #diagram-container.streaming {
         min-height: 320px;
-        /* Hard cap (inline mode only) so the iframe never grows past
-           the chat viewport. The host (Claude.ai) only honors
-           sendSizeChanged growth, not shrinks — conservative start.
-           Fullscreen overrides this below. The toolbar Expand button
-           swaps --inline-max-h via body.expanded for diagrams where
-           480 px clips a tall diagram. */
+        /* Cap in inline mode only. The script sets --inline-max-h on
+           the root to its inline cap (up to 720 px, see inlineHeightCap),
+           so this agrees with the fit math. Fullscreen overrides this
+           below. The toolbar Expand button sets --inline-max-h to 1000 px
+           via body.expanded. */
         max-height: var(--inline-max-h, 480px);
         position: relative;
       }
       body.expanded {
         --inline-max-h: 1000px;
       }
+      /* The diagram continues below the visible area (the readable top
+         view of a tall diagram): fade the bottom edge into the card. */
+      #diagram-container.streaming.more-below::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 48px;
+        pointer-events: none;
+        border-radius: 0 0 12px 12px;
+        background: linear-gradient(to bottom, transparent, var(--viewer-card-bg));
+      }
       /* In fullscreen, the iframe IS the viewport (with body padding
          reserved for the prompt overlay), so let the streaming card
-         fill all the available height instead of clipping at 480 px. */
+         fill all the available height instead of the inline cap. */
       body.fullscreen #diagram-container.streaming {
         max-height: none;
       }
@@ -1208,8 +1220,8 @@ function maxViewportHeight()
   }
   else
   {
-    // Inline mode: cap at STREAM_VIEWPORT_MAX_HEIGHT_INLINE no matter
-    // what the host reports. Claude.ai sometimes hands back a huge
+    // Inline mode: cap at STREAM_VIEWPORT_MAX_HEIGHT_INLINE, or lower
+    // when the host reports less. Claude.ai sometimes hands back a huge
     // containerDimensions.maxHeight (full viewport), and we don't want
     // to consume that — the prompt box still needs to be visible. Also
     // can't trust window.innerHeight as a fallback: it reflects the
@@ -1217,6 +1229,13 @@ function maxViewportHeight()
     // back to make us grow without bound.
     available = STREAM_VIEWPORT_MAX_HEIGHT_INLINE;
     if (hostMaxH != null && hostMaxH < available) available = hostMaxH;
+
+    if (hostMaxH !== lastLoggedHostMaxH)
+    {
+      lastLoggedHostMaxH = hostMaxH;
+      console.log('[inline-height] host maxHeight ' + hostMaxH +
+                  ' px, cap ' + STREAM_VIEWPORT_MAX_HEIGHT_INLINE + ' px');
+    }
   }
 
   return Math.max(STREAM_VIEWPORT_MIN_HEIGHT, available - measureChrome());
@@ -3510,17 +3529,58 @@ function fadeInAllEdgesAfterMorph(graph)
 // while staying compact enough that the user doesn't see a big empty
 // frame for one or two cells.
 var STREAM_VIEWPORT_MIN_HEIGHT = 200;
-// Hard cap on the iframe height in inline mode. The host grows the
-// iframe in response to sendSizeChanged but doesn't honor shrinks,
-// so we have to start conservative — anything taller than this would
-// push the chat prompt off-screen on typical laptop viewports.
-// Must match the CSS max-height on #diagram-container.streaming
-// (--inline-max-h) so the JS fit math agrees with the rendered height.
-// The Expand toolbar button bumps this to STREAM_VIEWPORT_MAX_HEIGHT_EXPANDED
-// for diagrams where 480 px clips a tall layout.
-var STREAM_VIEWPORT_MAX_HEIGHT_INLINE = 480;
-var STREAM_VIEWPORT_MAX_HEIGHT_INLINE_DEFAULT = 480;
+// Cap on the iframe height in inline mode. The iframe grows to the
+// diagram's natural height up to this cap; above it, the camera scales
+// the diagram down. A fixed 480 px shrank tall flowcharts and sequence
+// diagrams until their labels were unreadable (the 2026-10-16 benchmark
+// spike scored draw.io's readability below Excalidraw's 621 px view for
+// exactly that), so the cap is now up to STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MAX,
+// at most STREAM_VIEWPORT_INLINE_SCREEN_SHARE of the screen so a small
+// laptop still shows the prompt box below the diagram, and never below
+// the old 480 px (see inlineHeightCap). Diagrams that need less still
+// take only their natural height. Hosts resize the iframe both ways on
+// sendSizeChanged, Claude.ai included, so a tall start costs nothing.
+// --inline-max-h (the CSS max-height of #diagram-container.streaming) is
+// set to the same value so the JS fit math agrees with the rendered
+// height. The Expand toolbar button switches to STREAM_VIEWPORT_MAX_HEIGHT_EXPANDED.
+var STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MIN = 480;
+var STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MAX = 800;
+var STREAM_VIEWPORT_INLINE_SCREEN_SHARE = 0.9;
+// Smallest scale a diagram settles at inline: 12 px labels stay 9 px.
+// When fitting a tall diagram whole would shrink it further, the view
+// shows its top at this scale instead (see computeDefaultViewTransform),
+// with a fade at the bottom edge; dragging or the Fit button shows the rest.
+var STREAM_READABLE_MIN_SCALE = 0.75;
+var STREAM_VIEWPORT_MAX_HEIGHT_INLINE_DEFAULT = inlineHeightCap();
+var STREAM_VIEWPORT_MAX_HEIGHT_INLINE = STREAM_VIEWPORT_MAX_HEIGHT_INLINE_DEFAULT;
 var STREAM_VIEWPORT_MAX_HEIGHT_EXPANDED = 1000;
+// The host's containerDimensions height last written to the console.
+var lastLoggedHostMaxH;
+document.documentElement.style.setProperty('--inline-max-h',
+  STREAM_VIEWPORT_MAX_HEIGHT_INLINE_DEFAULT + 'px');
+
+/**
+ * The inline height cap for this screen: STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MAX,
+ * at most STREAM_VIEWPORT_INLINE_SCREEN_SHARE of the screen's available
+ * height, and never below STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MIN. It reads
+ * the screen, not the iframe: the iframe's height follows our own
+ * sendSizeChanged and would feed back.
+ */
+function inlineHeightCap()
+{
+  var cap = STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MAX;
+  var screenH = (window.screen != null) ? window.screen.availHeight : 0;
+
+  if (screenH > 0)
+  {
+    cap = Math.min(cap, Math.round(screenH * STREAM_VIEWPORT_INLINE_SCREEN_SHARE));
+  }
+
+  cap = Math.max(cap, STREAM_VIEWPORT_MAX_HEIGHT_INLINE_MIN);
+  console.log('[inline-height] cap ' + cap + ' px (screen.availHeight ' + screenH + ')');
+
+  return cap;
+}
 // Padding around the focus bbox at fit-whole, in container pixels.
 var STREAM_VIEWPORT_PADDING = 24;
 // Minimum scale clamp — large diagrams need to zoom out enough that
@@ -4545,7 +4605,7 @@ function finalizeStreamingView(xml, opts)
       // fixed point so the path is a clean zoom out, not a CSS
       // component-decomposition curve.
       resizeContainerToFit();
-      var t = computeFitWholeTransform();
+      var t = computeDefaultViewTransform();
       if (t != null)
       {
         animateCameraTo(t.s, t.tx, t.ty, 600, easeInOutCubic);
@@ -4597,7 +4657,7 @@ function finalizeStreamingView(xml, opts)
         {
           if (streamGraph == null) return;
           resizeContainerToFit();
-          var t2 = computeFitWholeTransform();
+          var t2 = computeDefaultViewTransform();
           if (t2 != null)
           {
             animateCameraTo(t2.s, t2.tx, t2.ty, 220, easeInOutCubic);
@@ -4615,7 +4675,7 @@ function finalizeStreamingView(xml, opts)
         recentVertexQueue = [];
         lastBatchSize = 0;
         resizeContainerToFit();
-        var t = computeFitWholeTransform();
+        var t = computeDefaultViewTransform();
         if (t != null)
         {
           // Match mxMorphing duration (12 steps × 30 ms = 360 ms).
@@ -5356,6 +5416,58 @@ function computeFitWholeTransform()
 }
 
 /**
+ * The view a diagram settles at after drawing, a layout pass or Expand:
+ * fit-whole, except inline when fitting a tall diagram whole would
+ * shrink it below STREAM_READABLE_MIN_SCALE. Then the top of the diagram
+ * shows at that scale (never wider than the frame), centered, and the
+ * user drags down or presses Fit for the whole. A diagram limited by its
+ * width gains nothing from this and keeps fit-whole, and so does every
+ * diagram in fullscreen. The Fit button always fits whole.
+ */
+function computeDefaultViewTransform()
+{
+  var fit = computeFitWholeTransform();
+
+  if (fit == null || currentDisplayMode === 'fullscreen' ||
+      fit.s >= STREAM_READABLE_MIN_SCALE)
+  {
+    return fit;
+  }
+
+  var s = Math.min(fitToWidthScale(), STREAM_READABLE_MIN_SCALE);
+
+  if (s <= fit.s * 1.05)
+  {
+    return fit;
+  }
+
+  console.log('[inline-height] top view at scale ' + s.toFixed(2) +
+              ' (fit-whole ' + fit.s.toFixed(2) + ')');
+
+  return computeTopAnchoredTransform(s);
+}
+
+/**
+ * Eases the camera to computeDefaultViewTransform: like customFitView,
+ * but a tall diagram stays readable instead of shrinking to fit whole.
+ */
+function defaultFitView()
+{
+  if (streamGraph == null) return;
+  recentVertexQueue = [];
+  lastBatchSize = 0;
+  dblclickZoomedIn = false;
+  var t = computeDefaultViewTransform();
+
+  if (t != null)
+  {
+    animateCameraTo(t.s, t.tx, t.ty, 380);
+  }
+
+  updateZoomFitButtonUi();
+}
+
+/**
  * True when the live camera already shows the fit-whole view (same
  * ~1 px / 0.3% tolerance as animateCameraTo's no-op check). A null fit
  * target (no graph, hidden container) counts as fitted. Lets the fit
@@ -5599,7 +5711,7 @@ function applyLayoutChange(targetState)
       dblclickZoomedIn = false;
       updateZoomFitButtonUi();
       resizeContainerToFit();
-      var t = computeFitWholeTransform();
+      var t = computeDefaultViewTransform();
       if (t != null)
       {
         animateCameraTo(t.s, t.tx, t.ty, 360, easeInOutCubic);
@@ -5658,7 +5770,7 @@ function applyLayoutChange(targetState)
         dblclickZoomedIn = false;
         updateZoomFitButtonUi();
         resizeContainerToFit();
-        var t = computeFitWholeTransform();
+        var t = computeDefaultViewTransform();
         if (t != null)
         {
           animateCameraTo(t.s, t.tx, t.ty, 360, easeInOutCubic);
@@ -5698,6 +5810,33 @@ function updateZoomFitButtonUi()
     btn.setAttribute('title', 'Zoom in');
     btn.setAttribute('aria-label', 'Zoom in');
   }
+
+  updateMoreBelowCue();
+}
+
+// Fades the bottom edge of the inline card while the diagram continues
+// below the visible area, as it does in the readable top view of a tall
+// diagram (computeDefaultViewTransform). Runs with updateZoomFitButtonUi,
+// i.e. when a camera ease lands and after every drag, pinch or zoom.
+function updateMoreBelowCue()
+{
+  if (containerEl == null) return;
+  var more = false;
+
+  if (streamGraph != null && currentDisplayMode !== 'fullscreen')
+  {
+    var bbox = computeWholeBBox(streamGraph.getModel());
+    var ch = containerEl.clientHeight;
+
+    if (bbox != null && ch > 0)
+    {
+      // Screen y of a model y: scale * (y + ty), see applyViewTransform.
+      var bottom = viewTransform.scale * (bbox.maxY + viewTransform.ty);
+      more = bottom > ch - STREAM_BOTTOM_GUTTER / 2;
+    }
+  }
+
+  containerEl.classList.toggle('more-below', more);
 }
 
 function customFitView()
@@ -5915,7 +6054,7 @@ function handleMermaidPartial(partialMermaid)
       recentVertexQueue = [];
       lastBatchSize = 0;
       resizeContainerToFit();
-      var classDefFit = computeFitWholeTransform();
+      var classDefFit = computeDefaultViewTransform();
       if (classDefFit != null)
       {
         animateCameraTo(classDefFit.s, classDefFit.tx, classDefFit.ty, 600, easeInOutCubic);
@@ -6396,10 +6535,9 @@ fullscreenBtn.addEventListener("click", function()
 
 // Expand toggle: bump the inline max-height cap so tall diagrams that
 // fit-zoom out due to height (not width) can use more vertical real
-// estate. Two states — default (480 px) and expanded (1000 px). The
-// host (Claude.ai) only honors sendSizeChanged growth, not shrinks, so
-// going from expanded → default may not actually shrink the iframe in
-// production; the CSS cap will still apply but the iframe stays tall.
+// estate. Two states — default (inlineHeightCap, up to 720 px) and
+// expanded (1000 px). Collapsing shrinks the iframe again: hosts honor
+// sendSizeChanged both ways.
 document.getElementById('expand-btn').addEventListener('click', function()
 {
   var btn = document.getElementById('expand-btn');
@@ -6415,12 +6553,13 @@ document.getElementById('expand-btn').addEventListener('click', function()
   btn.setAttribute('title', label);
   btn.setAttribute('aria-label', label);
   // Resize container to its new natural-fit height (notifies host of
-  // the new desired iframe height), then refit the camera so the new
-  // vertical real estate gets used.
+  // the new desired iframe height), then move the camera to the default
+  // view so the new vertical real estate gets used: fit-whole, or the
+  // readable top of a diagram that is still too tall for that.
   resizeContainerToFit();
   requestAnimationFrame(function()
   {
-    customFitView();
+    defaultFitView();
   });
 });
 

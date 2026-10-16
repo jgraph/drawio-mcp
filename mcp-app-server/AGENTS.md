@@ -122,6 +122,12 @@ The model only has the arguments it sent, but the viewer can show something else
 - **Nothing reaches draw.io:** the XML goes from the iframe to the host's conversation, so the privacy page doesn't change.
 - `test/model-context.test.js` runs `modelContextText` from the template source.
 
+## Inline height and the readable top view
+
+Inline, the iframe grows to the diagram's natural height up to `inlineHeightCap()`: 800 px, at most 90 % of `screen.availHeight` (the screen, because the iframe's own height follows our `sendSizeChanged` and would feed back), never below 480 px. `--inline-max-h` on the root carries the same value to the CSS. Hosts resize the iframe both ways on `sendSizeChanged`, Claude.ai included. Expand switches the cap to 1000 px; fullscreen fills the window.
+
+Where fitting a tall diagram whole would shrink it below `STREAM_READABLE_MIN_SCALE` (0.75, so 12 px labels stay 9 px), the camera settles on its top at that scale instead: `computeDefaultViewTransform`, used after drawing, layout passes, the layout toggle and Expand. The card's bottom edge fades while the diagram continues below (`.more-below`, from `updateMoreBelowCue`), and the Fit button and double-click still show the whole diagram. A diagram limited by its width keeps fit-whole. Before this, a fixed 480 px cap shrank tall flowcharts and sequence diagrams until their labels were unreadable: the 2026-10-16 benchmark spike scored draw.io's readability below Excalidraw's for exactly that. `[inline-height]` console lines show the cap, the host's reported height and when the top view is used.
+
 ## Viewer toolbar
 
 **Labels.** "Open in draw.io" and "Copy" carry text labels; the other buttons are 30 px icons. A label never wraps (`white-space: nowrap`, an ellipsis if it is ever squeezed): `fitToolbarLabels` puts the toolbar in `compact` mode, icons only and every button square, whenever the labels can't be shown whole. It re-measures with the labels shown when the toolbar's width changes (`ResizeObserver`), when a button is shown or hidden, and when a label changes ("Copied!") (`MutationObserver`). The icon buttons never shrink (`flex-shrink: 0`), so the labels are what gives way.
