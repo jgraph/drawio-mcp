@@ -1,12 +1,24 @@
 {
   "name": "drawio",
-  "description": "Generate native .drawio diagrams from Claude — author as Mermaid or XML with optional ELK auto-layout, export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL. Bundles the hosted draw.io MCP server for diagrams shown inline in chat.",
+  "displayName": "draw.io",
+  "description": "Create draw.io diagrams with Claude: shown inline and interactive in chat, or saved as native .drawio files in your project with PNG/SVG/PDF export. Author as Mermaid or draw.io XML, with 10,000+ shapes and ELK auto-layout.",
   "version": "1.2.3",
   "author": {
     "name": "draw.io"
   },
   "homepage": "https://github.com/jgraph/drawio-mcp/tree/main/plugins/claude-code",
   "repository": "https://github.com/jgraph/drawio-mcp",
+  "documentationUrl": "https://www.drawio.com/docs/manual/generate/drawio-mcp-server",
+  "supportUrl": "https://github.com/jgraph/drawio-mcp/issues",
+  "privacyPolicyUrl": "https://www.drawio.com/trust/privacy-ai-assistants/",
+  "termsOfServiceUrl": "https://www.drawio.com/trust/terms-of-use/",
   "license": "Apache-2.0",
-  "privacyPolicyUrl": "https://www.drawio.com/trust/privacy-ai-assistants/"
+  "keywords": [
+    "draw.io",
+    "diagrams",
+    "mermaid",
+    "flowcharts",
+    "architecture",
+    "xml"
+  ]
 }
