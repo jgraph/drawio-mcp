@@ -7,6 +7,7 @@ This directory groups assistant-side integrations by **host** — one subdirecto
 | [`claude-code/`](claude-code/README.md) | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Available |
 | [`codex/drawio/`](codex/drawio/README.md) | [Codex CLI](https://github.com/openai/codex) | ✅ Available |
 | [`copilot/`](copilot/README.md) | [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) | ✅ Available |
+| [`cursor/`](cursor/README.md) | [Cursor](https://cursor.com) | ✅ Available (Marketplace listing in review) |
 
 Each host has its own marketplace manifest at the repo root, so users install with that
 host's own commands.
@@ -31,6 +32,8 @@ codex plugin add drawio@drawio
 copilot plugin marketplace add jgraph/drawio-mcp
 copilot plugin install drawio@drawio
 ```
+
+**Cursor** — via [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json): install from the Cursor Marketplace (**Customize** → **drawio** → **Install**). Teams and Enterprise admins can also import this repo as a team marketplace; to try it locally, copy [`cursor/`](cursor/README.md) to `~/.cursor/plugins/local/drawio`. Unlike the other ports, it also bundles the hosted MCP App Server ([`cursor/mcp.json`](cursor/mcp.json)), because Cursor's Agent chat shows its diagrams inline.
 
 ## OpenCode (no plugin needed)
 
@@ -58,13 +61,14 @@ plugins/
 ├── claude-code/             ← Claude Code plugin (plugin root)
 ├── codex/                   ← Codex host group
 │   └── drawio/              ← Codex plugin root (folder name == plugin.json "name")
-└── copilot/                 ← GitHub Copilot CLI plugin (plugin root)
+├── copilot/                 ← GitHub Copilot CLI plugin (plugin root)
+└── cursor/                  ← Cursor plugin (plugin root)
 ```
 
 Codex normalizes a plugin's root folder name to match its `plugin.json` `"name"`, so the
 Codex plugin root is nested one level (`codex/drawio/`) inside the host group directory;
-Claude Code and Copilot have no such rule, so `claude-code/` and `copilot/` are themselves
-the plugin roots. If another assistant (Cursor, etc.) is added later, it follows the same
+Claude Code, Copilot and Cursor have no such rule, so `claude-code/`, `copilot/` and
+`cursor/` are themselves the plugin roots. Another assistant added later follows the same
 pattern in its own way.
 
 The draw.io guidance itself — *how* to generate `.drawio` files, embed XML in PNG/SVG/PDF, and produce `app.diagrams.net` URLs — is shared. Only the wrapping (manifest format, file layout, invocation prefix) differs per host, and each host has its own plugin/skill model, so the wrapping is not assumed to be uniform.

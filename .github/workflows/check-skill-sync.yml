@@ -7,11 +7,13 @@ on:
       - "plugins/claude-code/skills/drawio/SKILL.md"
       - "plugins/codex/drawio/skills/drawio/SKILL.md"
       - "plugins/copilot/skills/drawio/SKILL.md"
+      - "plugins/cursor/skills/drawio/SKILL.md"
   pull_request:
     paths:
       - "plugins/claude-code/skills/drawio/SKILL.md"
       - "plugins/codex/drawio/skills/drawio/SKILL.md"
       - "plugins/copilot/skills/drawio/SKILL.md"
+      - "plugins/cursor/skills/drawio/SKILL.md"
   workflow_dispatch:
 
 permissions:
@@ -31,7 +33,8 @@ jobs:
 
           for port in \
             "plugins/codex/drawio/skills/drawio/SKILL.md" \
-            "plugins/copilot/skills/drawio/SKILL.md"; do
+            "plugins/copilot/skills/drawio/SKILL.md" \
+            "plugins/cursor/skills/drawio/SKILL.md"; do
 
             if [ ! -f "$port" ]; then
               echo "$port does not exist (port not present) — nothing to check."
@@ -41,7 +44,7 @@ jobs:
             if cmp -s "$claude" "$port"; then
               echo "OK: $port is byte-identical to $claude."
             else
-              echo "::error file=$port::Must be byte-identical to $claude — mirror the edit to both copies."
+              echo "::error file=$port::Must be byte-identical to $claude — mirror the edit to every copy."
               diff -u "$claude" "$port" || true
               status=1
             fi

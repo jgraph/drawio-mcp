@@ -1,0 +1,15 @@
+{
+  "name": "drawio",
+  "owner": {
+    "name": "draw.io"
+  },
+  "metadata": {
+    "description": "Official draw.io plugins for AI coding assistants."
+  },
+  "plugins": [
+    {
+      "name": "drawio",
+      "source": "plugins/cursor"
+    }
+  ]
+}

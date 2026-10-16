@@ -1,0 +1,20 @@
+{
+  "name": "drawio",
+  "description": "Official draw.io plugin: diagrams drawn right in Cursor's chat, ready to open in draw.io, plus native .drawio files in your project. Author as Mermaid or draw.io XML with 10,000+ shapes, optional ELK auto-layout and PNG/SVG/PDF export.",
+  "version": "1.2.2",
+  "author": {
+    "name": "draw.io"
+  },
+  "homepage": "https://github.com/jgraph/drawio-mcp/tree/main/plugins/cursor",
+  "repository": "https://github.com/jgraph/drawio-mcp",
+  "license": "Apache-2.0",
+  "keywords": [
+    "draw.io",
+    "diagrams",
+    "mermaid",
+    "flowcharts",
+    "architecture",
+    "xml"
+  ],
+  "logo": "assets/drawio-logo.svg"
+}
