@@ -247,8 +247,8 @@ From version 32.4.5 onwards:
 |---|---|---|---|
 | `shape` | see Shape Types above | `label` | Shape type |
 | `perimeter` | see Perimeters below | `rectanglePerimeter` | Connection point calculation |
-| `rounded` | `0`, `1` | `0` | Round rectangle corners |
-| `arcSize` | number | — | Corner radius for rounded shapes (0–50, as percentage) |
+| `rounded` | `0`, `1` | `0` | Round the corners of rectangles, polygons (e.g. `rhombus`, `triangle`, `hexagon`) and shapes with curved sides (`document`, `tape`, `dataStorage`, `or`, `xor`). On curved sides the rounding follows the tangent of the curve |
+| `arcSize` | number | — | Corner size for rounded shapes. Rectangle-based shapes (e.g. `rectangle`, `label`, `process`): the radius is `arcSize` percent of the shorter side (0–50, default `15`), or `arcSize / 2` pixels with `absoluteArcSize=1`. Other shapes (polygons, `document`, `tape`, `dataStorage`, `or`, `xor`): the radius is `arcSize / 2` pixels (default `20`), at most half of each side |
 | `aspect` | `variable`, `fixed` | `variable` | `fixed` preserves width/height ratio |
 | `direction` | `north`, `south`, `east`, `west` | — | Rotate shape by 90° increments |
 | `flipH` | `0`, `1` | `0` | Flip horizontally |
