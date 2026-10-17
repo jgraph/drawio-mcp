@@ -101,6 +101,20 @@ if (process.env.MERMAID_PATH)
 // unversioned.
 var libavoidScriptUrls = await libavoidUrls();
 
+// Optionally inline a local libavoid build (for testing a routing core or
+// bundle before the draw.io release that ships it). Set LIBAVOID_PATH to a
+// directory with libavoid.min.js and libavoid-routing.js, e.g. drawio-dev's
+// src/main/webapp/js/libavoid-js. The CDN URLs are then not used.
+var libavoidJs = null;
+
+if (process.env.LIBAVOID_PATH)
+{
+  const libavoidDir = path.resolve(process.env.LIBAVOID_PATH);
+  libavoidJs = fs.readFileSync(path.join(libavoidDir, "libavoid.min.js"), "utf-8") + "\n" +
+    fs.readFileSync(path.join(libavoidDir, "libavoid-routing.js"), "utf-8");
+  console.error("Inlining local libavoid from", libavoidDir);
+}
+
 // Optionally inline a local viewer build (for testing GraphViewer changes).
 // Set VIEWER_PATH env var to the path of viewer-static.min.js (or a directory
 // containing it plus GraphViewer.js). Example:
@@ -166,7 +180,7 @@ const iconServiceUrl = resolveIconServiceUrl(process.env.DRAWIO_ICON_SERVICE_URL
 // `let` — the daily libavoid version check rebuilds it in place (each
 // /mcp request creates its McpServer from the current value).
 let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls });
+  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs });
 
 // --- Sessions ---
 
@@ -265,7 +279,7 @@ async function startStreamableHTTPServer()
       {
         libavoidScriptUrls = urls;
         html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-          { viewerJs, elkJs, buildId, libavoidUrls: urls });
+          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs });
         console.log("libavoid CDN versions changed; HTML rebuilt");
       }
     }

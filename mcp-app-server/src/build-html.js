@@ -101,12 +101,41 @@ const faviconPath = path.join(__dirname, "..", "favicon.png");
 const faviconBase64 = fs.readFileSync(faviconPath).toString("base64");
 console.log(`Favicon: ${faviconPath} (${(faviconBase64.length / 1024).toFixed(1)} KB base64)`);
 
+// Optionally inline a local viewer and libavoid build, as the Node server does
+// (see VIEWER_PATH and LIBAVOID_PATH in index.js), to try changes in a draw.io
+// release that is not out yet on staging. For staging only: the HTML grows by
+// the size of the viewer, and the build ID says what was inlined.
+//   VIEWER_PATH=../../drawio-dev/src/main/webapp/js \
+//   LIBAVOID_PATH=../../drawio-dev/src/main/webapp/js/libavoid-js \
+//   npx wrangler deploy --env staging
+var viewerJs = null;
+var libavoidJs = null;
+var inlined = [];
+
+if (process.env.VIEWER_PATH)
+{
+  const viewerPath = path.resolve(process.env.VIEWER_PATH);
+  const minJs = fs.statSync(viewerPath).isDirectory() ? path.join(viewerPath, "viewer-static.min.js") : viewerPath;
+  viewerJs = fs.readFileSync(minJs, "utf-8");
+  inlined.push("viewer");
+  console.log(`Inlining local viewer from ${minJs}`);
+}
+
+if (process.env.LIBAVOID_PATH)
+{
+  const libavoidDir = path.resolve(process.env.LIBAVOID_PATH);
+  libavoidJs = fs.readFileSync(path.join(libavoidDir, "libavoid.min.js"), "utf-8") + "\n" +
+    fs.readFileSync(path.join(libavoidDir, "libavoid-routing.js"), "utf-8");
+  inlined.push("libavoid");
+  console.log(`Inlining local libavoid from ${libavoidDir}`);
+}
+
 // Build the HTML and write it as an ES module export. The buildId is
 // captured at build time and baked into the HTML + exported so the
 // worker can echo it in every tool response.
-const buildId = getBuildId();
+const buildId = getBuildId() + ((inlined.length > 0) ? "+local-" + inlined.join("+") : "");
 console.log(`Build ID: ${buildId}`);
-const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId });
+const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId, viewerJs, libavoidJs });
 const outPath = path.join(__dirname, "generated-html.js");
 
 fs.writeFileSync(outPath,
