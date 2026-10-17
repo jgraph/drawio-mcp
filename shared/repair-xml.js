@@ -10,7 +10,10 @@
 //      (see leakedArguments).
 //   2. `<` or a stray `&` inside an attribute value — unescaped HTML labels
 //      (`value="<b>API</b>"`), "R&D", `&nbsp;` (not an XML entity). Escaped to
-//      `&lt;` / `&amp;`, which is what draw.io itself writes.
+//      `&lt;` / `&amp;`, which is what draw.io itself writes. An unescaped HTML
+//      label can carry quoted attributes of its own (`value="A<br><font
+//      style="font-size:11px">B</font>"`): a quote inside an HTML tag in the
+//      value doesn't end the value, and it is escaped to `&quot;`.
 //   3. The default layer written as its own parent (`<mxCell id="1"
 //      parent="1"/>`), which hides the whole diagram. Re-parented to the root.
 //
@@ -22,6 +25,47 @@
 // An `&` that starts neither one of XML's five entities nor a character
 // reference.
 var BARE_AMPERSAND = /&(?!(?:amp|lt|gt|quot|apos|#[0-9]+|#x[0-9a-fA-F]+);)/g;
+
+// The start of an HTML tag that labels use, inside an attribute value.
+var HTML_TAG = /^<\/?(?:a|b|br|div|em|font|h[1-6]|hr|i|img|li|ol|p|small|span|strike|strong|sub|sup|table|td|th|tr|u|ul)\b/i;
+
+/**
+ * The position of the quote that ends the attribute value starting at from,
+ * or -1. A quote inside an HTML tag of an unescaped label belongs to that
+ * tag. A well-formed value holds no `<`, so this is the next quote there.
+ */
+function valueEnd(xml, from, quote)
+{
+  var k = from;
+
+  while (k < xml.length)
+  {
+    var ch = xml.charAt(k);
+
+    if (ch === quote)
+    {
+      return k;
+    }
+
+    if (ch === "<" && HTML_TAG.test(xml.substring(k, k + 12)))
+    {
+      var gt = xml.indexOf(">", k);
+
+      if (gt === -1)
+      {
+        return -1;
+      }
+
+      k = gt + 1;
+    }
+    else
+    {
+      k++;
+    }
+  }
+
+  return -1;
+}
 
 /**
  * Cuts the text down to the first <mxfile> or <mxGraphModel> element. A prefix
@@ -168,14 +212,14 @@ function scanTags(xml)
           return null;
         }
 
-        var close = xml.indexOf(quote, j + 1);
+        var close = valueEnd(xml, j + 1, quote);
 
         if (close === -1)
         {
           return null;
         }
 
-        tag.attrs.push({ name: attr[0], start: j + 1, end: close });
+        tag.attrs.push({ name: attr[0], start: j + 1, end: close, quote: quote });
         j = close + 1;
       }
 
@@ -229,7 +273,8 @@ function repairAttributes(xml, repairs)
     {
       var span = tag.attrs[a];
       var text = xml.substring(span.start, span.end);
-      var fixed = text.replace(/</g, "&lt;").replace(BARE_AMPERSAND, "&amp;");
+      var fixed = text.replace(/</g, "&lt;").replace(BARE_AMPERSAND, "&amp;")
+        .replace((span.quote === "'") ? /'/g : /"/g, (span.quote === "'") ? "&apos;" : "&quot;");
 
       if (fixed !== text)
       {

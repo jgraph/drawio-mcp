@@ -60,6 +60,15 @@ test("< and stray & in attribute values are escaped, entities are kept", functio
   assert.deepEqual(result.repairs, ["attribute values escaped"]);
 });
 
+test("quoted attributes of an unescaped HTML label stay in the value", function()
+{
+  const broken = MODEL.replace('value="A"', 'value="Rollback<br><font style="font-size:11px">restore</font>"');
+  const result = repairDiagramXml(broken);
+
+  assert.ok(result.xml.includes('value="Rollback&lt;br>&lt;font style=&quot;font-size:11px&quot;>restore&lt;/font>" style="rounded=1;html=1;"'));
+  assert.deepEqual(result.repairs, ["attribute values escaped"]);
+});
+
 test("a layer that is its own parent is re-parented to the root", function()
 {
   const broken = MODEL.replace('<mxCell id="1" parent="0"/>', '<mxCell id="1" parent="1"/>');
