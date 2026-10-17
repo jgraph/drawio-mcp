@@ -9,3 +9,4 @@ src/mx-model.js
 src/mx-xml.js
 src/normalize-model.js
 src/repair-xml.js
+src/label-perimeter.js

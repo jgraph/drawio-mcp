@@ -13,6 +13,7 @@ The original draw.io MCP server. Opens diagrams directly in the draw.io editor v
 | `src/mx-xml.js` | Copy of `shared/mx-xml.js` (copy-shared): mxGraphModel XML ↔ that model. `transformPages(xml, fn)` parses each page, hands the transform a graph, and writes back ONLY the cells it changed |
 | `src/repair-xml.js` | Copy of `shared/repair-xml.js` (copy-shared): repairs the mechanical slips in LLM XML before anything parses it, and recovers pass options leaked into the XML string. Covered by `test/repair-xml.test.js` |
 | `src/normalize-model.js` | Copy of `shared/normalize-model.js` (copy-shared): the model repairs, driven through `mx-xml.js`. Covered by `test/normalize-model.test.js` |
+| `src/label-perimeter.js` | Copy of `shared/label-perimeter.js` (copy-shared): adds `labelPerimeter=1` to vertices with a label outside the shape on one side, so draw.io ends edges there at the label. Covered by `test/label-perimeter.test.js` |
 | `src/elk-engine.js` | Loads + memoizes the drawio-elk bundle (CDN via `cdn-cache.js`, indirect `eval` into the globals) |
 | `src/cdn-cache.js` | ETag-revalidated per-user disk cache for the three CDN sources (`ROUTING_CORE`, `ELK_BUNDLE`, `SHAPE_INDEX`), atomic single-artifact writes |
 | `src/shape-index.js` | Loads the `search_shapes` index through `cdn-cache.js`; the JSON parse doubles as the cache validator |
@@ -35,6 +36,8 @@ Opens draw.io with native XML content. Full control over styling and positioning
 3. **Containers that would clip a child** are grown to contain it — never shrunk, no child moved.
 
 `MxGraph.normalizeModel` is a port of drawio-dev's `Graph.normalizeModel` (the desktop CLI's `--normalize`), so a diagram repaired here and one repaired by the CLI come out identical — verified cell for cell. Only the changed cells are rewritten; the pass is idempotent, needs no layout engine, and leaves a page it can't parse untouched.
+
+**Labels outside the shape** get `labelPerimeter=1` right after the normalization (`shared/label-perimeter.js`): draw.io (after 32.5.5) then ends an edge that meets such a vertex on the label's side at the label's far edge, as on icons from its own sidebar. The headless libavoid pass has no rendered labels to route around, so it routes to the shape; the editor's perimeter still ends the last segment at the label.
 
 **`postLayout: "elk"`** (optional, with `direction: "vertical"|"horizontal"`) runs a full ELK re-layout server-side before the URL is built — the same `ElkLayout` facade from the `drawio-elk` bundle that the editor's *Arrange ▸ Layout* menu and the app server's `postLayout` use, with the same canonical edge treatment (`ElkLayout.CANONICAL_EDGE`), so the result matches what the editor produces for the same diagram.
 
@@ -111,7 +114,7 @@ XML uses `#R` because draw.io rewrites a `#create` hash after loading it, and wh
 
 ## XML Reference
 
-`get_drawio_reference` serves `shared/xml-reference.md` and `shared/mermaid-reference.md` (single source of truth for all prompts), and `open_drawio_xml` inlines `shared/xml-essentials.md`; all three are read once at startup. The `copy-shared` script (run on `prestart` and `prepack`) copies them — plus `shared/repair-xml.js`, `shared/shape-search.js`, `shared/icon-search.js`, `shared/mermaid-elk.js`, `shared/mx-model.js`, `shared/mx-xml.js`, and `shared/normalize-model.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The two CDN sources are NOT part of copy-shared: the libavoid routing core and the drawio-elk bundle come from `viewer.diagrams.net` through the per-user cache in `src/cdn-cache.js`, with `vendor/libavoid/libavoid-routing.js` as the routing core's last-resort fallback. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
+`get_drawio_reference` serves `shared/xml-reference.md` and `shared/mermaid-reference.md` (single source of truth for all prompts), and `open_drawio_xml` inlines `shared/xml-essentials.md`; all three are read once at startup. The `copy-shared` script (run on `prestart` and `prepack`) copies them — plus `shared/repair-xml.js`, `shared/shape-search.js`, `shared/icon-search.js`, `shared/mermaid-elk.js`, `shared/mx-model.js`, `shared/mx-xml.js`, `shared/normalize-model.js` and `shared/label-perimeter.js` — into `src/` so the npm package is self-contained. These copies are gitignored; the `search_shapes` loader imports the helper from the local copy with a fallback to `../../shared/` for in-repo runs. (The two CDN sources are NOT part of copy-shared: the libavoid routing core and the drawio-elk bundle come from `viewer.diagrams.net` through the per-user cache in `src/cdn-cache.js`, with `vendor/libavoid/libavoid-routing.js` as the routing core's last-resort fallback. The ~4.6 MB `search-index.json` is deliberately **not** copied/bundled — it is fetched at runtime; see `search_shapes` above.)
 
 ## Coding Conventions
 

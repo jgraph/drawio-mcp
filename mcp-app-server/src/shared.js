@@ -12,6 +12,7 @@ import { buildTagMap } from "../../shared/shape-search.js";
 import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/icon-search.js";
 import { withElkLayout, isFlowchartSource, mermaidDiagramType } from "../../shared/mermaid-elk.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
+import { addLabelPerimeters } from "../../shared/label-perimeter.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import pkg from "../package.json" with { type: "json" };
 
@@ -1986,6 +1987,44 @@ function libavoidJettyFor(style, source)
  * in absolute coords) and write-back — incl. fixed connection points (directed
  * pins) and per-end jetty stubs, like the editor's routeCells.
  */
+// Candidate pins of a floating edge end for libavoid: the middle of each
+// side, directed off it (AvoidRouting.DIR: up 1, right 8, down 2, left 4).
+var LIBAVOID_SIDE_MIDPOINTS = [{ x: 0.5, y: 0, dir: 1 }, { x: 1, y: 0.5, dir: 8 },
+  { x: 0.5, y: 1, dir: 2 }, { x: 0, y: 0.5, dir: 4 }];
+
+// The label of a vertex with labelPerimeter=1 placed outside the shape on one
+// side, as the routing core takes it (AvoidRouting.withOutsideLabels): the
+// side and the label box in absolute model coordinates, placed relative to
+// the vertex bounds b. The core then routes around the label and ends edges
+// on that side at its far edge, where draw.io ends them. null for other
+// vertices, and with a viewer from before labelPerimeter.
+function libavoidOutsideLabel(graph, cell, b)
+{
+  var view = graph.view;
+
+  if (typeof view.getLabelPerimeterSide !== 'function')
+  {
+    return null;
+  }
+
+  var state = view.getState(cell);
+  var side = view.getLabelPerimeterSide(state);
+
+  if (side == null)
+  {
+    return null;
+  }
+
+  var bb = state.text.boundingBox;
+  var sc = view.scale;
+
+  return { side: (side == mxConstants.DIRECTION_SOUTH) ? 'S' :
+    ((side == mxConstants.DIRECTION_NORTH) ? 'N' :
+    ((side == mxConstants.DIRECTION_EAST) ? 'E' : 'W')),
+    x: b.x + (bb.x - state.x) / sc, y: b.y + (bb.y - state.y) / sc,
+    w: bb.width / sc, h: bb.height / sc };
+}
+
 function routeWithLibavoid(graph, Avoid)
 {
   var model = graph.getModel();
@@ -2008,8 +2047,16 @@ function routeWithLibavoid(graph, Avoid)
       {
         // Unrotated bounds plus the style's transform: the core turns them
         // into the drawn box.
-        vertices.push({ id: id, x: b.x, y: b.y, w: b.w, h: b.h,
-          frame: libavoidShapeFrame(graph, c) });
+        var v = { id: id, x: b.x, y: b.y, w: b.w, h: b.h,
+          frame: libavoidShapeFrame(graph, c) };
+        var label = libavoidOutsideLabel(graph, c, b);
+
+        if (label != null)
+        {
+          v.label = label;
+        }
+
+        vertices.push(v);
       }
     }
     else if (c.edge)
@@ -2020,10 +2067,17 @@ function routeWithLibavoid(graph, Avoid)
       {
         // Fixed connection points (exitX/entryX…) route via directed pins and
         // the per-end jettySize gives their minimum stub — like the editor.
+        // A floating end gets a pin at the middle of each side instead of the
+        // shape's centre, where every edge leaving the shape would share its
+        // first segment; the core nudges those apart (nudgeShapeSegments).
         var st = graph.getCellStyle(c);
+        var sc = libavoidFixedConstraint(st, true);
+        var tc = libavoidFixedConstraint(st, false);
         edges.push({ id: id, source: s.id, target: t.id,
-          sourceConstraint: libavoidFixedConstraint(st, true),
-          targetConstraint: libavoidFixedConstraint(st, false),
+          sourceConstraint: sc,
+          targetConstraint: tc,
+          sourcePoints: (sc == null) ? LIBAVOID_SIDE_MIDPOINTS : null,
+          targetPoints: (tc == null) ? LIBAVOID_SIDE_MIDPOINTS : null,
           sourceJetty: libavoidJettyFor(st, true),
           targetJetty: libavoidJettyFor(st, false) });
         edgeCells[id] = c;
@@ -2031,7 +2085,8 @@ function routeWithLibavoid(graph, Avoid)
     }
   }
 
-  var routes = AvoidRouting.computeRoutes(Avoid, vertices, edges);
+  var routes = AvoidRouting.computeRoutes(Avoid, vertices, edges,
+    { nudgeShapeSegments: true });
   var routedIds = Object.keys(routes);
   if (routedIds.length === 0) return false;
 
@@ -7382,6 +7437,12 @@ export function createServer(html, options = {})
       // of hierarchy side effects, and the open-in-draw.io URL carries the
       // corrected diagram too.
       normalizedXml = normalizeDiagram(normalizedXml).xml;
+
+      // Edges end at labels outside the shape (labelPerimeter=1, as on
+      // icons from draw.io's sidebar): a connection from below ends under
+      // the icon's name instead of crossing it. New cells only - draw.io
+      // keeps existing diagrams as they are.
+      normalizedXml = addLabelPerimeters(normalizedXml).xml;
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };
       if (postLayout) xmlPayload.postLayout = postLayout;

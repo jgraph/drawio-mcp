@@ -190,6 +190,22 @@ function loadNormalize()
   return normalizePromise;
 }
 
+// shared/label-perimeter.js (labelPerimeter=1 on vertices with a label
+// outside the shape, so edges end at the label as in the editor), copied
+// into src/ by copy-shared - same import. Memoized.
+let labelPerimeterPromise = null;
+
+function loadLabelPerimeter()
+{
+  if (!labelPerimeterPromise)
+  {
+    labelPerimeterPromise = import("./label-perimeter.js")
+      .catch(function() { return import("../../shared/label-perimeter.js"); });
+  }
+
+  return labelPerimeterPromise;
+}
+
 // shared/repair-xml.js (the mechanical slips LLMs make in XML: text around the
 // diagram, `<` or a stray `&` in attribute values, a layer that is its own
 // parent), copied into src/ by copy-shared — same import. Memoized; pure
@@ -977,6 +993,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
         const mod = await loadNormalize();
 
         content = mod.normalizeDiagram(content).xml;
+        content = (await loadLabelPerimeter()).addLabelPerimeters(content).xml;
       }
       catch (error)
       {

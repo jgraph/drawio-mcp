@@ -266,6 +266,7 @@ From version 31.7.1 onwards:
 | `verticalAlign` | `top`, `middle`, `bottom` | `middle` | Vertical text alignment |
 | `labelPosition` | `left`, `center`, `right` | `center` | Horizontal label position relative to shape |
 | `verticalLabelPosition` | `top`, `middle`, `bottom` | `middle` | Vertical label position relative to shape |
+| `labelPerimeter` | `0`, `1` | `0` | On a vertex whose label is outside the shape, centered on one side (`verticalLabelPosition=top` or `bottom` with `labelPosition=center`, or `labelPosition=left` or `right` with `verticalLabelPosition=middle`): edges that would cross the label end at its outline instead (plus the perimeter spacing), and a fixed connection point on that side moves to the far edge of the label. Ignored on rotated and flipped shapes. Library shapes with an outside label have it, and the _Position_ control in the _Text_ tab sets it; set it on generated vertices with outside labels, for example icons with `verticalLabelPosition=bottom` |
 | `overflow` | `visible`, `hidden`, `fill`, `width` | — | Text overflow handling |
 | `spacing` | number | `2` | General padding in pixels |
 | `spacingTop` | number | `0` | Top padding |

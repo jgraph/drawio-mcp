@@ -8,7 +8,7 @@
     "drawio-mcp": "./src/index.js"
   },
   "scripts": {
-    "copy-shared": "cp ../shared/xml-reference.md src/xml-reference.md && cp ../shared/xml-essentials.md src/xml-essentials.md && cp ../shared/mermaid-reference.md src/mermaid-reference.md && cp ../shared/shape-search.js src/shape-search.js && cp ../shared/icon-search.js src/icon-search.js && cp ../shared/mermaid-elk.js src/mermaid-elk.js && cp ../shared/mx-model.js src/mx-model.js && cp ../shared/mx-xml.js src/mx-xml.js && cp ../shared/normalize-model.js src/normalize-model.js && cp ../shared/repair-xml.js src/repair-xml.js",
+    "copy-shared": "cp ../shared/xml-reference.md src/xml-reference.md && cp ../shared/xml-essentials.md src/xml-essentials.md && cp ../shared/mermaid-reference.md src/mermaid-reference.md && cp ../shared/shape-search.js src/shape-search.js && cp ../shared/icon-search.js src/icon-search.js && cp ../shared/mermaid-elk.js src/mermaid-elk.js && cp ../shared/mx-model.js src/mx-model.js && cp ../shared/mx-xml.js src/mx-xml.js && cp ../shared/normalize-model.js src/normalize-model.js && cp ../shared/repair-xml.js src/repair-xml.js && cp ../shared/label-perimeter.js src/label-perimeter.js",
     "start": "node src/index.js",
     "prestart": "npm run copy-shared",
     "prepack": "npm run copy-shared",
