@@ -149,7 +149,7 @@ Where fitting a tall diagram whole would shrink it below `STREAM_READABLE_MIN_SC
 
 ## XML and Mermaid References
 
-The `get_drawio_reference` tool (`{ format: "xml" | "mermaid" }`) returns one of two canonical reference files in `shared/`, verbatim:
+The `get_drawio_reference` tool (`{ format: "xml" | "mermaid" }`) returns one of two canonical reference files in `shared/`, with this server's chat-view sections inserted before their first section (`src/references.js`, `readReference`): `shared/chat-view-xml.md` (designing for the inline frame, and one layout pattern per diagram type for XML the model places itself) and `shared/chat-view-mermaid.md`. Only `create_diagram` shows diagrams in the chat frame, and only its format rule has the model place flowcharts, class, state and other diagrams as XML; the tool server, the skill and the project instructions use the shared references without these sections.
 
 - **`shared/xml-reference.md`** — loaded as the `xmlReference` option on `createServer()`; covers draw.io XML styles, the layout grid, edge routing, containers, metadata.
 - **`shared/mermaid-reference.md`** — loaded as the `mermaidReference` option; covers syntax for all 28 supported Mermaid diagram types plus flowchart styling (`style`, `classDef`, `linkStyle`).

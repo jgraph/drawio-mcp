@@ -10,6 +10,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { readReference } from "./references.js";
 import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, capabilitiesDeclareUi } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
@@ -146,19 +147,15 @@ if (process.env.VIEWER_PATH)
   }
 }
 
-// Read the shared XML reference once at startup (single source of truth)
-const xmlReference = fs.readFileSync(
-  path.join(__dirname, "..", "..", "shared", "xml-reference.md"),
-  "utf-8"
-);
+// Read the shared XML reference once at startup (single source of truth),
+// with this server's chat-view sections (see references.js)
+const sharedDir = path.join(__dirname, "..", "..", "shared");
+const xmlReference = readReference(sharedDir, "xml-reference.md", "chat-view-xml.md");
 
 // Same for the Mermaid syntax reference — returned by get_drawio_reference
 // so the LLM gets concrete per-type syntax hints for every supported
 // Mermaid diagram plus flowchart styling guidance.
-const mermaidReference = fs.readFileSync(
-  path.join(__dirname, "..", "..", "shared", "mermaid-reference.md"),
-  "utf-8"
-);
+const mermaidReference = readReference(sharedDir, "mermaid-reference.md", "chat-view-mermaid.md");
 
 // Read the shape search index (optional — skip if not yet generated)
 const shapeIndexPath = path.join(__dirname, "..", "..", "shape-search", "search-index.json");

@@ -7736,13 +7736,14 @@ export function createServer(html, options = {})
       // test/tools.test.js caps every description at 2048 characters.
       description:
         "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one.\n\n" +
-        "**Choose the format first.** Use `mermaid` for every type it has a header for: flowchart/graph, sequenceDiagram, classDiagram, " +
-        "stateDiagram-v2, erDiagram, gantt, pie, journey, gitGraph, mindmap, timeline, quadrantChart, xychart-beta, sankey-beta, " +
-        "requirementDiagram, C4Context/C4Container/C4Component, block-beta, architecture-beta, packet-beta, kanban, radar-beta, " +
-        "treemap-beta, treeView-beta, venn-beta, ishikawa-beta, zenuml, wardley-beta, eventmodeling. Don't write flowcharts as XML. " +
-        "Use `xml` for everything else (UI mockups, floor plans, cloud/network/P&ID/electrical diagrams with stencils, swimlanes, " +
-        "UML with deliberate placement, exact positions or colors) and whenever the user asks for draw.io XML or no Mermaid; " +
-        "then keep using XML for the rest of the conversation.\n\n" +
+        "**Choose the format first.** Use `xml` for diagrams of boxes and lines up to about 30 shapes: flowcharts, pipelines, decision trees, " +
+        "org charts, ER schemas, UML class, state and use case diagrams, mind maps, timelines, architecture, cloud and network diagrams, " +
+        "swimlanes, UI mockups, floor plans and anything with stencils. You place every shape yourself, laid out for the chat view " +
+        "(see the XML reference). Use `mermaid` for sequenceDiagram, gantt, gitGraph, pie, journey, quadrantChart, " +
+        "xychart-beta, sankey-beta, requirementDiagram, C4Context/C4Container/C4Component, block-beta, packet-beta, kanban, " +
+        "radar-beta, treemap-beta, treeView-beta, venn-beta, ishikawa-beta, zenuml, wardley-beta, eventmodeling, and for " +
+        "flowcharts, class and state diagrams of more than about 30 shapes (flowcharts with postLayout elk). " +
+        "Whenever the user asks for draw.io XML or no Mermaid, use XML for the rest of the conversation.\n\n" +
         "**Call `get_drawio_reference` before your first diagram in a conversation**, once per format, with the format you chose: " +
         "\"mermaid\" has the syntax for every type (a misspelled header renders blank), \"xml\" the styles, layout grid, edges, " +
         "containers, layers and dark mode. Call `search_shapes` first for industry icons (AWS, Azure, GCP, Cisco, Kubernetes, " +
@@ -7751,7 +7752,7 @@ export function createServer(html, options = {})
         "Every cell has a unique id. Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
         "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
         "Put html=1 in every style and XML-escape HTML in values (&lt; &gt; &amp; &quot;). No XML comments. " +
-        "Don't add waypoints: set `postLayout: \"elk\"` for flowchart-like XML, `routing: \"libavoid\"` for a hand-placed layout.",
+        "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape.",
       inputSchema:
       {
         xml: z
@@ -7768,7 +7769,7 @@ export function createServer(html, options = {})
           ),
         postLayout: lenient("postLayout", z.enum(XML_OPTION_VALUES.postLayout).optional())
           .describe(
-            "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for directional/hierarchical diagrams: flowcharts, process diagrams, state diagrams, decision flows, pipelines, ER/class diagrams with clear parent→child direction. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
+            "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for large Mermaid flowcharts (see below) and for directional XML flows of more than about 30 shapes that you don't lay out yourself; XML you place on the grid (see the XML reference) omits it. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
             "**Omit** for diagrams whose layout carries meaning you hand-crafted: swimlanes/pools, containers, architecture / deployment / network topology with grouped regions, P&ID or circuit schematics, floor plans, UML diagrams with deliberate placement.\n\n" +
             "**For Mermaid flowcharts**, the native parser does its own layout, but it produces cramped or unbalanced output once the diagram has any structural complexity. Request `postLayout: \"elk\"` whenever ANY of the following holds: ≥ ~20 nodes, OR ≥ 3 decision diamonds (`{...}` shapes), OR any feedback/back-edges (an edge that points to an earlier node, e.g. an error path looping back to a retry), OR ≥ 3 distinct endpoints — the flow direction follows the flowchart code, so you never pass `direction` for Mermaid. Skip for simple flowcharts (linear chains, < 20 nodes, no branching/back-edges) and for non-flowchart Mermaid types (sequence, class, ER, sankey, etc. — postLayout doesn't apply)."
           ),

@@ -15,6 +15,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { buildHtml, processAppBundle } from "./shared.js";
+import { readReference } from "./references.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -69,18 +70,14 @@ const pakoDeflateJs = fs.readFileSync(
 // drawio-elk and drawio-mermaid (see buildHtml's libavoidBlock).
 // Keeps ~850 KB out of generated-html.js.
 
-// Read the shared XML reference (single source of truth for all prompts)
-const xmlReference = fs.readFileSync(
-  path.join(__dirname, "..", "..", "shared", "xml-reference.md"),
-  "utf-8"
-);
+// Read the shared XML reference (single source of truth for all prompts),
+// with this server's chat-view sections (see references.js)
+const sharedDir = path.join(__dirname, "..", "..", "shared");
+const xmlReference = readReference(sharedDir, "xml-reference.md", "chat-view-xml.md");
 
 // Read the shared Mermaid reference (returned by get_drawio_reference so
 // LLMs get concrete per-type syntax hints).
-const mermaidReference = fs.readFileSync(
-  path.join(__dirname, "..", "..", "shared", "mermaid-reference.md"),
-  "utf-8"
-);
+const mermaidReference = readReference(sharedDir, "mermaid-reference.md", "chat-view-mermaid.md");
 
 // Read the shape search index (optional — skip if not yet generated)
 const shapeIndexPath = path.join(__dirname, "..", "..", "shape-search", "search-index.json");

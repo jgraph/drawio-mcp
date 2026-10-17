@@ -4,7 +4,7 @@ Detailed reference for styles, edge routing, containers, layers, tags, metadata,
 
 ## Reasoning budget (read this first)
 
-Your job is to declare the **logical structure** of the diagram — what nodes exist, what edges connect them, what labels they carry, what lane/container groups them. The edge router and the optional layout pass (`postLayout: "elk"`, see **Edge routing & layout passes**) handle routing and placement; you do **not** need to do layout math.
+Your job is to declare the **logical structure** of the diagram — what nodes exist, what edges connect them, what labels they carry, what lane/container groups them — and to put each node on a cell of the rigid grid below. The edge router and the optional layout pass (`routing: "libavoid"`, `postLayout: "elk"`, see **Edge routing & layout passes**) handle the wires and, when you use the layout pass, the placement; you do **not** need to do layout math beyond picking a grid cell.
 
 **Do NOT** in your reasoning:
 
@@ -29,7 +29,7 @@ Your job is to declare the **logical structure** of the diagram — what nodes e
 
 - Column x = `col_index * 180 + 40`  (col 0 = 40, col 1 = 220, col 2 = 400, …)
 - Row y = `row_index * 120 + 40`     (row 0 = 40, row 1 = 160, row 2 = 280, …)
-- Node size: rectangles `140×60`, diamonds `140×80`, circles `60×60`, documents `120×80`, cylinders `100×70`
+- Node size: rectangles `140×60`, diamonds `160×90`, circles `60×60`, documents `120×80`, cylinders `100×70`
 
 Pick a `(col, row)` for each node. Don't think about centers or exact gaps — the grid already spaces nodes apart, and slight misalignment is invisible in the result.
 
@@ -138,12 +138,26 @@ draw.io's built-in router is **basic**: it draws each edge as a straight line or
 | Style | Syntax | Best for |
 |-------|--------|---------|
 | **Orthogonal** | `edgeStyle=orthogonalEdgeStyle` | Flowcharts, architecture, network diagrams, BPMN — any diagram with right-angle connectors |
-| **Straight** | no `edgeStyle` | UML class/sequence diagrams, direct point-to-point connections. For sequence diagram messages use `endSize=6;startSize=6;` to keep arrowheads small |
+| **Straight** | no `edgeStyle` | Use case links, network cables, state transitions, direct point-to-point connections. For sequence diagram messages use `endSize=6;startSize=6;` to keep arrowheads small |
 | **Entity Relation** | `edgeStyle=entityRelationEdgeStyle` | ER diagrams — creates perpendicular stubs at both ends |
 | **Curved** | `curved=1` | Mind maps, informal diagrams |
 | **Elbow** | `edgeStyle=elbowEdgeStyle;elbow=vertical;` | Rarely needed — `orthogonalEdgeStyle` handles almost all cases; use this only for simple 1-bend linear flows |
 
-**Use a consistent edge style within each diagram.** Pick one based on diagram type and apply it to all edges: ER → `entityRelationEdgeStyle`; UML class → straight; mind maps → curved; flowcharts/architecture/network → `orthogonalEdgeStyle`.
+**Use the connector the diagram type calls for, the same for every edge of its kind:**
+
+| Diagram | Connector style |
+|---|---|
+| Flowchart, pipeline, swimlane/BPMN, decision tree, architecture, cloud, Kubernetes | `edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;` with the default arrow |
+| Org chart, family tree | `edgeStyle=orthogonalEdgeStyle;endArrow=none;html=1;` (no arrowheads) |
+| ER schema | `edgeStyle=entityRelationEdgeStyle;html=1;` with crow's-foot ends (`ERmandOne`, `ERmany`, …), from row to row |
+| UML class | `edgeStyle=orthogonalEdgeStyle;html=1;` with the UML end (hollow triangle, diamond, open arrow), multiplicities as edge child labels |
+| UML state | straight arrows: no `edgeStyle`, `endArrow=open;endSize=10;html=1;`, labelled with the event |
+| Use case | straight lines without arrows between actor and use case (`endArrow=none;html=1;`); `«include»`/`«extend»` as `dashed=1;endArrow=open;html=1;` |
+| Network | straight cable lines without arrows (`endArrow=none;html=1;`), `dashed=1` for wireless |
+| Mind map | `edgeStyle=entityRelationEdgeStyle;startArrow=none;endArrow=none;segment=10;curved=1;html=1;` |
+| Sequence | use Mermaid |
+
+Straight and curved lines are meant to stay that way: place their ends where the line between them is clear.
 
 **Useful edge style attributes** that apply regardless of routing:
 - `rounded=1` — rounded corners at bend points (recommended for orthogonal)
@@ -452,7 +466,7 @@ When generating diagrams, you generally do not need to specify dark-mode colors 
 By default, edges are drawn by draw.io's **built-in router**, which is intentionally basic: each edge is a straight line or a simple right-angle path between its endpoints, with **no obstacle avoidance** — a connector runs straight through any shape lying between its `source` and `target`. Two **opt-in** passes upgrade this. Set them as fields on the same call that carries the diagram; the result you open, export or copy always reflects the finished pass.
 
 - **`routing: "libavoid"`** (XML only) — obstacle-avoiding orthogonal **edge routing**. Vertices stay exactly where you placed them; only the connectors are recomputed, so they run in clean right-angle segments that route *around* the boxes (and spread apart when parallel) instead of cutting across them. Use it for diagrams you laid out deliberately — architecture, network topology, deployment, swimlanes, UML, floor plans — where you want tidy wires without disturbing your layout.
-- **`postLayout: "elk"`** — a **full re-layout** (ELK `layered` flow). Vertices move from your positions to canonical hierarchical ones, and the edges are routed as part of that. Node sizes are kept exactly as you declare them, so a label still has to fit the box you gave it. Best for flowcharts, process/state diagrams, decision flows, pipelines, and other directional/hierarchical diagrams. (You should rarely hand-write these as XML — prefer Mermaid.) Flow **direction**: on XML set the optional `direction` field (`"vertical"` (default) / `"horizontal"`); on Mermaid it is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`) and `direction` is ignored.
+- **`postLayout: "elk"`** — a **full re-layout** (ELK `layered` flow). Vertices move from your positions to canonical hierarchical ones, and the edges are routed as part of that. Node sizes are kept exactly as you declare them, so a label still has to fit the box you gave it. Best for flowcharts, process/state diagrams, decision flows, pipelines, and other directional/hierarchical diagrams that you don't lay out yourself. Flow **direction**: on XML set the optional `direction` field (`"vertical"` (default) / `"horizontal"`); on Mermaid it is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`) and `direction` is ignored.
 
 The four combinations:
 
