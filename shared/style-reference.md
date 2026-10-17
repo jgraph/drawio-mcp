@@ -230,6 +230,10 @@ Major libraries:
 | `strokeOpacity` | `0`–`100` | `100` | Stroke opacity only |
 | `glass` | `0`, `1` | `0` | Glass/shine overlay effect |
 | `shadow` | `0`, `1` | `0` | Drop shadow (also controlled globally on mxGraphModel) |
+| `multiple` | `0`, `1` | `0` | Paints copies of a vertex stacked behind it, for example to show several instances. Connectors, the label and the selection stay on the front shape. Ignored on edges |
+| `multipleCount` | `1`–`10` | `2` | With `multiple=1`: number of copies behind the shape |
+| `multipleDx` | number | `8` | With `multiple=1`: horizontal offset of each copy from the one in front of it, in pixels on the page (also for rotated and flipped shapes) |
+| `multipleDy` | number | `-8` | With `multiple=1`: vertical offset of each copy from the one in front of it, in pixels on the page (negative values go up) |
 
 From version 32.4.5 onwards:
 
