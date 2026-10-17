@@ -4353,6 +4353,18 @@ function streamFollowNewCells(graph, immediate, skipResize)
   if (recentIds.length === 0)
   {
     targetTy -= (STREAM_BOTTOM_GUTTER / 2) / targetScale;
+
+    // Nothing left to follow: settle on the default view, which is the
+    // readable top view for a tall diagram inline. Without this, the
+    // window resize that follows the host's size change zooms the
+    // camera back out to fit-whole and the labels shrink again.
+    var defaultView = computeDefaultViewTransform();
+    if (defaultView != null)
+    {
+      targetScale = defaultView.s;
+      targetTx = defaultView.tx;
+      targetTy = defaultView.ty;
+    }
   }
 
   // Skip when the target equals the current transform. CRITICAL for
