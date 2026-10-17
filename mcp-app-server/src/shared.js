@@ -2859,7 +2859,12 @@ function flushCellAnimations(graph)
     var state = graph.view.getState(cell);
     var hasBounds = state != null && (state.width > 1 || state.height > 1);
 
-    if (!cell.edge && !hasBounds)
+    // A label on an edge (a child vertex with a relative geometry, like a
+    // UML multiplicity) has no size of its own: it is ready once it has a
+    // state, or it would stay hidden for good
+    var onEdge = graph.model.isEdge(graph.model.getParent(cell));
+
+    if (!cell.edge && !hasBounds && !(onEdge && state != null))
     {
       // Vertex without proper bounds — geometry not yet streamed
       deferred.push(ids[i]);
@@ -2916,6 +2921,13 @@ function flushCellAnimations(graph)
     var vs = graph.view.getState(vCell);
     if (vs == null) continue;
     var delaySec = (schedule.vertexDelay[vCell.id] || 0) / 1000;
+    var vParent = graph.model.getParent(vCell);
+
+    // A label on an edge appears with the edge's own label, after the line
+    if (graph.model.isEdge(vParent) && schedule.edgeDelay[vParent.id] != null)
+    {
+      delaySec = schedule.edgeDelay[vParent.id] / 1000 + 0.4;
+    }
 
     // 400 ms = pop-in transition duration in popInVertexNode. Cells whose
     // geometry shifts inside this window get their morph deferred until
