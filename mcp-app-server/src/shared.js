@@ -1992,6 +1992,194 @@ function libavoidJettyFor(style, source)
 var LIBAVOID_SIDE_MIDPOINTS = [{ x: 0.5, y: 0, dir: 1 }, { x: 1, y: 0.5, dir: 8 },
   { x: 0.5, y: 1, dir: 2 }, { x: 0, y: 0.5, dir: 4 }];
 
+/**
+ * Whether the routing pass reroutes an edge: right-angle edges (an
+ * orthogonal, elbow, entity-relation or segment edge style) are routed.
+ * Straight and curved lines are a choice the diagram type makes (use cases,
+ * network links, state transitions, mind maps) that orthogonal routes would
+ * undo, so they stay as drawn.
+ *
+ * @param {Object} style - the edge's cell style
+ * @returns {boolean}
+ */
+function libavoidRoutesEdge(style)
+{
+  var es = mxUtils.getValue(style, 'edgeStyle', 'none');
+
+  return style.curved != 1 && (es == 'orthogonalEdgeStyle' || es == 'elbowEdgeStyle' ||
+    es == 'entityRelationEdgeStyle' || es == 'segmentEdgeStyle' || es == 'sideToSideEdgeStyle' ||
+    es == 'topToBottomEdgeStyle');
+}
+
+/**
+ * Whether a single candidate pin sits off its side's middle.
+ *
+ * @param {Array<{x:number,y:number}>} pins
+ * @returns {boolean}
+ */
+function libavoidOffMidPin(pins)
+{
+  if (pins == null || pins.length != 1)
+  {
+    return false;
+  }
+
+  var p = pins[0];
+
+  return (p.y == 0 || p.y == 1) ? p.x != 0.5 : p.y != 0.5;
+}
+
+/**
+ * Whether a cell is a row of a table: an ER column or a class attribute in a
+ * stacked container. A row's top and bottom border the rows next to it, so an
+ * edge may only meet it on its left or right side.
+ *
+ * @param {Graph} graph
+ * @param {mxCell} cell
+ * @returns {boolean}
+ */
+function libavoidIsTableRow(graph, cell)
+{
+  var parent = (cell != null) ? graph.getModel().getParent(cell) : null;
+
+  if (parent == null || !graph.getModel().isVertex(parent))
+  {
+    return false;
+  }
+
+  var ps = graph.getCellStyle(parent);
+
+  return ps.childLayout == 'stackLayout' || ps.childLayout == 'tableLayout' || ps.shape == 'table' ||
+    ps.shape == 'tableRow';
+}
+
+/**
+ * The side pins of a table row towards the other end: the facing side when
+ * the other end is beside the table, both sides when it is above or below.
+ *
+ * @param {{x:number,y:number,w:number,h:number}} rb - the row's bounds
+ * @param {{x:number,y:number,w:number,h:number}} ob - the other end's bounds
+ * @returns {Array}
+ */
+function libavoidRowPins(rb, ob)
+{
+  var east = LIBAVOID_SIDE_MIDPOINTS[1], west = LIBAVOID_SIDE_MIDPOINTS[3];
+
+  if (ob.x > rb.x + rb.w)
+  {
+    return [east];
+  }
+  else if (ob.x + ob.w < rb.x)
+  {
+    return [west];
+  }
+
+  return [east, west];
+}
+
+/**
+ * The side midpoints a floating end may use: the sides of each shape that face
+ * the other, as draw.io's orthogonal edge style draws them. Shapes stacked
+ * vertically connect bottom to top, shapes side by side connect side to side,
+ * and a diagonal pair gets both facing sides (an L). Libavoid alone takes the
+ * route with the fewest bends, which enters a shape below from its side, so a
+ * load balancer's edges to the two servers under it come out of its bottom
+ * and turn into the servers' sides. When another shape blocks the corridor
+ * between the two (a loop back along a flowchart's column), every side is
+ * allowed, so the route can go around.
+ *
+ * @param {{x:number,y:number,w:number,h:number}} sb - source bounds
+ * @param {{x:number,y:number,w:number,h:number}} tb - target bounds
+ * @param {Array<{id:string,x:number,y:number,w:number,h:number}>} vertices
+ * @param {string} sid - source id
+ * @param {string} tid - target id
+ * @returns {{source: Array, target: Array}}
+ */
+function libavoidFacingPins(sb, tb, vertices, sid, tid)
+{
+  var all = { source: LIBAVOID_SIDE_MIDPOINTS, target: LIBAVOID_SIDE_MIDPOINTS };
+  var gapX = Math.max(tb.x - (sb.x + sb.w), sb.x - (tb.x + tb.w));
+  var gapY = Math.max(tb.y - (sb.y + sb.h), sb.y - (tb.y + tb.h));
+  var down = tb.y > sb.y + sb.h;
+  var right = tb.x > sb.x + sb.w;
+  var top = LIBAVOID_SIDE_MIDPOINTS[0], east = LIBAVOID_SIDE_MIDPOINTS[1];
+  var bottom = LIBAVOID_SIDE_MIDPOINTS[2], west = LIBAVOID_SIDE_MIDPOINTS[3];
+  var corridor = null;
+  var pins = null;
+
+  // Shapes that overlap across the gap connect with a straight line through
+  // the middle of the overlap (a service under a wide gateway bar), as
+  // draw.io's orthogonal edge style does; a narrow overlap uses the sides'
+  // midpoints and bends
+  var ox0 = Math.max(sb.x, tb.x), ox1 = Math.min(sb.x + sb.w, tb.x + tb.w);
+  var oy0 = Math.max(sb.y, tb.y), oy1 = Math.min(sb.y + sb.h, tb.y + tb.h);
+
+  if (gapY > 0 && gapX <= 0)
+  {
+    if (ox1 - ox0 >= 20)
+    {
+      var cx = (ox0 + ox1) / 2;
+      pins = { source: [{ x: (cx - sb.x) / sb.w, y: down ? 1 : 0, dir: down ? 2 : 1 }],
+        target: [{ x: (cx - tb.x) / tb.w, y: down ? 0 : 1, dir: down ? 1 : 2 }] };
+    }
+    else
+    {
+      pins = { source: [down ? bottom : top], target: [down ? top : bottom] };
+    }
+
+    corridor = { x: ox0, y: Math.min(sb.y + sb.h, tb.y + tb.h), w: ox1 - ox0, h: gapY };
+  }
+  else if (gapX > 0 && gapY <= 0)
+  {
+    if (oy1 - oy0 >= 20)
+    {
+      var cy = (oy0 + oy1) / 2;
+      pins = { source: [{ x: right ? 1 : 0, y: (cy - sb.y) / sb.h, dir: right ? 8 : 4 }],
+        target: [{ x: right ? 0 : 1, y: (cy - tb.y) / tb.h, dir: right ? 4 : 8 }] };
+    }
+    else
+    {
+      pins = { source: [right ? east : west], target: [right ? west : east] };
+    }
+
+    corridor = { x: Math.min(sb.x + sb.w, tb.x + tb.w), y: oy0, w: gapX, h: oy1 - oy0 };
+  }
+  else if (gapX > 0 && gapY > 0)
+  {
+    return { source: [down ? bottom : top, right ? east : west],
+      target: [down ? top : bottom, right ? west : east] };
+  }
+  else
+  {
+    return all;
+  }
+
+  for (var i = 0; i < vertices.length; i++)
+  {
+    var v = vertices[i];
+
+    if (v.id == sid || v.id == tid)
+    {
+      continue;
+    }
+
+    // Shapes around the source or target (containers, background bands)
+    // don't block the way between them
+    var enclosing = function(b)
+    {
+      return v.x <= b.x && v.y <= b.y && v.x + v.w >= b.x + b.w && v.y + v.h >= b.y + b.h;
+    };
+
+    if (!enclosing(sb) && !enclosing(tb) && v.x < corridor.x + corridor.w && v.x + v.w > corridor.x &&
+      v.y < corridor.y + corridor.h && v.y + v.h > corridor.y)
+    {
+      return all;
+    }
+  }
+
+  return pins;
+}
+
 // The label of a vertex with labelPerimeter=1 placed outside the shape on one
 // side, as the routing core takes it (AvoidRouting.withOutsideLabels): the
 // side and the label box in absolute model coordinates, placed relative to
@@ -2059,7 +2247,7 @@ function routeWithLibavoid(graph, Avoid)
         vertices.push(v);
       }
     }
-    else if (c.edge)
+    else if (c.edge && libavoidRoutesEdge(graph.getCellStyle(c)))
     {
       var s = model.getTerminal(c, true);
       var t = model.getTerminal(c, false);
@@ -2085,8 +2273,47 @@ function routeWithLibavoid(graph, Avoid)
     }
   }
 
+  // Floating ends use the sides that face the other end (see
+  // libavoidFacingPins); needs every vertex's bounds, so after the loop
+  var boundsById = {};
+
+  for (var i = 0; i < vertices.length; i++)
+  {
+    boundsById[vertices[i].id] = vertices[i];
+  }
+
+  for (var i = 0; i < edges.length; i++)
+  {
+    var e = edges[i];
+    var sb = boundsById[e.source], tb = boundsById[e.target];
+
+    if (sb != null && tb != null && (e.sourcePoints != null || e.targetPoints != null))
+    {
+      var facing = libavoidFacingPins(sb, tb, vertices, e.source, e.target);
+
+      if (e.sourcePoints != null)
+      {
+        e.sourcePoints = libavoidIsTableRow(graph, model.getCell(e.source)) ?
+          libavoidRowPins(sb, tb) : facing.source;
+      }
+
+      if (e.targetPoints != null)
+      {
+        e.targetPoints = libavoidIsTableRow(graph, model.getCell(e.target)) ?
+          libavoidRowPins(tb, sb) : facing.target;
+      }
+    }
+  }
+
   var routes = AvoidRouting.computeRoutes(Avoid, vertices, edges,
     { nudgeShapeSegments: true });
+  var edgeById = {};
+
+  for (var i = 0; i < edges.length; i++)
+  {
+    edgeById[edges[i].id] = edges[i];
+  }
+
   var routedIds = Object.keys(routes);
   if (routedIds.length === 0) return false;
 
@@ -2134,6 +2361,28 @@ function routeWithLibavoid(graph, Avoid)
         style = mxUtils.setStyle(style, 'jettySize', 'auto');
       }
       style = mxUtils.setStyle(style, 'html', '1');
+
+      // A straight route has no bend points to write, and a floating end
+      // would then connect centre to centre; when it leaves or enters off a
+      // side's middle (aligned on the overlap of two shapes, see
+      // libavoidFacingPins), its pins become the edge's connection points
+      var pe = edgeById[routedIds[i]];
+
+      if (wps.length == 0 && pe != null && (libavoidOffMidPin(pe.sourcePoints) || libavoidOffMidPin(pe.targetPoints)))
+      {
+        if (pe.sourcePoints != null && pe.sourcePoints.length == 1)
+        {
+          style = mxUtils.setStyle(style, 'exitX', pe.sourcePoints[0].x);
+          style = mxUtils.setStyle(style, 'exitY', pe.sourcePoints[0].y);
+        }
+
+        if (pe.targetPoints != null && pe.targetPoints.length == 1)
+        {
+          style = mxUtils.setStyle(style, 'entryX', pe.targetPoints[0].x);
+          style = mxUtils.setStyle(style, 'entryY', pe.targetPoints[0].y);
+        }
+      }
+
       model.setStyle(edge, style);
     }
   }
@@ -2145,6 +2394,188 @@ function routeWithLibavoid(graph, Avoid)
   graph.view.validate();
   console.log('[libavoid] routed ' + routedIds.length + ' edge(s)');
   return true;
+}
+
+/**
+ * Whether an edge, as the built-in router draws it, runs through a shape it
+ * doesn't connect, through the label of a shape that sits outside it (an
+ * icon's name) or through the title of a lane. Placed XML without a routing
+ * pass is routed with libavoid when this holds: the model can't see where
+ * the basic router draws its lines, and a wire through a box is the defect a
+ * reader notices first.
+ *
+ * @param {Graph} graph
+ * @returns {boolean}
+ */
+function edgesCrossShapes(graph)
+{
+  var model = graph.getModel();
+  var view = graph.view;
+  var s = view.scale || 1;
+  var obstacles = [];
+  var edges = [];
+
+  function vertexChildren(cell)
+  {
+    var n = 0;
+
+    for (var i = 0; i < model.getChildCount(cell); i++)
+    {
+      if (model.isVertex(model.getChildAt(cell, i))) n++;
+    }
+
+    return n;
+  }
+
+  function isTextLike(style)
+  {
+    return style.shape == 'text' || (mxUtils.getValue(style, 'fillColor', 'none') == 'none' &&
+      mxUtils.getValue(style, 'strokeColor', 'none') == 'none' && style.shape != 'image' &&
+      String(style.shape || '').indexOf('mxgraph.') != 0);
+  }
+
+  function isTable(style)
+  {
+    return style.childLayout == 'stackLayout' || style.childLayout == 'tableLayout' || style.shape == 'table';
+  }
+
+  function related(a, b)
+  {
+    return a != null && b != null && (model.isAncestor(a, b) || model.isAncestor(b, a));
+  }
+
+  // Does the segment p-q pass through the box r (Liang-Barsky)?
+  function crosses(p, q, r)
+  {
+    var dx = q.x - p.x, dy = q.y - p.y, t0 = 0, t1 = 1;
+    var P = [-dx, dx, -dy, dy];
+    var Q = [p.x - r.x, r.x + r.w - p.x, p.y - r.y, r.y + r.h - p.y];
+
+    if (r.w <= 0 || r.h <= 0) return false;
+
+    for (var i = 0; i < 4; i++)
+    {
+      if (P[i] == 0)
+      {
+        if (Q[i] <= 0) return false;
+      }
+      else
+      {
+        var t = Q[i] / P[i];
+
+        if (P[i] < 0)
+        {
+          if (t > t1) return false;
+          if (t > t0) t0 = t;
+        }
+        else
+        {
+          if (t < t0) return false;
+          if (t < t1) t1 = t;
+        }
+      }
+    }
+
+    return t1 - t0 > 1e-6;
+  }
+
+  function box(x, y, w, h, d)
+  {
+    return { x: x + d, y: y + d, w: w - 2 * d, h: h - 2 * d };
+  }
+
+  function encloses(r, cell)
+  {
+    var st = (cell != null) ? view.getState(cell) : null;
+
+    return st != null && r.x <= st.x && r.y <= st.y && r.x + r.w >= st.x + st.width && r.y + r.h >= st.y + st.height;
+  }
+
+  for (var id in model.cells)
+  {
+    var cell = model.cells[id];
+    var state = view.getState(cell);
+
+    if (state == null || !graph.isCellVisible(cell))
+    {
+      continue;
+    }
+
+    // Straight and curved lines are a choice (use cases, mind maps) that the
+    // orthogonal routes of the pass would undo
+    if (model.isEdge(cell))
+    {
+      if (state.absolutePoints != null && state.absolutePoints.length > 1 && libavoidRoutesEdge(state.style))
+      {
+        edges.push(state);
+      }
+
+      continue;
+    }
+
+    if (!model.isVertex(cell) || model.isEdge(model.getParent(cell)))
+    {
+      continue;
+    }
+
+    var style = state.style;
+    var parentState = view.getState(model.getParent(cell));
+    var inTable = parentState != null && model.isVertex(parentState.cell) && isTable(parentState.style);
+    var children = vertexChildren(cell);
+    var textLike = isTextLike(style);
+
+    if (!inTable && ((children == 0 && !textLike) || (children > 0 && isTable(style))))
+    {
+      obstacles.push({ cell: cell, r: box(state.x, state.y, state.width, state.height, 3 * s), own: false });
+    }
+
+    // Outside labels and the text of titles and notes
+    var bb = (state.text != null && graph.getLabel(cell) != '') ? state.text.boundingBox : null;
+
+    if (bb != null && children == 0 && !inTable && (textLike || bb.y >= state.y + state.height - 2 ||
+      bb.y + bb.height <= state.y + 2 || bb.x >= state.x + state.width - 2 || bb.x + bb.width <= state.x + 2))
+    {
+      obstacles.push({ cell: cell, r: box(bb.x, bb.y, bb.width, bb.height, 2 * s), own: !textLike });
+    }
+
+    // The title of a lane or titled container (its text, not the whole
+    // band: an edge to a member crosses the band)
+    if (children > 0 && !isTable(style) && style.shape == 'swimlane' && bb != null)
+    {
+      obstacles.push({ cell: cell, r: box(bb.x, bb.y, bb.width, bb.height, 1), own: true });
+    }
+  }
+
+  for (var i = 0; i < edges.length; i++)
+  {
+    var e = edges[i];
+    var pts = e.absolutePoints;
+    var src = model.getTerminal(e.cell, true);
+    var tgt = model.getTerminal(e.cell, false);
+
+    for (var j = 0; j < obstacles.length; j++)
+    {
+      var o = obstacles[j];
+
+      // An edge may cross the outside label of its own end; it may not
+      // cross its own shapes or their containers, nor shapes drawn around an
+      // end (a background band)
+      if (!o.own && (related(o.cell, src) || related(o.cell, tgt) || encloses(o.r, src) || encloses(o.r, tgt)))
+      {
+        continue;
+      }
+
+      for (var k = 1; k < pts.length; k++)
+      {
+        if (pts[k - 1] != null && pts[k] != null && crosses(pts[k - 1], pts[k], o.r))
+        {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -4566,7 +4997,8 @@ function finalizeStreamingView(xml, opts)
   opts = opts || {};
   xml = absolutizeImageUrls(xml);
 
-  var key = (xml || '') + '|' + (opts.postLayout || '') + '|' + (opts.routing || '') + '|' + (opts.replaceMode ? 'r' : '');
+  var key = (xml || '') + '|' + (opts.postLayout || '') + '|' + (opts.routing || '') + '|' + (opts.replaceMode ? 'r' : '') +
+    '|' + (opts.autoRoute ? 'a' : '');
   if (key === lastFinalizedKey)
   {
     return;
@@ -4764,13 +5196,19 @@ function finalizeStreamingView(xml, opts)
     }
     catch (e) {}
   }
-  else if (opts.routing)
+  else if (opts.routing || (opts.autoRoute && edgesCrossShapes(streamGraph)))
   {
     // Routing without ELK: the author's (LLM's) vertex positions are kept;
     // libavoid only computes obstacle-avoiding paths for the edges. The
     // normal fit above already ran (no postLayout), and routing doesn't move
     // vertices, so no extra camera move is needed. applyRouting awaits router
-    // readiness internally, so no rAF gate here.
+    // readiness internally, so no rAF gate here. Placed XML without a pass
+    // gets one when a wire would run through a shape (edgesCrossShapes).
+    if (!opts.routing)
+    {
+      console.log('[libavoid] an edge crosses a shape, routing');
+    }
+
     runRoutingPass(streamGraph);
   }
 
@@ -6491,7 +6929,8 @@ app.ontoolresult = function(result)
     // routing is "libavoid" (obstacle-avoiding edge routing) or null — XML only.
     routing = (routing === 'libavoid') ? 'libavoid' : null;
 
-    var layoutOpts = { skipIntroAnim: true, fadeIn: true, postLayout: postLayout, routing: routing };
+    var layoutOpts = { skipIntroAnim: true, fadeIn: true, postLayout: postLayout, routing: routing,
+      autoRoute: mermaidText == null };
 
     if (mermaidText != null)
     {
@@ -7339,7 +7778,7 @@ export function createServer(html, options = {})
           ),
         routing: lenient("routing", z.enum(XML_OPTION_VALUES.routing).optional())
           .describe(
-            "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes each edge's path so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them. Set it for XML diagrams where you have placed nodes deliberately (architecture, network topology, deployment, swimlanes, UML, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
+            "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes the path of each right-angle edge (`edgeStyle=orthogonalEdgeStyle` or `entityRelationEdgeStyle`) so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them; straight and curved lines stay as drawn. Set it for XML diagrams where you have placed nodes deliberately (architecture, deployment, swimlanes, UML class, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
             "draw.io's default router is basic (straight or simple right-angle lines with **no obstacle avoidance** — wires cut straight through any box between the endpoints), so reach for `\"libavoid\"` whenever edges would otherwise cross shapes or you want uniformly clean orthogonal wiring on a layout you placed yourself. Think of `routing` and `postLayout` as **alternatives**: use `routing: \"libavoid\"` to keep your positions and only fix the wires, or `postLayout: \"elk\"` to re-lay-out the vertices — and note ELK already routes its edges decently, so when you use `postLayout` you normally should **not** also set `routing` (the combination is redundant in almost all cases). Do not add `<Array as=\"points\">` waypoints yourself when routing is set; libavoid computes them. **Ignored for Mermaid** (its native/ELK layout already routes)."
           ),
       },
