@@ -135,6 +135,15 @@ cd mcp-app-server/openai-plugin && zip -r "${TMPDIR:-/tmp}/drawio-openai-plugin.
   Review information lives under the header **… → Edit review information**
   (the Submit dialog only has the six acknowledgments); only the test cases'
   "Tool triggered" column changed.
+- **1.0.1 resubmitted again (2026-10-17).** App server 1.2.0 went to
+  production: the create_diagram format rule (XML placed by the model for
+  boxes-and-lines diagrams up to about 30 shapes) and the routing parameter's
+  description changed, so tools/list differs; still the same three tools.
+  **Cancel review → MCPs → Rescan** (no Reconnect needed this time: three
+  tools, no findings; the scan showed the new description) → **Submit for
+  review** with the six acknowledgments pre-ticked. The test cases stayed as
+  they were. The dialog's Submit needed a script click and the page only
+  showed "In review" after a reload.
 
 When the privacy page changes, keep it in step with what the server does:
 tool inputs/outputs, the icon-service forwarding (`search_shapes` →
