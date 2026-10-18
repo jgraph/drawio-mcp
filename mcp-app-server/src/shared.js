@@ -1701,7 +1701,10 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
 /**
  * Serialize the current graph model to draw.io XML. Used after a post-
  * layout pass so currentXml and drawioEditUrl reflect what the user
- * sees in the viewer — not the pre-pass XML from the server.
+ * sees in the viewer — not the pre-pass XML from the server. mxCodec
+ * writes no attributes on mxGraphModel, so the diagram's own (the page
+ * background, adaptiveColors, grid, ...) are copied from the XML it
+ * replaces; without them a dark theme lost its page on "Open in draw.io".
  */
 function serializeGraphXml(graph)
 {
@@ -1709,11 +1712,47 @@ function serializeGraphXml(graph)
   {
     var codec = new mxCodec();
     var node = codec.encode(graph.getModel());
+    copyModelAttributes(currentXml, node);
+
     return mxUtils.getXml(node);
   }
   catch (e)
   {
     return null;
+  }
+}
+
+/**
+ * Copies the attributes of the mxGraphModel in the given XML to the given
+ * mxGraphModel node, where the node doesn't have them.
+ */
+function copyModelAttributes(xml, node)
+{
+  if (xml == null || node == null)
+  {
+    return;
+  }
+
+  try
+  {
+    var models = mxUtils.parseXml(xml).getElementsByTagName('mxGraphModel');
+
+    if (models.length > 0)
+    {
+      var attrs = models[0].attributes;
+
+      for (var i = 0; i < attrs.length; i++)
+      {
+        if (!node.hasAttribute(attrs[i].name))
+        {
+          node.setAttribute(attrs[i].name, attrs[i].value);
+        }
+      }
+    }
+  }
+  catch (e)
+  {
+    // keep the node as encoded
   }
 }
 
