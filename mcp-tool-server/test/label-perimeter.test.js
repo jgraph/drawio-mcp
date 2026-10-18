@@ -104,23 +104,25 @@ test("labeled edges and their label cells get the label gap", function()
 
   assert.equal(r.changed, 3);
   // Side by side: the labels also move above the line.
-  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;");
-  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;");
+  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
+  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
   assert.equal(styleOf(r.xml, "unlabeled"), "html=1;");
   assert.equal(styleOf(r.xml, "m"), "edgeLabel;html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
 });
 
 test("explicit label backgrounds and existing gaps are kept", function()
 {
-  // Stacked, so no label moves above a line either.
+  // Stacked, so no label moves above a line either; placement is the only addition.
   var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 40, "rounded=1;", 140, 60).replace('y="40"', 'y="240"') +
     edge("none", "No", "labelBackgroundColor=none;", "a", "b") +
     edge("color", "No", "labelBackgroundColor=#0F172A;", "a", "b") +
-    edge("gap", "No", "labelBackgroundColor=default;defaultLabelBackgroundColor=gap;", "a", "b"));
+    edge("gap", "No", "labelBackgroundColor=default;defaultLabelBackgroundColor=gap;labelPlacement=auto;", "a", "b"));
   var r = fitEdgeLabels(xml);
 
-  assert.equal(r.changed, 0);
-  assert.equal(r.xml, xml);
+  assert.equal(r.changed, 2);
+  assert.equal(styleOf(r.xml, "none"), "labelBackgroundColor=none;labelPlacement=auto;");
+  assert.equal(styleOf(r.xml, "color"), "labelBackgroundColor=#0F172A;labelPlacement=auto;");
+  assert.equal(styleOf(r.xml, "gap"), "labelBackgroundColor=default;defaultLabelBackgroundColor=gap;labelPlacement=auto;");
 });
 
 test("a label wider than a short edge between diamonds moves above the line", function()
@@ -135,9 +137,9 @@ test("a label wider than a short edge between diamonds moves above the line", fu
   var r = fitEdgeLabels(xml);
 
   assert.equal(styleOf(r.xml, "yes"),
-    "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;");
-  // Rectangles leave no room above the line, and a placed label stays.
-  assert.equal(styleOf(r.xml, "rect"), "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+    "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
+  // Rectangles leave no room above the line, and a placed label stays where the diagram put it.
+  assert.equal(styleOf(r.xml, "rect"), "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;labelPlacement=auto;");
   assert.equal(styleOf(r.xml, "placed"),
     "edgeStyle=orthogonalEdgeStyle;verticalAlign=top;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
   assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
@@ -154,8 +156,11 @@ test("labels on vertical and bent edges stay on the line", function()
     edge("ports", "Up", "edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=0;entryX=0.5;entryY=1;", "c", "a"));
   var r = fitEdgeLabels(xml);
 
-  assert.match(styleOf(r.xml, "long"), /verticalAlign=bottom;$/);
+  assert.match(styleOf(r.xml, "long"), /verticalAlign=bottom;labelPlacement=auto;$/);
+  // draw.io finds the segment of bent edges when it paints them
+  assert.match(styleOf(r.xml, "bent"), /labelPlacement=auto;$/);
   assert.doesNotMatch(styleOf(r.xml, "down"), /verticalAlign/);
   assert.doesNotMatch(styleOf(r.xml, "bent"), /verticalAlign/);
+  assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
   assert.doesNotMatch(styleOf(r.xml, "ports"), /verticalAlign/);
 });

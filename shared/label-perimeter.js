@@ -90,8 +90,10 @@ export function addLabelPerimeters(xml)
 // the line stays whole, and on a vertical line it stays on the line, which
 // breaks only for the height of the text (the gap). Straight horizontal edges
 // between two shapes get the lift when the label fits above the line: between
-// the shapes, where diamonds and ellipses narrow above their middle. Bent
-// edges keep their labels on the line, as the route isn't known here.
+// the shapes, where diamonds and ellipses narrow above their middle. Every
+// labeled edge also gets labelPlacement=auto: draw.io (after 32.5.5) then
+// finds the segment under the label when it paints it, so labels on bent and
+// rerouted edges follow the same rule; older viewers ignore the key.
 //
 // Idempotent; labels the diagram places itself (an offset, a position along
 // the edge, a vertical alignment) and explicit backgrounds are left alone.
@@ -305,6 +307,12 @@ export function fitEdgeLabels(xml)
           if (model.isEdge(child) && isLabelAboveLine(graph, child, style))
           {
             entries += "verticalAlign=bottom;";
+          }
+
+          if (model.isEdge(child) && !hasKey(model.getStyle(child), "labelPlacement") &&
+            !hasKey(model.getStyle(child), "verticalAlign") && style.horizontal != 0)
+          {
+            entries += "labelPlacement=auto;";
           }
 
           if (entries.length > 0)
