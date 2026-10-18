@@ -1,0 +1,772 @@
+{
+ "description": "Gallery of diagrams created by an AI assistant with the draw.io MCP server, each from one prompt with Claude Sonnet 5.5, unedited. Images: <image>.svg (light) and <image>-dark.svg (dark) in this folder, editable SVGs with the diagram embedded. Shown on https://www.drawio.com/mcp/ and in the draw.io documentation, which read this file when the site is built.",
+ "model": "Claude Sonnet 5.5",
+ "sections": [
+  {
+   "title": "Processes and flows",
+   "items": [
+    {
+     "image": "gallery-t1-flowchart",
+     "title": "Flowchart",
+     "format": "draw.io XML",
+     "seconds": 48,
+     "cost": 0.2,
+     "prompt": "Draw an online shop's order process as a diagram: a flowchart with at least two decisions and one retry loop (if the payment fails, retry up to 3 times).",
+     "width": 752,
+     "height": 681,
+     "featured": true
+    },
+    {
+     "image": "gallery-incident",
+     "title": "Flowchart, professional theme",
+     "format": "draw.io XML",
+     "seconds": 61,
+     "cost": 0.24,
+     "prompt": "Create a flowchart for an IT incident response process in the professional theme: detect, triage, severity high?, escalate to on-call, investigate, fix, verify, post-mortem.",
+     "width": 881,
+     "height": 474,
+     "featured": false
+    },
+    {
+     "image": "gallery-n9-decision",
+     "title": "Decision tree",
+     "format": "draw.io XML",
+     "seconds": 36,
+     "cost": 0.18,
+     "prompt": "Draw a decision tree that helps choose a database for a new project.",
+     "width": 542,
+     "height": 801,
+     "featured": false
+    },
+    {
+     "image": "gallery-t4-swimlane",
+     "title": "Swimlane process",
+     "format": "draw.io XML",
+     "seconds": 50,
+     "cost": 0.22,
+     "prompt": "Draw an employee onboarding process as a diagram: a swimlane process with three lanes (HR, IT, Manager) and at least six steps.",
+     "width": 1042,
+     "height": 511,
+     "featured": false
+    },
+    {
+     "image": "gallery-bpmn",
+     "title": "BPMN process",
+     "format": "draw.io XML",
+     "seconds": 35,
+     "cost": 0.16,
+     "prompt": "Draw a BPMN process for a purchase order approval: a start event, submit the request, a manager approval gateway, procurement, rejection, and end events.",
+     "width": 1142,
+     "height": 511,
+     "featured": false
+    },
+    {
+     "image": "gallery-t3-sequence",
+     "title": "Sequence diagram",
+     "format": "Mermaid",
+     "seconds": 10,
+     "cost": 0.05,
+     "prompt": "Draw the OAuth 2.0 authorization code flow as a diagram: a sequence diagram between the user, the browser, the client app, the authorization server and the resource server.",
+     "width": 1061,
+     "height": 854,
+     "featured": true
+    },
+    {
+     "image": "gallery-zenuml",
+     "title": "ZenUML sequence",
+     "format": "Mermaid",
+     "seconds": 15,
+     "cost": 0.05,
+     "prompt": "Draw a ZenUML sequence diagram of a customer ordering food in a delivery app.",
+     "width": 926,
+     "height": 782,
+     "featured": false
+    },
+    {
+     "image": "gallery-n3-state",
+     "title": "State diagram",
+     "format": "draw.io XML",
+     "seconds": 37,
+     "cost": 0.16,
+     "prompt": "Draw a state diagram for the lifecycle of an online order: created, paid, shipped, delivered, cancelled and refunded.",
+     "width": 871,
+     "height": 411,
+     "featured": false
+    },
+    {
+     "image": "gallery-d5-journey",
+     "title": "User journey",
+     "format": "Mermaid",
+     "seconds": 16,
+     "cost": 0.05,
+     "prompt": "Draw a user journey for buying a train ticket online, with how satisfied the traveller is at each step.",
+     "width": 2368,
+     "height": 423,
+     "featured": false
+    },
+    {
+     "image": "gallery-eventmodel",
+     "title": "Event model",
+     "format": "Mermaid",
+     "seconds": 15,
+     "cost": 0.06,
+     "prompt": "Draw an event model for booking a hotel room: the screens, commands, events and read models.",
+     "width": 2517,
+     "height": 432,
+     "featured": false
+    },
+    {
+     "image": "gallery-dfd",
+     "title": "Data flow diagram",
+     "format": "draw.io XML",
+     "seconds": 42,
+     "cost": 0.17,
+     "prompt": "Draw a data flow diagram for an online store's checkout: the customer, the web app, a payment service, the order database and an email service.",
+     "width": 922,
+     "height": 554,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Software and data",
+   "items": [
+    {
+     "image": "gallery-n2-class",
+     "title": "UML class diagram",
+     "format": "draw.io XML",
+     "seconds": 42,
+     "cost": 0.22,
+     "prompt": "Draw a UML class diagram for an online store: Customer, Order, OrderItem, Product and Payment, with their main attributes, a few methods and the relationships between them.",
+     "width": 942,
+     "height": 449,
+     "featured": true
+    },
+    {
+     "image": "gallery-n11-blog-er",
+     "title": "ER diagram",
+     "format": "draw.io XML",
+     "seconds": 51,
+     "cost": 0.21,
+     "prompt": "Draw an ER diagram for a blog: users, posts, comments, tags and a post_tags join table.",
+     "width": 966,
+     "height": 527,
+     "featured": false
+    },
+    {
+     "image": "gallery-n10-usecase",
+     "title": "Use case diagram",
+     "format": "draw.io XML",
+     "seconds": 36,
+     "cost": 0.17,
+     "prompt": "Draw a use case diagram for an ATM.",
+     "width": 802,
+     "height": 645,
+     "featured": false
+    },
+    {
+     "image": "gallery-c4",
+     "title": "C4 container diagram",
+     "format": "draw.io XML",
+     "seconds": 72,
+     "cost": 0.22,
+     "prompt": "Draw a C4 container diagram for an online banking system: the customer, a web app, a mobile app, an API application, a database, the mainframe banking system and an email system.",
+     "width": 922,
+     "height": 714,
+     "featured": false
+    },
+    {
+     "image": "gallery-requirement",
+     "title": "Requirement diagram",
+     "format": "Mermaid",
+     "seconds": 24,
+     "cost": 0.09,
+     "prompt": "Draw a requirement diagram for a door access control system: functional and safety requirements, the components that satisfy them and the tests that verify them.",
+     "width": 1518,
+     "height": 993,
+     "featured": false
+    },
+    {
+     "image": "gallery-packet",
+     "title": "Packet diagram",
+     "format": "Mermaid",
+     "seconds": 15,
+     "cost": 0.06,
+     "prompt": "Draw the TCP header as a packet diagram.",
+     "width": 1046,
+     "height": 339,
+     "featured": false
+    },
+    {
+     "image": "gallery-d2-git",
+     "title": "Git graph",
+     "format": "Mermaid",
+     "seconds": 11,
+     "cost": 0.06,
+     "prompt": "Draw a git branching diagram: a feature branch for the login page with two commits, a bug fix on main in between, then the merge and a 1.0 release.",
+     "width": 476,
+     "height": 220,
+     "featured": false
+    },
+    {
+     "image": "gallery-component",
+     "title": "UML component diagram",
+     "format": "draw.io XML",
+     "seconds": 76,
+     "cost": 0.26,
+     "prompt": "Draw a UML component diagram of an online shop: web frontend, catalog, cart, order and payment components with their provided and required interfaces, and an external payment provider.",
+     "width": 922,
+     "height": 551,
+     "featured": false
+    },
+    {
+     "image": "gallery-deployment",
+     "title": "UML deployment diagram",
+     "format": "draw.io XML",
+     "seconds": 45,
+     "cost": 0.2,
+     "prompt": "Draw a UML deployment diagram of a web application: the user's browser, a load balancer, two application servers running the app, a database server with PostgreSQL, and a Redis cache.",
+     "width": 822,
+     "height": 724,
+     "featured": false
+    },
+    {
+     "image": "gallery-archimate",
+     "title": "ArchiMate",
+     "format": "draw.io XML",
+     "seconds": 77,
+     "cost": 0.3,
+     "prompt": "Draw an ArchiMate view of an insurance claim process: the customer, the business process to submit and handle a claim, the application services and components that support it, and the technology they run on.",
+     "width": 892,
+     "height": 752,
+     "featured": false
+    },
+    {
+     "image": "gallery-sitemap",
+     "title": "Sitemap",
+     "format": "draw.io XML",
+     "seconds": 30,
+     "cost": 0.16,
+     "prompt": "Draw the sitemap of a small company website: home, about us with team and careers, products with three product pages, blog, support with FAQ and contact.",
+     "width": 722,
+     "height": 445,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Architecture and infrastructure",
+   "items": [
+    {
+     "image": "gallery-n14-3tier",
+     "title": "Three-tier web app",
+     "format": "draw.io XML",
+     "seconds": 36,
+     "cost": 0.17,
+     "prompt": "Draw a three-tier web application architecture with a load balancer, two web servers, an application server cluster and a primary database with a read replica.",
+     "width": 722,
+     "height": 676,
+     "featured": false
+    },
+    {
+     "image": "gallery-n7-microservices",
+     "title": "Microservices",
+     "format": "draw.io XML",
+     "seconds": 44,
+     "cost": 0.19,
+     "prompt": "Draw the system architecture of a food delivery app: mobile apps for customers and couriers, an API gateway, order, restaurant, courier and payment services, a message queue between them, and a database per service.",
+     "width": 702,
+     "height": 589,
+     "featured": false
+    },
+    {
+     "image": "gallery-ridedark",
+     "title": "Microservices, dark theme",
+     "format": "draw.io XML",
+     "seconds": 39,
+     "cost": 0.19,
+     "prompt": "Draw the microservices architecture of a ride-sharing app in the dark theme: rider app, driver app, API gateway, trip, pricing, payment and notification services, and a message queue.",
+     "width": 742,
+     "height": 584,
+     "featured": false
+    },
+    {
+     "image": "gallery-n8-cicd",
+     "title": "CI/CD pipeline",
+     "format": "draw.io XML",
+     "seconds": 64,
+     "cost": 0.22,
+     "prompt": "Draw our CI/CD pipeline: a push to GitHub triggers build, unit tests and a security scan; then deploy to staging, run integration tests, wait for manual approval and deploy to production, with a rollback if the production smoke tests fail.",
+     "width": 962,
+     "height": 571,
+     "featured": false
+    },
+    {
+     "image": "gallery-t2-aws",
+     "title": "AWS",
+     "format": "draw.io XML",
+     "seconds": 51,
+     "cost": 0.22,
+     "prompt": "Draw the AWS architecture of a photo-sharing app as a diagram, using CloudFront, S3, API Gateway, Lambda, DynamoDB and Cognito.",
+     "width": 824,
+     "height": 604,
+     "featured": true
+    },
+    {
+     "image": "gallery-azure",
+     "title": "Azure",
+     "format": "draw.io XML",
+     "seconds": 53,
+     "cost": 0.24,
+     "prompt": "Draw an Azure architecture for a web app: Front Door, App Service, Azure Functions, Cosmos DB, Blob Storage and Entra ID, using Azure icons.",
+     "width": 882,
+     "height": 606,
+     "featured": false
+    },
+    {
+     "image": "gallery-gcp",
+     "title": "Google Cloud",
+     "format": "draw.io XML",
+     "seconds": 93,
+     "cost": 0.5,
+     "prompt": "Draw a Google Cloud data pipeline: Pub/Sub, Dataflow, BigQuery, Cloud Storage and Looker, using Google Cloud icons.",
+     "width": 892,
+     "height": 449,
+     "featured": false
+    },
+    {
+     "image": "gallery-k8s",
+     "title": "Kubernetes",
+     "format": "draw.io XML",
+     "seconds": 51,
+     "cost": 0.25,
+     "prompt": "Draw the Kubernetes deployment of a web shop: an ingress, frontend and API deployments with services, a Redis cache and a PostgreSQL stateful set, using Kubernetes icons.",
+     "width": 1092,
+     "height": 531,
+     "featured": false
+    },
+    {
+     "image": "gallery-n6-network",
+     "title": "Office network",
+     "format": "draw.io XML",
+     "seconds": 49,
+     "cost": 0.26,
+     "prompt": "Draw the network diagram of a small office: internet connection, firewall, router, two switches, six workstations, a network printer, a file server and a Wi-Fi access point with laptops.",
+     "width": 985,
+     "height": 766,
+     "featured": false
+    },
+    {
+     "image": "gallery-block",
+     "title": "Block diagram",
+     "format": "draw.io XML",
+     "seconds": 47,
+     "cost": 0.2,
+     "prompt": "Draw a block diagram of a home Wi-Fi router: power supply, processor, memory, Wi-Fi radios, Ethernet switch and antennas.",
+     "width": 882,
+     "height": 519,
+     "featured": false
+    },
+    {
+     "image": "gallery-awsha",
+     "title": "AWS, two availability zones",
+     "format": "draw.io XML",
+     "seconds": 120,
+     "cost": 0.38,
+     "prompt": "Draw a highly available AWS deployment across two availability zones: Route 53, an application load balancer, a VPC with public and private subnets in each zone, EC2 instances in an auto scaling group, and an RDS primary database with a standby replica. Use AWS icons.",
+     "width": 862,
+     "height": 720,
+     "featured": false
+    },
+    {
+     "image": "gallery-rack",
+     "title": "Server rack",
+     "format": "draw.io XML",
+     "seconds": 46,
+     "cost": 0.28,
+     "prompt": "Draw a 42U server rack: a patch panel and two network switches at the top, a firewall, four 1U servers, a 2U storage array and a UPS at the bottom.",
+     "width": 383,
+     "height": 734,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Planning and ideas",
+   "items": [
+    {
+     "image": "gallery-n4-mindmap",
+     "title": "Mind map",
+     "format": "draw.io XML",
+     "seconds": 43,
+     "cost": 0.23,
+     "prompt": "Make a mind map for planning a family vacation.",
+     "width": 1002,
+     "height": 695,
+     "featured": true
+    },
+    {
+     "image": "gallery-n12-timeline",
+     "title": "Timeline",
+     "format": "draw.io XML",
+     "seconds": 50,
+     "cost": 0.23,
+     "prompt": "Show the history of the internet as a timeline.",
+     "width": 782,
+     "height": 621,
+     "featured": false
+    },
+    {
+     "image": "gallery-n5-gantt",
+     "title": "Gantt chart",
+     "format": "Mermaid",
+     "seconds": 20,
+     "cost": 0.06,
+     "prompt": "Create a Gantt chart for a 3-month website redesign project.",
+     "width": 804,
+     "height": 371,
+     "featured": false
+    },
+    {
+     "image": "gallery-d4-kanban",
+     "title": "Kanban board",
+     "format": "Mermaid",
+     "seconds": 9,
+     "cost": 0.05,
+     "prompt": "Show our sprint as a kanban board. To do: release notes, new screenshots. In progress: login bug, API docs. Done: 1.2.0 release, Docker image.",
+     "width": 632,
+     "height": 150,
+     "featured": false
+    },
+    {
+     "image": "gallery-h4-org",
+     "title": "Org chart",
+     "format": "draw.io XML",
+     "seconds": 41,
+     "cost": 0.21,
+     "prompt": "Draw the org chart of a 15-person startup: the CEO; a CTO with two engineering managers who each lead three engineers; a CFO with an accountant; and a COO with a head of sales and a support lead. Use names and job titles.",
+     "width": 1042,
+     "height": 631,
+     "featured": false
+    },
+    {
+     "image": "gallery-ishikawa",
+     "title": "Fishbone diagram",
+     "format": "Mermaid",
+     "seconds": 15,
+     "cost": 0.05,
+     "prompt": "Draw a fishbone diagram of the causes of late deliveries: people, process, equipment, materials, environment and management.",
+     "width": 626,
+     "height": 571,
+     "featured": false
+    },
+    {
+     "image": "gallery-wardley",
+     "title": "Wardley map",
+     "format": "Mermaid",
+     "seconds": 13,
+     "cost": 0.06,
+     "prompt": "Draw a Wardley map for an online tea shop: customer, website, payment, inventory, fulfilment, cloud hosting and power.",
+     "width": 888,
+     "height": 592,
+     "featured": false
+    },
+    {
+     "image": "gallery-treeview",
+     "title": "Tree view",
+     "format": "Mermaid",
+     "seconds": 14,
+     "cost": 0.06,
+     "prompt": "Show the folder structure of a typical React project as a tree view.",
+     "width": 284,
+     "height": 1065,
+     "featured": false
+    },
+    {
+     "image": "gallery-mockup",
+     "title": "Wireframe",
+     "format": "draw.io XML",
+     "seconds": 29,
+     "cost": 0.16,
+     "prompt": "Draw a wireframe of a mobile app login screen: logo, email and password fields, a sign-in button, a forgot-password link and social login buttons.",
+     "width": 344,
+     "height": 763,
+     "featured": false
+    },
+    {
+     "image": "gallery-dashboard",
+     "title": "Dashboard wireframe",
+     "format": "draw.io XML",
+     "seconds": 63,
+     "cost": 0.27,
+     "prompt": "Draw a wireframe of a sales dashboard web page: a sidebar menu, a header with search and the user menu, four KPI cards, a line chart, a bar chart and a table of recent orders.",
+     "width": 882,
+     "height": 681,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Engineering and buildings",
+   "items": [
+    {
+     "image": "gallery-floorplan",
+     "title": "Floor plan",
+     "format": "draw.io XML",
+     "seconds": 152,
+     "cost": 0.46,
+     "prompt": "Draw a floor plan of a two-bedroom apartment: a living room with an open kitchen, two bedrooms, a bathroom and a hallway with the entrance. Show the walls, doors, windows and the main furniture.",
+     "width": 792,
+     "height": 711,
+     "featured": true
+    },
+    {
+     "image": "gallery-seating",
+     "title": "Seating plan",
+     "format": "draw.io XML",
+     "seconds": 82,
+     "cost": 0.34,
+     "prompt": "Draw the seating plan for a wedding reception: eight round tables for eight guests, the head table, a dance floor, the bar, the DJ and the entrance.",
+     "width": 904,
+     "height": 729,
+     "featured": false
+    },
+    {
+     "image": "gallery-circuit",
+     "title": "Electrical circuit",
+     "format": "draw.io XML",
+     "seconds": 190,
+     "cost": 0.57,
+     "prompt": "Draw the circuit diagram of a 5 V power supply: a 230 V transformer, a bridge rectifier, a smoothing capacitor, a 7805 voltage regulator, an output capacitor and an LED with its resistor as a power indicator.",
+     "width": 1002,
+     "height": 521,
+     "featured": true
+    },
+    {
+     "image": "gallery-logic",
+     "title": "Logic circuit",
+     "format": "draw.io XML",
+     "seconds": 55,
+     "cost": 0.24,
+     "prompt": "Draw a full adder as a logic circuit: inputs A, B and Carry-in, two XOR gates, two AND gates and an OR gate, and the outputs Sum and Carry-out.",
+     "width": 912,
+     "height": 490,
+     "featured": false
+    },
+    {
+     "image": "gallery-pid",
+     "title": "P&ID",
+     "format": "draw.io XML",
+     "seconds": 159,
+     "cost": 0.52,
+     "prompt": "Draw a P&ID for a simple heating process: a feed tank, a pump, a control valve, a heat exchanger heated by steam and a product tank, with a flow transmitter, a temperature transmitter and a temperature controller.",
+     "width": 998,
+     "height": 561,
+     "featured": true
+    },
+    {
+     "image": "gallery-faulttree",
+     "title": "Fault tree",
+     "format": "draw.io XML",
+     "seconds": 85,
+     "cost": 0.29,
+     "prompt": "Draw a fault tree for a car that won't start: dead battery, starter failure, no fuel and ignition fault, with their causes and the AND and OR gates.",
+     "width": 1352,
+     "height": 650,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Business and strategy",
+   "items": [
+    {
+     "image": "gallery-swot",
+     "title": "SWOT analysis",
+     "format": "draw.io XML",
+     "seconds": 29,
+     "cost": 0.15,
+     "prompt": "Make a SWOT analysis for a small neighbourhood coffee shop.",
+     "width": 906,
+     "height": 541,
+     "featured": false
+    },
+    {
+     "image": "gallery-bmc",
+     "title": "Business model canvas",
+     "format": "draw.io XML",
+     "seconds": 32,
+     "cost": 0.16,
+     "prompt": "Fill in a business model canvas for a meal-kit delivery startup.",
+     "width": 922,
+     "height": 591,
+     "featured": true
+    },
+    {
+     "image": "gallery-roadmap",
+     "title": "Product roadmap",
+     "format": "draw.io XML",
+     "seconds": 42,
+     "cost": 0.17,
+     "prompt": "Draw a product roadmap for 2027 by quarter, with three lanes: mobile app, web app and platform, and two or three items per lane.",
+     "width": 852,
+     "height": 411,
+     "featured": false
+    },
+    {
+     "image": "gallery-funnel",
+     "title": "Sales funnel",
+     "format": "draw.io XML",
+     "seconds": 34,
+     "cost": 0.16,
+     "prompt": "Draw a sales funnel: 10,000 website visitors, 2,500 leads, 800 qualified leads, 300 proposals and 120 customers, with the conversion rate between the stages.",
+     "width": 732,
+     "height": 534,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Infographics and education",
+   "items": [
+    {
+     "image": "gallery-infographic",
+     "title": "Infographic",
+     "format": "draw.io XML",
+     "seconds": 38,
+     "cost": 0.21,
+     "prompt": "Make an infographic of the five steps to launch a product: research, design, build, test and launch, each with an icon and a one-line description.",
+     "width": 892,
+     "height": 341,
+     "featured": true
+    },
+    {
+     "image": "gallery-pyramid",
+     "title": "Pyramid",
+     "format": "draw.io XML",
+     "seconds": 35,
+     "cost": 0.15,
+     "prompt": "Draw Maslow's hierarchy of needs as a pyramid.",
+     "width": 941,
+     "height": 565,
+     "featured": false
+    },
+    {
+     "image": "gallery-conceptmap",
+     "title": "Concept map",
+     "format": "draw.io XML",
+     "seconds": 65,
+     "cost": 0.23,
+     "prompt": "Draw a concept map of photosynthesis.",
+     "width": 1042,
+     "height": 542,
+     "featured": false
+    },
+    {
+     "image": "gallery-watercycle",
+     "title": "Water cycle",
+     "format": "draw.io XML",
+     "seconds": 55,
+     "cost": 0.26,
+     "prompt": "Draw the water cycle as a diagram for a school class: evaporation, condensation, precipitation and collection, with the sun, clouds, mountains, a lake and the sea.",
+     "width": 882,
+     "height": 703,
+     "featured": false
+    },
+    {
+     "image": "gallery-family",
+     "title": "Family tree",
+     "format": "draw.io XML",
+     "seconds": 65,
+     "cost": 0.24,
+     "prompt": "Draw a family tree of three generations: grandparents on both sides, their children with their partners, and four grandchildren. Use first names and birth years.",
+     "width": 992,
+     "height": 511,
+     "featured": false
+    }
+   ]
+  },
+  {
+   "title": "Charts",
+   "items": [
+    {
+     "image": "gallery-d1-pie",
+     "title": "Pie chart",
+     "format": "Mermaid",
+     "seconds": 8,
+     "cost": 0.06,
+     "prompt": "Make a pie chart of our website traffic sources: search 46%, direct 27%, social 15%, referral 12%.",
+     "width": 595,
+     "height": 394,
+     "featured": false
+    },
+    {
+     "image": "gallery-xy",
+     "title": "XY chart",
+     "format": "Mermaid",
+     "seconds": 10,
+     "cost": 0.06,
+     "prompt": "Plot our monthly active users for the first half of 2026 as a bar chart with a trend line: January 12k, February 14k, March 17k, April 21k, May 24k, June 29k.",
+     "width": 745,
+     "height": 520,
+     "featured": false
+    },
+    {
+     "image": "gallery-d3-quadrant",
+     "title": "Quadrant chart",
+     "format": "Mermaid",
+     "seconds": 10,
+     "cost": 0.06,
+     "prompt": "Put these features on an effort/impact quadrant chart: dark mode, single sign-on, PDF export, onboarding tour, audit log.",
+     "width": 515,
+     "height": 510,
+     "featured": false
+    },
+    {
+     "image": "gallery-radar",
+     "title": "Radar chart",
+     "format": "Mermaid",
+     "seconds": 11,
+     "cost": 0.05,
+     "prompt": "Compare three laptops on a radar chart: performance, battery life, display, weight, price and build quality.",
+     "width": 785,
+     "height": 696,
+     "featured": false
+    },
+    {
+     "image": "gallery-sankey",
+     "title": "Sankey diagram",
+     "format": "Mermaid",
+     "seconds": 13,
+     "cost": 0.05,
+     "prompt": "Show the energy flows of a home as a Sankey diagram: power from the grid and from solar panels going to heating, hot water, appliances, lighting and charging the electric car.",
+     "width": 622,
+     "height": 423,
+     "featured": false
+    },
+    {
+     "image": "gallery-treemap",
+     "title": "Treemap",
+     "format": "Mermaid",
+     "seconds": 9,
+     "cost": 0.04,
+     "prompt": "Show our cloud spend by service as a treemap: compute 45%, storage 20%, databases 15%, networking 10%, analytics 7%, other 3%.",
+     "width": 1020,
+     "height": 386,
+     "featured": false
+    },
+    {
+     "image": "gallery-venn",
+     "title": "Venn diagram",
+     "format": "draw.io XML",
+     "seconds": 26,
+     "cost": 0.14,
+     "prompt": "Draw a Venn diagram of the skills of a data scientist: statistics, programming and domain knowledge.",
+     "width": 502,
+     "height": 541,
+     "featured": false
+    }
+   ]
+  }
+ ]
+}
