@@ -8,6 +8,34 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// Sections of the shared references that a diagram shown in the chat doesn't
+// use: draw.io editor features (layer and tag filters, placeholders) and
+// cross-functional grids, which don't fit the chat frame. Leaving them out
+// keeps the XML reference well under 50,000 characters: Claude Code (and the
+// hosts built on it) saves a longer tool result to a file and shows the model
+// only a 2 KB preview, so it would draw without the reference.
+// test/tools.test.js checks the length and that these headings still exist.
+export const OMITTED_SECTIONS = ["Layers", "Tags", "Metadata and placeholders",
+  "Cross-functional flowcharts (actor × phase grid, as a table)"];
+
+/**
+ * Removes the `## ` and `### ` sections named in `headings` from a markdown
+ * reference. A section ends at the next heading of either level.
+ * @param {string} reference
+ * @param {string[]} headings
+ * @returns {string}
+ */
+function withoutSections(reference, headings)
+{
+  return reference.split(/\n(?=###? )/).filter(function(part)
+  {
+    var match = /^###? (.*)/.exec(part);
+    var heading = (match != null) ? match[1].trim() : null;
+
+    return heading == null || headings.indexOf(heading) < 0;
+  }).join("\n");
+}
+
 /**
  * @param {string} sharedDir - the repo's shared/ directory
  * @param {string} name - the reference file, e.g. "xml-reference.md"
@@ -16,7 +44,7 @@ import path from "node:path";
  */
 export function readReference(sharedDir, name, chatView)
 {
-  const reference = fs.readFileSync(path.join(sharedDir, name), "utf-8");
+  const reference = withoutSections(fs.readFileSync(path.join(sharedDir, name), "utf-8"), OMITTED_SECTIONS);
   const view = fs.readFileSync(path.join(sharedDir, chatView), "utf-8").trim();
   const at = reference.indexOf("\n## ");
 

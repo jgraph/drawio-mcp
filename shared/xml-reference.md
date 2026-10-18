@@ -97,6 +97,45 @@ Pick a `(col, row)` for each node. Don't think about centers or exact gaps — t
 | `html=1` | 0 or 1 | Enable HTML rendering in labels (required for `<b>`, `<br>`, `<font>`, etc.) |
 | `shape=umlLifeline;perimeter=lifelinePerimeter;size=16` | shape | UML sequence diagram lifeline (size = header height) |
 
+## Look and feel
+
+Styles users ask for, and the keys that draw them. Apply a requested look to every cell it concerns (all shapes, all connectors), not only to the first few.
+
+| Request | Style keys |
+|---|---|
+| Rounded corners | `rounded=1` (`arcSize=10`…`50` for less or more rounding) |
+| Shadows | `shadow=1` on each shape |
+| Hand-drawn, sketch, napkin | `sketch=1;curveFitting=1;jiggle=2;` on shapes and connectors, plus the font `fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter;` |
+| Hatched fill | `sketch=1;fillStyle=hachure;` (also `cross-hatch`, `dots`, `zigzag-line`, `solid`) |
+| Gradient | `gradientColor=#7ea6e0;gradientDirection=south;` (`north`, `east`, `west`) |
+| Glossy | `glass=1` |
+| Transparent | `opacity=50` (0–100; `fillOpacity`, `strokeOpacity`, `textOpacity` for one part) |
+| Font | `fontFamily=Inter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DInter;` for a Google font (the URL-encoded CSS link), or a system font such as `fontFamily=Helvetica`; `fontSize=14`; `fontStyle=1` bold, `2` italic, `4` underline, added together |
+| Outline | `strokeWidth=2`, `strokeColor=#hex`, `dashed=1;dashPattern=8 4;` |
+| Connector path | `edgeStyle=orthogonalEdgeStyle` right angles (`rounded=1` rounds the bends), `curved=1` curves, no `edgeStyle` straight lines |
+| Arrowheads | `endArrow=block` (`classic`, `open`, `oval`, `diamond`, `none`), `endFill=0` hollow, `startArrow=…` at the start too, `endSize=10` |
+| Crossing connectors | `jumpStyle=arc;jumpSize=10;` on the edges that cross others: a small bridge at each crossing (`gap`, `sharp`) |
+| Edge labels | `labelBackgroundColor=default` so the line doesn't run through the text |
+| Dark or colored page | `background="#0F172A"` on `mxGraphModel`, with `adaptiveColors="none"` so the colors stay as written in a dark host too; see the dark and blueprint themes below. Without a request, keep `adaptiveColors="auto"` and the usual colors: draw.io adapts them to dark mode itself |
+| Icon with its name below | `verticalLabelPosition=bottom;verticalAlign=top;` on the icon (48–64 px), with a free row below each row of icons. draw.io ends connectors that come from below at the name, not inside it, on shapes with `labelPerimeter=1` (the MCP servers add it) |
+
+### Color themes
+
+The role colors (blue steps, yellow decisions, green start and end, red errors) are the **classic** theme and the default. When the user asks for a look, apply one of these themes to every cell: steps, decisions, start/end, errors, connectors, the title. Containers and lanes take a pale tint of the theme's step color.
+
+| Theme (the user says…) | Page and font | Steps | Decisions | Start / end | Errors | Connectors |
+|---|---|---|---|---|---|---|
+| **Classic** (default) | — | `fillColor=#dae8fc;strokeColor=#6c8ebf` | `#fff2cc` / `#d6b656` | `#d5e8d4` / `#82b366` | `#f8cecc` / `#b85450` | default |
+| **Professional** (corporate, clean, business) | `fontFamily=Inter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DInter;fontColor=#0F172A`, `rounded=1;arcSize=12` | `#EFF6FF` / `#2563EB` | `#FFFFFF` / `#2563EB` | `fillColor=#1E3A8A;strokeColor=none;fontColor=#FFFFFF` | `#FEF2F2` / `#DC2626` | `strokeColor=#475569;strokeWidth=1.5;fontColor=#334155` |
+| **Minimal** (black and white, monochrome, print) | `fontFamily=Helvetica;fontColor=#111827`, square corners | `#FFFFFF` / `#111827` | `#F3F4F6` / `#111827` | `fillColor=#111827;fontColor=#FFFFFF` | `#FFFFFF` / `#111827`, `dashed=1` | `strokeColor=#111827` |
+| **Vivid** (colorful, bold, modern) | `fontFamily=Inter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DInter;fontStyle=1`, `rounded=1;arcSize=20` | `fillColor=#2563EB;strokeColor=none;fontColor=#FFFFFF` | `#F59E0B`, `fontColor=#1F2937` | `#16A34A`, white text | `#DC2626`, white text | `strokeColor=#334155;strokeWidth=2` |
+| **Dark** (dark mode, night) | `background="#0F172A"` and `adaptiveColors="none"` on `mxGraphModel`, `fontColor=#F1F5F9` everywhere | `#1E293B` / `#60A5FA` | `#1E293B` / `#FBBF24` | `#064E3B` / `#34D399` | `#450A0A` / `#F87171` | `strokeColor=#94A3B8;fontColor=#E2E8F0;labelBackgroundColor=#0F172A` |
+| **Blueprint** (technical, engineering) | `background="#1E3A5F"` and `adaptiveColors="none"`, `fontFamily=Courier New;fontColor=#E0F2FE`, square corners | `fillColor=none;strokeColor=#E0F2FE` | same as steps | same, `strokeWidth=2` | `strokeColor=#FCA5A5;fontColor=#FCA5A5` | `strokeColor=#E0F2FE;labelBackgroundColor=#1E3A5F` |
+| **Hand-drawn** (sketch, napkin, whiteboard) | `sketch=1;curveFitting=1;jiggle=2;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter` on every cell | classic colors | classic | classic | classic | the same sketch keys |
+| **Brand** (the user gives a color, e.g. #0055A4) | `fontColor=#1F2937` | a 10 % tint of the color (`#E6F0F8`) / the color | `#FFFFFF` / the color | the color, white text, no outline | `#FDECEC` / `#C62828` | `strokeColor=#4B5563` |
+
+Fill / stroke pairs are written `fill / stroke`. Keep one theme per diagram, and keep the theme when the user asks for other changes later.
+
 ## HTML labels
 
 **Always include `html=1` in the style** when the `value` attribute contains any HTML tags (`<b>`, `<br>`, `<font>`, `<i>`, `<u>`, `<hr>`, `<p>`, `<table>`, etc.). Without `html=1`, HTML tags are displayed as literal text instead of being rendered.
@@ -463,30 +502,19 @@ When generating diagrams, you generally do not need to specify dark-mode colors 
 
 ## Edge routing & layout passes
 
-By default, edges are drawn by draw.io's **built-in router**, which is intentionally basic: each edge is a straight line or a simple right-angle path between its endpoints, with **no obstacle avoidance** — a connector runs straight through any shape lying between its `source` and `target`. Two **opt-in** passes upgrade this. Set them as fields on the same call that carries the diagram; the result you open, export or copy always reflects the finished pass.
+draw.io's built-in router draws each edge as a straight line or a simple right-angle path between its ends, with no obstacle avoidance: a connector runs through any shape that lies between its `source` and `target`. Two opt-in passes improve on it; set them as fields on the same call that carries the diagram:
 
-- **`routing: "libavoid"`** (XML only) — obstacle-avoiding orthogonal **edge routing**. Vertices stay exactly where you placed them; only the connectors are recomputed, so they run in clean right-angle segments that route *around* the boxes (and spread apart when parallel) instead of cutting across them. Use it for diagrams you laid out deliberately — architecture, network topology, deployment, swimlanes, UML, floor plans — where you want tidy wires without disturbing your layout.
-- **`postLayout: "elk"`** — a **full re-layout** (ELK `layered` flow). Vertices move from your positions to canonical hierarchical ones, and the edges are routed as part of that. Node sizes are kept exactly as you declare them, so a label still has to fit the box you gave it. Best for flowcharts, process/state diagrams, decision flows, pipelines, and other directional/hierarchical diagrams that you don't lay out yourself. Flow **direction**: on XML set the optional `direction` field (`"vertical"` (default) / `"horizontal"`); on Mermaid it is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`) and `direction` is ignored.
+- **`routing: "libavoid"`** (XML only): every vertex stays where you placed it, and the connectors are rerouted in right angles *around* the shapes, spread apart where they run in parallel. For layouts you placed deliberately: architecture, network topology, deployment, swimlanes, UML, floor plans.
+- **`postLayout: "elk"`**: a full layered re-layout. Vertices move to hierarchical positions and the edges are routed with them; node sizes stay as you declared them, so a label still has to fit its box. For flowcharts, process, state and decision flows and pipelines that you don't place yourself. On XML, `direction` sets the flow (`"vertical"`, the default, or `"horizontal"`); on Mermaid it comes from the code (`flowchart TD` or `LR`).
 
-The four combinations:
+**Use one or neither, not both** (ELK routes its own edges):
+- **Neither** when connected nodes sit in clear rows and columns with open space between them. The lightest choice for sparse layouts.
+- **`routing: "libavoid"`** when an edge would otherwise cross a shape in a layout you want to keep.
+- **`postLayout: "elk"`** for a canonical re-layout. Add `direction: "horizontal"` for left-to-right flow.
 
-| `postLayout` | `routing` | Result |
-|---|---|---|
-| — | — | basic built-in router (straight / simple right-angle, no obstacle avoidance); your positions kept |
-| — | `libavoid` | your positions kept; wires re-routed orthogonally *around* the shapes |
-| `elk` | — | ELK places the vertices **and** routes the edges (decent routing built in) |
-| `elk` | `libavoid` | rarely worth it — ELK already routes; only add `libavoid` if ELK's routing specifically comes out poor |
+**Mermaid:** complex flowcharts (about 20 nodes or more, 3 or more decisions, edges looping back, or 3 or more end points) need `postLayout: "elk"`, as the native layout gets cramped past that. Simple flowcharts and the other Mermaid types need none.
 
-**Pick ONE — they are essentially alternatives, not a stack:**
-- **Neither** — fine when connected nodes sit in clear rows/columns with open space between them, so the basic router's straight/right-angle lines won't cross another shape. Simplest and lightest; do this by default for sparse layouts.
-- **`routing: "libavoid"`** — keep your hand-placed layout but clean up the wires: use whenever an edge would otherwise cut across a box, or you want consistently clean orthogonal wires routed around shapes (architecture, network topology, deployment, UML, floor plans — anything densely connected).
-- **`postLayout: "elk"`** — when you want a canonical re-layout (vertices moved). ELK routes the edges itself as part of the layout, so **do not also set `routing`** — the combination is redundant in almost all cases. Add `direction: "horizontal"` for left-to-right flow.
-
-**When you are passing Mermaid instead of XML: see the `postLayout` parameter description for when to set it.** Complex Mermaid flowcharts (≥ ~20 nodes, ≥ 3 decision diamonds, feedback edges, or ≥ 3 endpoints) need `postLayout: "elk"` because the native parser's layout goes cramped or unbalanced past that threshold — the direction follows the flowchart code, so no `direction` is needed. Simple flowcharts and all non-flowchart Mermaid types (sequence, class, ER, sankey, …) need no `postLayout`.
-
-**When NOT to use (XML):**
-- The user has asked for specific positions (swim lanes with exact lanes, architecture diagrams with meaningful spatial arrangement).
-- The diagram relies on containers/grouping where spatial layout encodes information.
+**Don't re-lay out XML** when the user asked for specific positions, or when the placement carries meaning (lanes, containers, spatial grouping).
 
 ## Style reference
 

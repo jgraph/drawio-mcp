@@ -8,6 +8,7 @@ When the diagram is shown inline in the chat, it gets about 800 px of width and 
 - **Complete content:** draw every element, path and relation the request names, plus the obvious companions a reader expects: end terminals on every path, error, cancel and retry paths with their counter or limit, the actors at both ends of a flow, and a one-line legend for line styles and colors.
 - **Groups:** show tiers, zones, stages, systems and namespaces as pale titled containers with their members inside, not as loose labels beside them.
 - **Color by role:** the same color for the same kind of element, from draw.io's palette (`fillColor`/`strokeColor`): blue `#dae8fc`/`#6c8ebf` for main steps and services, green `#d5e8d4`/`#82b366` for success, outputs and data, yellow `#fff2cc`/`#d6b656` for decisions and notes, orange `#ffe6cc`/`#d79b00` for external systems and waiting, red `#f8cecc`/`#b85450` for errors and cancellation, purple `#e1d5e7`/`#9673a6` for security and special steps. Keep containers and lanes pale (`#f5f5f5` or a light tint).
+- **Consistency:** one visual language per diagram. Take all icons from one set (one library such as AWS 4 or Cisco 19, or the set named in brackets in a `search_shapes` title) and give them one size; one-color icons get one `fillColor`. Shapes of one kind share size, corner rounding, outline width and font. Connectors share one color, width, arrowhead and path style that match the shape outlines (the same `strokeWidth`, a `strokeColor` from the same palette). Change a color or line only for something that means something different, and name it in the legend.
 - **Icons:** an icon's label sits below it. Leave a full grid row between rows of icons so the labels have room; an edge that meets an icon from below ends under its label.
 
 ## Laying out diagrams for the chat view
@@ -29,3 +30,18 @@ You place every shape yourself; there is no layout pass (don't set `postLayout`)
 - **Decision trees:** questions are `rhombus` 160×80, answers are 1-word edge labels, recommendations are rounded boxes. When each "no" leads to the next question, stack the questions in one column with each "yes" leading to the recommendation beside it; otherwise grow the tree downwards and put the recommendations in the bottom row.
 - **Short edges:** connected shapes sit in neighbouring grid cells; a shape with many connections goes in the middle of the shapes it connects. An edge that has to cross two or more cells, or run around other shapes, means a shape is in the wrong place.
 - **Edges:** connect neighbours side to side. Edges leaving one shape should leave from different sides or from different `exitX`/`exitY` points, so their labels don't pile up. Set `routing: "libavoid"` only when an edge would otherwise cross a shape; the viewer routes it anyway when a right-angle edge would cross one. Routing reroutes only the right-angle edges; straight and curved lines stay as drawn.
+
+## Changing a diagram
+
+The user can ask for changes to the diagram in the chat. Start from the current diagram: the XML you sent last, or the diagram as the viewer shows it when that was sent back to you. Keep the ids, positions and text of everything the request doesn't touch, and send the whole diagram again.
+
+- **A look** (shadows, rounded corners, hand-drawn, a color theme, a font, a connector style): apply it to every cell it concerns; see **Look and feel** in this reference for the keys.
+- **Icons for the steps:** look up each icon with `search_shapes` and take them all from one set, give them one size of 48–64 px, put the step's name below it (`verticalLabelPosition=bottom;verticalAlign=top`) and add a free row below each row of icons for the names.
+- **More content:** place new shapes on free grid cells next to what they connect to, and move the others aside rather than letting a connector cross them.
+- **Images:** use only image URLs that `search_shapes` returned. Other images on the web don't display in the chat.
+
+## Choosing a look
+
+Use the classic colors unless the request says where the diagram goes; then use the fitting theme from **Color themes** right away: a slide, report or board meeting → professional; printing → minimal; a rough idea, sketch or whiteboard → hand-drawn; a company's or product's color → brand; a dark dashboard or dark slides → dark.
+
+After the first diagram in a conversation, end your reply with one short offer that fits it, in plain words and without naming style keys: official icons for an architecture, cloud or network diagram drawn with plain boxes; swimlanes for a process with several roles; a cleaner, corporate look for slides or documents; a hand-drawn look for an early idea. Offer once per conversation. When the user chose a look or theme, don't offer another one; offer content (icons, swimlanes, a missing path) or nothing.
