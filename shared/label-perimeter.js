@@ -74,3 +74,210 @@ export function addLabelPerimeters(xml)
     visit(model.getRoot());
   });
 }
+
+// Edge labels of generated diagrams.
+//
+// Gap: draw.io (after 32.5.5) paints a label with labelBackgroundColor=default
+// and defaultLabelBackgroundColor=gap without a background and cuts its box
+// out of the edge, so the line stops at the text and the page, a grid or a
+// gradient shows behind it. Edge labels have the default background unless a
+// color is set, so labeled edges and the label cells on edges whose
+// background is default get the gap; older viewers keep painting the default
+// background as before.
+//
+// Lift: a label wider than a short horizontal edge between two shapes covers
+// both. Where the shapes leave room above the line (diamonds and ellipses
+// narrow above their middle), the label moves above the line
+// (verticalAlign=bottom) and the layout stays as it is.
+//
+// Idempotent; labels the diagram places itself (an offset, a position along
+// the edge, a vertical alignment) and explicit backgrounds are left alone.
+
+/**
+ * Absolute bounds of a vertex: its geometry plus the origins of the vertices
+ * it is nested in.
+ */
+function absoluteBounds(model, cell)
+{
+  var geo = model.getGeometry(cell);
+
+  if (geo == null || geo.relative) return null;
+
+  var x = geo.x, y = geo.y;
+  var parent = model.getParent(cell);
+
+  while (parent != null && model.isVertex(parent))
+  {
+    var pg = model.getGeometry(parent);
+
+    if (pg == null || pg.relative) return null;
+
+    x += pg.x;
+    y += pg.y;
+    parent = model.getParent(parent);
+  }
+
+  return { x: x, y: y, width: geo.width, height: geo.height };
+}
+
+/**
+ * How far the outline of a shape is inside its bounds at the given distance
+ * above or below its middle, on the left and right: zero for rectangles,
+ * growing for diamonds and ellipses.
+ */
+function insetAt(style, bounds, dy)
+{
+  var half = bounds.height / 2;
+  var t = Math.min(1, Math.abs(dy) / half);
+  var shape = style.shape;
+
+  if (shape === "rhombus" || style.perimeter === "rhombusPerimeter")
+  {
+    return bounds.width / 2 * t;
+  }
+  else if (shape === "ellipse" || shape === "doubleEllipse" || style.perimeter === "ellipsePerimeter")
+  {
+    return bounds.width / 2 * (1 - Math.sqrt(1 - t * t));
+  }
+
+  return 0;
+}
+
+/**
+ * Estimated label size, as mx-model's getSizeForString: 0.6 em per character
+ * (0.64 bold), 1.2 em per line, plus the default spacing of 2 on each side.
+ */
+function labelSize(text, style)
+{
+  var size = (typeof style.fontSize === "number") ? style.fontSize : 11;
+  var bold = (typeof style.fontStyle === "number" && (style.fontStyle & 1) === 1);
+  var lines = String(text).split(/<br\s*\/?>|\n/);
+  var longest = 0;
+
+  for (var i = 0; i < lines.length; i++)
+  {
+    longest = Math.max(longest, lines[i].replace(/<[^>]*>/g, "").replace(/&[a-z#0-9]+;/gi, "x").length);
+  }
+
+  return { width: longest * size * (bold ? 0.64 : 0.6) + 4, height: lines.length * size * 1.2 + 4 };
+}
+
+function hasKey(style, key)
+{
+  return new RegExp("(^|;)" + key + "=").test(style || "");
+}
+
+function appendStyle(model, cell, entries)
+{
+  var s = model.getStyle(cell) || "";
+
+  model.setStyle(cell, s + ((s.length > 0 && s.charAt(s.length - 1) !== ";") ? ";" : "") + entries);
+}
+
+/**
+ * Whether the label of the given edge should move above the line: a straight
+ * horizontal edge between two vertices whose label is wider than the edge but
+ * fits above it.
+ */
+function isCrampedHorizontalLabel(graph, edge, style)
+{
+  var model = graph.getModel();
+  var source = model.getTerminal(edge, true);
+  var target = model.getTerminal(edge, false);
+  var geo = model.getGeometry(edge);
+  var raw = model.getStyle(edge) || "";
+
+  if (source == null || target == null || geo == null || !model.isVertex(source) || !model.isVertex(target) ||
+    (geo.points != null && geo.points.length > 0) || (geo.offset != null && (geo.offset.x !== 0 || geo.offset.y !== 0)) ||
+    (geo.x != null && geo.x !== 0) || hasKey(raw, "verticalAlign") || hasKey(raw, "labelPosition") ||
+    /(^|;)(exit|entry)[XY]=/.test(raw))
+  {
+    return false;
+  }
+
+  var a = absoluteBounds(model, source);
+  var b = absoluteBounds(model, target);
+
+  if (a == null || b == null || Math.abs((a.y + a.height / 2) - (b.y + b.height / 2)) > 2)
+  {
+    return false;
+  }
+
+  var left = (a.x <= b.x) ? a : b;
+  var right = (left === a) ? b : a;
+  var leftStyle = graph.getCellStyle(left === a ? source : target);
+  var rightStyle = graph.getCellStyle(left === a ? target : source);
+  var gap = right.x - (left.x + left.width);
+  var size = labelSize(graph.getLabel(edge), style);
+
+  if (gap <= 0 || size.width <= gap)
+  {
+    return false;
+  }
+
+  // Room above the line, at the middle of the raised label.
+  var room = gap + insetAt(leftStyle, left, size.height / 2) + insetAt(rightStyle, right, size.height / 2);
+
+  return size.width <= room;
+}
+
+/**
+ * Adds the label gap to labeled edges and their label cells, and raises labels
+ * that are wider than their short horizontal edge above the line.
+ *
+ * @param {string} xml - mxGraphModel or mxfile XML
+ * @returns {{xml: string, changed: number}} the XML and the number of cells
+ *   that were rewritten
+ */
+export function fitEdgeLabels(xml)
+{
+  return transformPages(xml, function(graph)
+  {
+    var model = graph.getModel();
+
+    // The entries that give a label the gap: none for an explicit background
+    // (a color or none, which the resolved style drops) or an existing key.
+    function gapEntries(cell)
+    {
+      var raw = model.getStyle(cell) || "";
+      var bg = /(^|;)labelBackgroundColor=([^;]*)/.exec(raw);
+
+      if (hasKey(raw, "defaultLabelBackgroundColor") || (bg != null && bg[2] !== "default"))
+      {
+        return "";
+      }
+
+      return ((bg == null) ? "labelBackgroundColor=default;" : "") + "defaultLabelBackgroundColor=gap;";
+    }
+
+    function visit(cell)
+    {
+      for (var i = 0; i < model.getChildCount(cell); i++)
+      {
+        var child = model.getChildAt(cell, i);
+        var labeled = graph.getLabel(child).trim().length > 0;
+        var onEdge = model.isVertex(child) && model.isEdge(cell);
+
+        if (labeled && (model.isEdge(child) || onEdge))
+        {
+          var style = graph.getCellStyle(child);
+          var entries = gapEntries(child);
+
+          if (model.isEdge(child) && isCrampedHorizontalLabel(graph, child, style))
+          {
+            entries += "verticalAlign=bottom;";
+          }
+
+          if (entries.length > 0)
+          {
+            appendStyle(model, child, entries);
+          }
+        }
+
+        visit(child);
+      }
+    }
+
+    visit(model.getRoot());
+  });
+}

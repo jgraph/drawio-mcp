@@ -115,7 +115,7 @@ Styles users ask for, and the keys that draw them. Apply a requested look to eve
 | Connector path | `edgeStyle=orthogonalEdgeStyle` right angles (`rounded=1` rounds the bends), `curved=1` curves, no `edgeStyle` straight lines |
 | Arrowheads | `endArrow=block` (`classic`, `open`, `oval`, `diamond`, `none`), `endFill=0` hollow, `startArrow=…` at the start too, `endSize=10` |
 | Crossing connectors | `jumpStyle=arc;jumpSize=10;` on the edges that cross others: a small bridge at each crossing (`gap`, `sharp`) |
-| Edge labels | `labelBackgroundColor=default` so the line doesn't run through the text |
+| Edge labels | `labelBackgroundColor=default;defaultLabelBackgroundColor=gap` so the line stops at the text, with the page showing behind it (the MCP servers add it) |
 | Dark or colored page | `background="#0F172A"` on `mxGraphModel`, with `adaptiveColors="none"` so the colors stay as written in a dark host too; see the dark and blueprint themes below. Without a request, keep `adaptiveColors="auto"` and the usual colors: draw.io adapts them to dark mode itself |
 | Icon with its name below | `verticalLabelPosition=bottom;verticalAlign=top;` on the icon (48–64 px), with a free row below each row of icons. draw.io ends connectors that come from below at the name, not inside it, on shapes with `labelPerimeter=1` (the MCP servers add it) |
 

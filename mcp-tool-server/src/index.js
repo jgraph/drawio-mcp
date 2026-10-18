@@ -191,7 +191,8 @@ function loadNormalize()
 }
 
 // shared/label-perimeter.js (labelPerimeter=1 on vertices with a label
-// outside the shape, so edges end at the label as in the editor), copied
+// outside the shape, so edges end at the label as in the editor, and the
+// edge label gap and lift of fitEdgeLabels), copied
 // into src/ by copy-shared - same import. Memoized.
 let labelPerimeterPromise = null;
 
@@ -993,7 +994,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
         const mod = await loadNormalize();
 
         content = mod.normalizeDiagram(content).xml;
-        content = (await loadLabelPerimeter()).addLabelPerimeters(content).xml;
+        const labels = await loadLabelPerimeter();
+
+        content = labels.fitEdgeLabels(labels.addLabelPerimeters(content).xml).xml;
       }
       catch (error)
       {

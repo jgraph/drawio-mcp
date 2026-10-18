@@ -12,7 +12,7 @@ import { buildTagMap } from "../../shared/shape-search.js";
 import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/icon-search.js";
 import { withElkLayout, isFlowchartSource, mermaidDiagramType } from "../../shared/mermaid-elk.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
-import { addLabelPerimeters } from "../../shared/label-perimeter.js";
+import { addLabelPerimeters, fitEdgeLabels } from "../../shared/label-perimeter.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import pkg from "../package.json" with { type: "json" };
 
@@ -7928,6 +7928,10 @@ export function createServer(html, options = {})
       // the icon's name instead of crossing it. New cells only - draw.io
       // keeps existing diagrams as they are.
       normalizedXml = addLabelPerimeters(normalizedXml).xml;
+      // Edge labels: the label gap (the line stops at the text, no white
+      // box), and a label wider than its short horizontal edge between two
+      // diamonds or ellipses moves above the line.
+      normalizedXml = fitEdgeLabels(normalizedXml).xml;
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };
       if (postLayout) xmlPayload.postLayout = postLayout;

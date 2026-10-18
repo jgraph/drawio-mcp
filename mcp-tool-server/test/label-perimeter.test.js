@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addLabelPerimeters, isLabelOutsideOnSide } from "../../shared/label-perimeter.js";
+import { addLabelPerimeters, fitEdgeLabels, isLabelOutsideOnSide } from "../../shared/label-perimeter.js";
 
 function vertex(id, value, style)
 {
@@ -78,4 +78,76 @@ test("isLabelOutsideOnSide matches draw.io's Graph.isLabelOutsideOnSide", functi
   assert.equal(isLabelOutsideOnSide({}), false);
   assert.equal(isLabelOutsideOnSide({labelPosition: "left", verticalLabelPosition: "top"}), false);
   assert.equal(isLabelOutsideOnSide({labelPosition: "right", verticalLabelPosition: "bottom"}), false);
+});
+
+function box(id, x, style, w, h)
+{
+  return '<mxCell id="' + id + '" value="' + id + '" style="' + style + '" vertex="1" parent="1"><mxGeometry x="' +
+    x + '" y="40" width="' + w + '" height="' + h + '" as="geometry"/></mxCell>';
+}
+
+function edge(id, value, style, source, target, geometry)
+{
+  return '<mxCell id="' + id + '" value="' + value + '" style="' + style + '" edge="1" parent="1" source="' + source +
+    '" target="' + target + '">' + (geometry || '<mxGeometry relative="1" as="geometry"/>') + "</mxCell>";
+}
+
+test("labeled edges and their label cells get the label gap", function()
+{
+  var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 400, "rounded=1;", 140, 60) +
+    edge("plain", "reads", "html=1;", "a", "b") +
+    edge("dflt", "writes", "html=1;labelBackgroundColor=default;", "a", "b") +
+    edge("unlabeled", "", "html=1;", "a", "b") +
+    '<mxCell id="m" value="1..*" style="edgeLabel;html=1;" vertex="1" connectable="0" parent="unlabeled">' +
+    '<mxGeometry x="-0.8" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry></mxCell>');
+  var r = fitEdgeLabels(xml);
+
+  assert.equal(r.changed, 3);
+  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(styleOf(r.xml, "unlabeled"), "html=1;");
+  assert.equal(styleOf(r.xml, "m"), "edgeLabel;html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+});
+
+test("explicit label backgrounds and existing gaps are kept", function()
+{
+  var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 400, "rounded=1;", 140, 60) +
+    edge("none", "No", "labelBackgroundColor=none;", "a", "b") +
+    edge("color", "No", "labelBackgroundColor=#0F172A;", "a", "b") +
+    edge("gap", "No", "labelBackgroundColor=default;defaultLabelBackgroundColor=gap;", "a", "b"));
+  var r = fitEdgeLabels(xml);
+
+  assert.equal(r.changed, 0);
+  assert.equal(r.xml, xml);
+});
+
+test("a label wider than a short edge between diamonds moves above the line", function()
+{
+  // Diamonds 160 wide in columns 180 apart: a 20 px edge, "Yes" is about 24 px.
+  var xml = model(box("a", 40, "rhombus;", 160, 90) + box("b", 220, "rhombus;", 160, 90) +
+    box("c", 40, "rounded=1;", 140, 60).replace('y="40"', 'y="240"') +
+    box("d", 220, "rounded=1;", 140, 60).replace('y="40"', 'y="240"') +
+    edge("yes", "Yes", "edgeStyle=orthogonalEdgeStyle;", "a", "b") +
+    edge("rect", "Retry payment", "edgeStyle=orthogonalEdgeStyle;", "c", "d") +
+    edge("placed", "Yes", "edgeStyle=orthogonalEdgeStyle;verticalAlign=top;", "a", "b"));
+  var r = fitEdgeLabels(xml);
+
+  assert.equal(styleOf(r.xml, "yes"),
+    "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;");
+  // Rectangles leave no room above the line, and a placed label stays.
+  assert.equal(styleOf(r.xml, "rect"), "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(styleOf(r.xml, "placed"),
+    "edgeStyle=orthogonalEdgeStyle;verticalAlign=top;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
+});
+
+test("labels that fit, and edges that aren't straight, keep their place", function()
+{
+  var xml = model(box("a", 40, "rhombus;", 160, 90) + box("b", 400, "rhombus;", 160, 90) +
+    box("c", 220, "rhombus;", 160, 90).replace('y="40"', 'y="200"') +
+    edge("fits", "Yes", "edgeStyle=orthogonalEdgeStyle;", "a", "b") +
+    edge("offset", "Yes", "edgeStyle=orthogonalEdgeStyle;", "a", "c"));
+  var r = fitEdgeLabels(xml);
+
+  assert.ok(!/verticalAlign/.test(r.xml));
 });
