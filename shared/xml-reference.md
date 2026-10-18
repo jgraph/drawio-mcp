@@ -207,6 +207,11 @@ Straight and curved lines are meant to stay that way: place their ends where the
 
 **Keep edge labels short and meaningful** — one to three words (`Yes`, `async`, `reads`). Drop labels that merely restate an obvious action (`call`, `register`); move longer explanations into node text or a small legend node.
 
+**Where edge labels go**, in every diagram type:
+- **Along the edge, where the meaning is:** in the middle for the relationship itself (an event, the data or protocol, a verb); near the start for the outcome of a decision or gateway on a long edge (`x="-0.6"` on the edge's `mxGeometry`); at an end for something about that end (multiplicity, role, cardinality, port), as an `edgeLabel` cell whose `parent` is the edge, with `x="-0.8"` or `x="0.8"` and an `offset` to one side (a name and a multiplicity on opposite sides).
+- **Across the line:** the text stays horizontal. On a horizontal line it sits just above the line (`verticalAlign=bottom`); on a vertical or diagonal line it sits on the line, which breaks for the text (`labelBackgroundColor=default;defaultLabelBackgroundColor=gap`). The MCP servers set both on straight edges.
+- **Room:** a label never touches a shape, another label or another line. When it doesn't fit, shorten it or leave more room in the layout rather than shrinking the font.
+
 **Visual semantics — stay consistent, add a legend when mixing styles.** Within one diagram apply `dashed=1`, `strokeColor`, and `strokeWidth` consistently for one chosen meaning (e.g. dashed = optional / async / inferred relationship). Don't mix several dashed meanings without a small legend explaining them.
 
 ## Containers and groups

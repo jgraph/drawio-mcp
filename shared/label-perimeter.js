@@ -85,10 +85,13 @@ export function addLabelPerimeters(xml)
 // background is default get the gap; older viewers keep painting the default
 // background as before.
 //
-// Lift: a label wider than a short horizontal edge between two shapes covers
-// both. Where the shapes leave room above the line (diamonds and ellipses
-// narrow above their middle), the label moves above the line
-// (verticalAlign=bottom) and the layout stays as it is.
+// Placement, the same for every diagram type: the text stays horizontal, so
+// on a horizontal line it sits just above the line (verticalAlign=bottom) and
+// the line stays whole, and on a vertical line it stays on the line, which
+// breaks only for the height of the text (the gap). Straight horizontal edges
+// between two shapes get the lift when the label fits above the line: between
+// the shapes, where diamonds and ellipses narrow above their middle. Bent
+// edges keep their labels on the line, as the route isn't known here.
 //
 // Idempotent; labels the diagram places itself (an offset, a position along
 // the edge, a vertical alignment) and explicit backgrounds are left alone.
@@ -175,11 +178,27 @@ function appendStyle(model, cell, entries)
 }
 
 /**
- * Whether the label of the given edge should move above the line: a straight
- * horizontal edge between two vertices whose label is wider than the edge but
- * fits above it.
+ * The point where an edge leaves or enters a vertex with a fixed connection
+ * point (exitX/exitY, entryX/entryY), or null for a floating end.
  */
-function isCrampedHorizontalLabel(graph, edge, style)
+function fixedPoint(style, bounds, prefix)
+{
+  var x = style[prefix + "X"], y = style[prefix + "Y"];
+
+  if (typeof x !== "number" || typeof y !== "number")
+  {
+    return null;
+  }
+
+  return { x: bounds.x + x * bounds.width, y: bounds.y + y * bounds.height, side: (x === 0 || x === 1) ? "h" : "v" };
+}
+
+/**
+ * Whether the label of the given edge should sit above the line: a straight
+ * horizontal edge between two vertices, side by side, with room for the
+ * label above the line between them.
+ */
+function isLabelAboveLine(graph, edge, style)
 {
   var model = graph.getModel();
   var source = model.getTerminal(edge, true);
@@ -189,8 +208,8 @@ function isCrampedHorizontalLabel(graph, edge, style)
 
   if (source == null || target == null || geo == null || !model.isVertex(source) || !model.isVertex(target) ||
     (geo.points != null && geo.points.length > 0) || (geo.offset != null && (geo.offset.x !== 0 || geo.offset.y !== 0)) ||
-    (geo.x != null && geo.x !== 0) || hasKey(raw, "verticalAlign") || hasKey(raw, "labelPosition") ||
-    /(^|;)(exit|entry)[XY]=/.test(raw))
+    hasKey(raw, "verticalAlign") || hasKey(raw, "labelPosition") || hasKey(raw, "verticalLabelPosition") ||
+    style.curved == 1 || /Elbow|elbowEdgeStyle|entityRelation|segmentEdgeStyle/.test(style.edgeStyle || ""))
   {
     return false;
   }
@@ -198,32 +217,52 @@ function isCrampedHorizontalLabel(graph, edge, style)
   var a = absoluteBounds(model, source);
   var b = absoluteBounds(model, target);
 
-  if (a == null || b == null || Math.abs((a.y + a.height / 2) - (b.y + b.height / 2)) > 2)
+  if (a == null || b == null)
+  {
+    return false;
+  }
+
+  // The line runs where the fixed connection points are, or between the
+  // middles of the shapes, and both ends must leave from facing sides.
+  var exit = fixedPoint(style, a, "exit");
+  var entry = fixedPoint(style, b, "entry");
+
+  if ((exit != null && exit.side !== "h") || (entry != null && entry.side !== "h"))
+  {
+    return false;
+  }
+
+  var y1 = (exit != null) ? exit.y : a.y + a.height / 2;
+  var y2 = (entry != null) ? entry.y : b.y + b.height / 2;
+
+  if (Math.abs(y1 - y2) > 2 || (exit == null && entry == null && Math.abs((a.y + a.height / 2) - (b.y + b.height / 2)) > 2))
   {
     return false;
   }
 
   var left = (a.x <= b.x) ? a : b;
   var right = (left === a) ? b : a;
-  var leftStyle = graph.getCellStyle(left === a ? source : target);
-  var rightStyle = graph.getCellStyle(left === a ? target : source);
   var gap = right.x - (left.x + left.width);
-  var size = labelSize(graph.getLabel(edge), style);
 
-  if (gap <= 0 || size.width <= gap)
+  // A label moved along the edge (geometry x) is where the diagram wants it.
+  if (gap <= 0 || (geo.x != null && geo.x !== 0))
   {
     return false;
   }
 
-  // Room above the line, at the middle of the raised label.
-  var room = gap + insetAt(leftStyle, left, size.height / 2) + insetAt(rightStyle, right, size.height / 2);
+  var leftStyle = graph.getCellStyle(left === a ? source : target);
+  var rightStyle = graph.getCellStyle(left === a ? target : source);
+  var size = labelSize(graph.getLabel(edge), style);
+  var dy = Math.abs(y1 - (left.y + left.height / 2)) + size.height / 2;
+  // Centered between the shapes, so the side with less room decides.
+  var room = gap + 2 * Math.min(insetAt(leftStyle, left, dy), insetAt(rightStyle, right, dy));
 
   return size.width <= room;
 }
 
 /**
- * Adds the label gap to labeled edges and their label cells, and raises labels
- * that are wider than their short horizontal edge above the line.
+ * Adds the label gap to labeled edges and their label cells, and moves the
+ * labels of straight horizontal edges above the line where they fit.
  *
  * @param {string} xml - mxGraphModel or mxfile XML
  * @returns {{xml: string, changed: number}} the XML and the number of cells
@@ -263,7 +302,7 @@ export function fitEdgeLabels(xml)
           var style = graph.getCellStyle(child);
           var entries = gapEntries(child);
 
-          if (model.isEdge(child) && isCrampedHorizontalLabel(graph, child, style))
+          if (model.isEdge(child) && isLabelAboveLine(graph, child, style))
           {
             entries += "verticalAlign=bottom;";
           }

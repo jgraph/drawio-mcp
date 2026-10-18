@@ -7929,8 +7929,8 @@ export function createServer(html, options = {})
       // keeps existing diagrams as they are.
       normalizedXml = addLabelPerimeters(normalizedXml).xml;
       // Edge labels: the label gap (the line stops at the text, no white
-      // box), and a label wider than its short horizontal edge between two
-      // diamonds or ellipses moves above the line.
+      // box), and on straight horizontal edges the label sits just above
+      // the line where it fits.
       normalizedXml = fitEdgeLabels(normalizedXml).xml;
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };

@@ -103,15 +103,17 @@ test("labeled edges and their label cells get the label gap", function()
   var r = fitEdgeLabels(xml);
 
   assert.equal(r.changed, 3);
-  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
-  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  // Side by side: the labels also move above the line.
+  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;");
+  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;");
   assert.equal(styleOf(r.xml, "unlabeled"), "html=1;");
   assert.equal(styleOf(r.xml, "m"), "edgeLabel;html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
 });
 
 test("explicit label backgrounds and existing gaps are kept", function()
 {
-  var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 400, "rounded=1;", 140, 60) +
+  // Stacked, so no label moves above a line either.
+  var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 40, "rounded=1;", 140, 60).replace('y="40"', 'y="240"') +
     edge("none", "No", "labelBackgroundColor=none;", "a", "b") +
     edge("color", "No", "labelBackgroundColor=#0F172A;", "a", "b") +
     edge("gap", "No", "labelBackgroundColor=default;defaultLabelBackgroundColor=gap;", "a", "b"));
@@ -141,13 +143,19 @@ test("a label wider than a short edge between diamonds moves above the line", fu
   assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
 });
 
-test("labels that fit, and edges that aren't straight, keep their place", function()
+test("labels on vertical and bent edges stay on the line", function()
 {
   var xml = model(box("a", 40, "rhombus;", 160, 90) + box("b", 400, "rhombus;", 160, 90) +
-    box("c", 220, "rhombus;", 160, 90).replace('y="40"', 'y="200"') +
-    edge("fits", "Yes", "edgeStyle=orthogonalEdgeStyle;", "a", "b") +
-    edge("offset", "Yes", "edgeStyle=orthogonalEdgeStyle;", "a", "c"));
+    box("c", 40, "rhombus;", 160, 90).replace('y="40"', 'y="240"') +
+    box("d", 400, "rounded=1;", 140, 60).replace('y="40"', 'y="400"') +
+    edge("long", "Yes", "edgeStyle=orthogonalEdgeStyle;", "a", "b") +
+    edge("down", "No", "edgeStyle=orthogonalEdgeStyle;", "a", "c") +
+    edge("bent", "Later", "edgeStyle=orthogonalEdgeStyle;", "c", "d") +
+    edge("ports", "Up", "edgeStyle=orthogonalEdgeStyle;exitX=0.5;exitY=0;entryX=0.5;entryY=1;", "c", "a"));
   var r = fitEdgeLabels(xml);
 
-  assert.ok(!/verticalAlign/.test(r.xml));
+  assert.match(styleOf(r.xml, "long"), /verticalAlign=bottom;$/);
+  assert.doesNotMatch(styleOf(r.xml, "down"), /verticalAlign/);
+  assert.doesNotMatch(styleOf(r.xml, "bent"), /verticalAlign/);
+  assert.doesNotMatch(styleOf(r.xml, "ports"), /verticalAlign/);
 });
