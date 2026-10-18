@@ -1500,6 +1500,38 @@ function withElkRenderer(text)
 }
 
 /**
+ * Paints the viewer's canvas with the diagram's page background
+ * (mxGraphModel background="#0f172a"), as draw.io does: a dark or blueprint
+ * theme puts light text on its own background, which the viewer's light
+ * card would hide. Without one, the card keeps the host's theme.
+ *
+ * @param {string} xml - mxGraphModel or mxfile XML
+ */
+function applyDiagramBackground(xml)
+{
+  var bg = null;
+
+  try
+  {
+    var models = mxUtils.parseXml(xml).getElementsByTagName('mxGraphModel');
+    bg = (models.length > 0) ? models[0].getAttribute('background') : null;
+  }
+  catch (e)
+  {
+    bg = null;
+  }
+
+  if (bg != null && bg != '' && bg != 'none' && bg != 'default')
+  {
+    containerEl.style.setProperty('--viewer-card-bg', bg);
+  }
+  else
+  {
+    containerEl.style.removeProperty('--viewer-card-bg');
+  }
+}
+
+/**
  * Sets the authoritative diagram XML behind "Open in draw.io" and the
  * "Copy XML" button. Mermaid-derived diagrams are wrapped via the bundle's
  * mxMermaidToDrawio.wrapGroup (same code path drawio-dev uses) so the source
@@ -5043,6 +5075,7 @@ function finalizeStreamingView(xml, opts)
   }
 
   commitDiagramXml(xml);
+  applyDiagramBackground(xml);
 
   // Reveal the toolbar BEFORE the final fit. The toolbar adds ~50 px
   // to the body, which the host then reflects back as a smaller
