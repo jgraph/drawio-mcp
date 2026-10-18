@@ -18,6 +18,18 @@ This repository offers four approaches for integrating draw.io with AI assistant
 
 ---
 
+## Guides
+
+User guides with tested prompts and examples, in [Discussions → Guides](https://github.com/jgraph/drawio-mcp/discussions/categories/guides):
+
+- [Prompting guide](https://github.com/jgraph/drawio-mcp/discussions/38): Mermaid or draw.io XML, speed, cost and models
+- [Diagram types and examples](https://github.com/jgraph/drawio-mcp/discussions/79) and the [gallery of every diagram type](https://github.com/jgraph/drawio-mcp/discussions/82)
+- [Editing and styling](https://github.com/jgraph/drawio-mcp/discussions/80): changes by prompt, color themes, styles
+- [Install options and output formats](https://github.com/jgraph/drawio-mcp/discussions/81)
+- [Viewer help](https://github.com/jgraph/drawio-mcp/discussions/33)
+
+---
+
 ## MCP App Server
 
 The MCP App server renders draw.io diagrams **inline** in AI chat interfaces using the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) protocol. Instead of opening a browser tab, diagrams appear directly in the conversation as interactive iframes.
