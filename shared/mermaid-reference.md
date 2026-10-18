@@ -68,29 +68,31 @@ The flow direction always follows the flowchart code (`TD`/`TB` vs `LR`/`RL`). *
 
 ### Styling & colors
 
+**Color by role.** Unstyled flowcharts and state diagrams come out in Mermaid's default lavender. Give each kind of node one color with `classDef`, from draw.io's palette (fill/stroke): blue `#dae8fc`/`#6c8ebf` for main steps, green `#d5e8d4`/`#82b366` for success and outputs, yellow `#fff2cc`/`#d6b656` for decisions, orange `#ffe6cc`/`#d79b00` for external systems and waiting, red `#f8cecc`/`#b85450` for errors and cancellation, purple `#e1d5e7`/`#9673a6` for special steps. The same color for the same kind of node, and few colors: two to four roles read better than a rainbow.
+
 Three ways — pick one, don't mix for the same node:
 
 **1. Inline per-node (`style`):**
 ```
 flowchart LR
   A[Start] --> B[End]
-  style A fill:#f9f,stroke:#333,stroke-width:2px,color:#fff
-  style B fill:#bbf,stroke:#f66,stroke-dasharray:5 5
+  style A fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+  style B fill:#f8cecc,stroke:#b85450,stroke-dasharray:5 5
 ```
 
 **2. Reusable classes (`classDef` + `:::`):**
 ```
 flowchart LR
-  A:::happy --> B:::sad
-  classDef happy fill:#dfd,stroke:#0a0
-  classDef sad fill:#fdd,stroke:#a00
+  A:::step --> B{OK?}:::decision
+  classDef step fill:#dae8fc,stroke:#6c8ebf
+  classDef decision fill:#fff2cc,stroke:#d6b656
 ```
-Or apply to many: `class A,B,C happy`.
+Or apply to many: `class A,B,C step`.
 
 **3. Link styling (edges):**
 ```
-linkStyle 0 stroke:#f00,stroke-width:3px
-linkStyle default stroke:#999
+linkStyle 0 stroke:#b85450,stroke-width:2px
+linkStyle default stroke:#666
 ```
 `0` = first edge in order defined; `default` targets unstyled edges.
 
