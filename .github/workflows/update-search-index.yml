@@ -1,9 +1,9 @@
 name: Update Shape Search Index
 
-# The generator reads the released app.min.js from app.diagrams.net, so a
-# daily run picks up every release and opens a PR only when the shapes changed.
-# (drawio-dev's trigger-mcp-index-update.yml never fires: its diagramly-* tags
-# are pushed with the default GITHUB_TOKEN, which starts no workflows.)
+# drawio-dev's trigger-mcp-index-update.yml dispatches drawio-release when a
+# release build has finished; the generator reads the released app.min.js from
+# app.diagrams.net, so the daily run is a fallback. A PR opens only when the
+# shapes changed.
 on:
   schedule:
     - cron: "17 5 * * *"
