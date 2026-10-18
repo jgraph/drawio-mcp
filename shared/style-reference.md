@@ -275,6 +275,7 @@ From version 31.7.1 onwards:
 | `spacingRight` | number | `0` | Right padding |
 | `textOpacity` | `0`–`100` | `100` | Text opacity |
 | `labelBackgroundColor` | `#RRGGBB`, `none`, `default` | — | Background behind text (useful for edge labels) |
+| `defaultLabelBackgroundColor` | `gap` | — | With `labelBackgroundColor=default`: no background, the label box is cut out of the shape and of the parent edge. draw.io sets it on new edges and edge labels |
 | `labelBorderColor` | `#RRGGBB`, `none` | — | Border around label |
 | `labelWidth` | number | — | Fixed label width |
 | `textDirection` | `default`, `ltr`, `rtl` | `default` | Text direction |

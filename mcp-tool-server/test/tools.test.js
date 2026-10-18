@@ -70,7 +70,12 @@ test("open_drawio_xml inlines the XML essentials", async function()
   const { tools } = await client.listTools();
   const xmlTool = tools.find(function(tool) { return tool.name === "open_drawio_xml"; });
 
-  assert.ok(xmlTool.description.includes(readShared("xml-essentials.md").trim()));
+  const essentials = readShared("xml-essentials.md").trim();
+
+  // Without the label gap, which fitEdgeLabels adds to every edge
+  assert.ok(essentials.includes("defaultLabelBackgroundColor=gap;"));
+  assert.ok(xmlTool.description.includes(essentials.replace("defaultLabelBackgroundColor=gap;", "")));
+  assert.ok(!xmlTool.description.includes("defaultLabelBackgroundColor"));
 });
 
 test("get_drawio_reference returns the shared references", async function()

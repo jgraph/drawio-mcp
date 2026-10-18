@@ -92,7 +92,7 @@ function edge(id, value, style, source, target, geometry)
     '" target="' + target + '">' + (geometry || '<mxGeometry relative="1" as="geometry"/>') + "</mxCell>";
 }
 
-test("labeled edges and their label cells get the label gap", function()
+test("edges and the labels of edges get the label gap", function()
 {
   var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 400, "rounded=1;", 140, 60) +
     edge("plain", "reads", "html=1;", "a", "b") +
@@ -102,12 +102,29 @@ test("labeled edges and their label cells get the label gap", function()
     '<mxGeometry x="-0.8" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry></mxCell>');
   var r = fitEdgeLabels(xml);
 
-  assert.equal(r.changed, 3);
+  assert.equal(r.changed, 4);
   // Side by side: the labels also move above the line.
   assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
   assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
-  assert.equal(styleOf(r.xml, "unlabeled"), "html=1;");
+  // Unlabeled edges get the gap for labels added later in draw.io, but no placement.
+  assert.equal(styleOf(r.xml, "unlabeled"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
   assert.equal(styleOf(r.xml, "m"), "edgeLabel;html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+});
+
+test("unlabeled edges get the gap once, other children of edges are left alone", function()
+{
+  var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 400, "rounded=1;", 140, 60) +
+    edge("u", "", "endArrow=none;", "a", "b") +
+    edge("white", "", "labelBackgroundColor=#ffffff;", "a", "b") +
+    '<mxCell id="sym" value="" style="ellipse;html=1;" vertex="1" parent="white">' +
+    '<mxGeometry x="0" y="0" width="10" height="10" relative="1" as="geometry"><mxPoint x="-5" y="-5" as="offset"/></mxGeometry></mxCell>');
+  var r = fitEdgeLabels(xml);
+
+  assert.equal(r.changed, 1);
+  assert.equal(styleOf(r.xml, "u"), "endArrow=none;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(styleOf(r.xml, "white"), "labelBackgroundColor=#ffffff;");
+  assert.equal(styleOf(r.xml, "sym"), "ellipse;html=1;");
+  assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
 });
 
 test("explicit label backgrounds and existing gaps are kept", function()

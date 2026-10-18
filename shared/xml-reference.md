@@ -115,7 +115,7 @@ Styles users ask for, and the keys that draw them. Apply a requested look to eve
 | Connector path | `edgeStyle=orthogonalEdgeStyle` right angles (`rounded=1` rounds the bends), `curved=1` curves, no `edgeStyle` straight lines |
 | Arrowheads | `endArrow=block` (`classic`, `open`, `oval`, `diamond`, `none`), `endFill=0` hollow, `startArrow=…` at the start too, `endSize=10` |
 | Crossing connectors | `jumpStyle=arc;jumpSize=10;` on the edges that cross others: a small bridge at each crossing (`gap`, `sharp`) |
-| Edge labels | `labelBackgroundColor=default;defaultLabelBackgroundColor=gap` so the line stops at the text, with the page showing behind it (the MCP servers add it) |
+| Edge labels | `labelBackgroundColor=default;defaultLabelBackgroundColor=gap` on every edge and edge label cell, so the line stops at the text, with the page showing behind it, as on new edges in draw.io (the MCP servers add it) |
 | Dark or colored page | `background="#0F172A"` on `mxGraphModel`, with `adaptiveColors="none"` so the colors stay as written in a dark host too; see the dark and blueprint themes below. Without a request, keep `adaptiveColors="auto"` and the usual colors: draw.io adapts them to dark mode itself |
 | Icon with its name below | `verticalLabelPosition=bottom;verticalAlign=top;` on the icon (48–64 px), with a free row below each row of icons. draw.io ends connectors that come from below at the name, not inside it, on shapes with `labelPerimeter=1` (the MCP servers add it) |
 
@@ -195,6 +195,8 @@ draw.io's built-in router is **basic**: it draws each edge as a straight line or
 | Network | straight cable lines without arrows (`endArrow=none;html=1;`), `dashed=1` for wireless |
 | Mind map | `edgeStyle=entityRelationEdgeStyle;startArrow=none;endArrow=none;segment=10;curved=1;html=1;` |
 | Sequence | use Mermaid |
+
+Add `defaultLabelBackgroundColor=gap` to every connector style, as draw.io does for new connectors, so a label cuts the line instead of sitting in a white box (the MCP servers add it when it is missing).
 
 Straight and curved lines are meant to stay that way: place their ends where the line between them is clear.
 

@@ -81,9 +81,11 @@ export function addLabelPerimeters(xml)
 // and defaultLabelBackgroundColor=gap without a background and cuts its box
 // out of the edge, so the line stops at the text and the page, a grid or a
 // gradient shows behind it. Edge labels have the default background unless a
-// color is set, so labeled edges and the label cells on edges whose
-// background is default get the gap; older viewers keep painting the default
-// background as before.
+// color is set, so every edge, labeled or not, and the labeled label cells
+// on edges whose background is default get the gap. New edges in draw.io
+// (after 32.5.5) have it in the default edge style, so a label that is added
+// to an edge later in draw.io gets the gap too. Older viewers keep painting
+// the default background as before.
 //
 // Placement, the same for every diagram type: the text stays horizontal, so
 // on a horizontal line it sits just above the line (verticalAlign=bottom) and
@@ -263,8 +265,9 @@ function isLabelAboveLine(graph, edge, style)
 }
 
 /**
- * Adds the label gap to labeled edges and their label cells, and moves the
- * labels of straight horizontal edges above the line where they fit.
+ * Adds the label gap to all edges and to the labeled label cells of edges,
+ * and moves the labels of straight horizontal edges above the line where
+ * they fit.
  *
  * @param {string} xml - mxGraphModel or mxfile XML
  * @returns {{xml: string, changed: number}} the XML and the number of cells
@@ -299,17 +302,17 @@ export function fitEdgeLabels(xml)
         var labeled = graph.getLabel(child).trim().length > 0;
         var onEdge = model.isVertex(child) && model.isEdge(cell);
 
-        if (labeled && (model.isEdge(child) || onEdge))
+        if (model.isEdge(child) || (labeled && onEdge))
         {
           var style = graph.getCellStyle(child);
           var entries = gapEntries(child);
 
-          if (model.isEdge(child) && isLabelAboveLine(graph, child, style))
+          if (labeled && model.isEdge(child) && isLabelAboveLine(graph, child, style))
           {
             entries += "verticalAlign=bottom;";
           }
 
-          if (model.isEdge(child) && !hasKey(model.getStyle(child), "labelPlacement") &&
+          if (labeled && model.isEdge(child) && !hasKey(model.getStyle(child), "labelPlacement") &&
             !hasKey(model.getStyle(child), "verticalAlign") && style.horizontal != 0)
           {
             entries += "labelPlacement=auto;";

@@ -88,7 +88,11 @@ const references =
   mermaid: readShared("mermaid-reference.md"),
 };
 
-const xmlEssentials = readShared("xml-essentials.md").trim();
+// The label gap in the edge template is for the skill and the project
+// instructions, whose files open without this server. Here fitEdgeLabels adds
+// it to every edge, so the description leaves it out to stay under the cap.
+const xmlEssentials = readShared("xml-essentials.md").trim()
+  .replace("defaultLabelBackgroundColor=gap;", "");
 
 // Shape search. To keep the npm package lean, the ~4.6 MB shape index is NOT
 // bundled — it is fetched from the CDN on first use through the same
