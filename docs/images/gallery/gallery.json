@@ -491,7 +491,7 @@
      "prompt": "Draw a wireframe of a mobile app login screen: logo, email and password fields, a sign-in button, a forgot-password link and social login buttons.",
      "width": 344,
      "height": 763,
-     "featured": false
+     "featured": true
     },
     {
      "image": "gallery-dashboard",
