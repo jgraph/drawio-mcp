@@ -7204,7 +7204,7 @@ layoutBtn.addEventListener('click', function()
 // window.open / target=_blank don't work.
 document.getElementById('help-btn').addEventListener('click', function()
 {
-  app.openLink({ url: "https://github.com/jgraph/drawio-mcp/discussions/33" });
+  app.openLink({ url: "https://www.drawio.com/docs/manual/generate/ai-assistants/diagram-viewer/" });
 });
 
 // When the tab becomes visible, re-notify our size so the host can

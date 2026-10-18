@@ -20,13 +20,15 @@ This repository offers four approaches for integrating draw.io with AI assistant
 
 ## Guides
 
-User guides with tested prompts and examples, in [Discussions → Guides](https://github.com/jgraph/drawio-mcp/discussions/categories/guides):
+User guides with tested prompts and examples are in the draw.io documentation, and the setup for each assistant is on [drawio.com/mcp](https://www.drawio.com/mcp/):
 
-- [Prompting guide](https://github.com/jgraph/drawio-mcp/discussions/38): Mermaid or draw.io XML, speed, cost and models
-- [Diagram types and examples](https://github.com/jgraph/drawio-mcp/discussions/79) and the [gallery of every diagram type](https://github.com/jgraph/drawio-mcp/discussions/82)
-- [Editing and styling](https://github.com/jgraph/drawio-mcp/discussions/80): changes by prompt, color themes, styles
-- [Install options and output formats](https://github.com/jgraph/drawio-mcp/discussions/81)
-- [Viewer help](https://github.com/jgraph/drawio-mcp/discussions/33)
+- [Write prompts](https://www.drawio.com/docs/manual/generate/ai-assistants/prompts/): Mermaid or draw.io XML, speed, cost and models
+- [Diagram types and examples](https://www.drawio.com/docs/manual/generate/ai-assistants/diagram-types/) and the [gallery of every diagram type](https://www.drawio.com/docs/manual/generate/ai-assistants/gallery/)
+- [Change and style diagrams](https://www.drawio.com/docs/manual/generate/ai-assistants/edit-and-style/): changes by prompt, color themes, styles
+- [Install options and output formats](https://www.drawio.com/docs/manual/generate/drawio-mcp-server/)
+- [Diagram viewer](https://www.drawio.com/docs/manual/generate/ai-assistants/diagram-viewer/)
+
+The gallery is generated from [`docs/images/gallery/gallery.json`](docs/images/gallery/gallery.json) and the editable light and dark SVGs next to it; drawio.com reads them when the site is built.
 
 ---
 
