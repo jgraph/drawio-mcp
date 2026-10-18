@@ -361,6 +361,36 @@ console.log("After deduplication: " + deduplicated.length + " unique shapes");
 
 var titleFixCount = 0;
 
+// The words that all untitled shapes of a palette share, keyed by their first
+// tag (e.g. "gcp2 gcp google cloud platform icons icon"), so that a title from
+// the tags keeps only what names the shape
+var paletteWords = {};
+
+for (var i = 0; i < deduplicated.length; i++)
+{
+  if (!deduplicated[i].title && deduplicated[i].tags)
+  {
+    var words = deduplicated[i].tags.split(/\s+/).filter(Boolean);
+    var common = paletteWords[words[0]];
+
+    if (common == null)
+    {
+      paletteWords[words[0]] = words;
+    }
+    else
+    {
+      var n = 0;
+
+      while (n < common.length && n < words.length && common[n] == words[n])
+      {
+        n++;
+      }
+
+      paletteWords[words[0]] = common.slice(0, n);
+    }
+  }
+}
+
 for (var i = 0; i < deduplicated.length; i++)
 {
   if (!deduplicated[i].title && deduplicated[i].tags)
@@ -381,14 +411,28 @@ for (var i = 0; i < deduplicated.length; i++)
       derived = shapeMatch[1];
     }
 
-    // For image shapes, extract filename from the image path
+    // For image shapes, extract filename from the image path (an image in a
+    // data URI has none: its "file name" would be the base64 data)
     if (!derived)
     {
-      var imageMatch = style.match(/image=[^;]*\/([^\/;]+?)(?:\.\w+)?(?:;|$)/);
+      var imageMatch = style.match(/image=(?!data:)[^;]*\/([^\/;]+?)(?:\.\w+)?(?:;|$)/);
 
       if (imageMatch)
       {
         derived = imageMatch[1];
+      }
+    }
+
+    // Otherwise the tags, without the words the whole palette shares
+    if (!derived)
+    {
+      var words = deduplicated[i].tags.split(/\s+/).filter(Boolean);
+      var shared = paletteWords[words[0]] || [];
+      var own = words.slice((shared.length < words.length) ? shared.length : 0);
+
+      if (own.length > 0)
+      {
+        derived = own.join(" ");
       }
     }
 
