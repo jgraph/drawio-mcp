@@ -204,7 +204,7 @@ The `search_shapes` tool is powered by a pre-built index of all draw.io shapes. 
 
 Icons from the draw.io icon service (`icons.diagrams.net` — the same grouped icon search the editor sidebar uses) are **not** part of this index: `search_shapes` queries the service live when the local index has no strong match for a query, returning the icons as `shape=image` styles. Set `DRAWIO_ICON_SERVICE_URL` to a self-hosted service to override the endpoint, or to `off` to disable icon supplementation.
 
-`shape-search/search-index.json` is committed to the repository and is **automatically refreshed on every draw.io release** via the [Update Shape Search Index](.github/workflows/update-search-index.yml) GitHub Action — no manual step is required to stay in sync with the latest shapes.
+`shape-search/search-index.json` is committed to the repository. The [Update Shape Search Index](.github/workflows/update-search-index.yml) GitHub Action regenerates it daily from the released draw.io client and opens a pull request when the shapes changed. Once merged, the tool server picks it up from the CDN; the hosted app server bundles it, so it needs a deploy.
 
 To regenerate the index manually (e.g. when iterating on the generator itself):
 
