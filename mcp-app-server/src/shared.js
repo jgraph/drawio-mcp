@@ -3134,6 +3134,64 @@ function findNewCellIds(model, prevIds)
 function collectCellIdsFromXml(xmlNode)
 {
   var ids = {};
+  var list = listCellIdsFromXml(xmlNode);
+
+  for (var i = 0; i < list.length; i++)
+  {
+    ids[list[i]] = true;
+  }
+
+  return ids;
+}
+
+/**
+ * Moves the cells of the model into the order of an mxGraphModel XML
+ * node, under each parent. Streaming adds every new cell at the end of
+ * its parent, so a cell that first appears in a later partial is drawn
+ * over cells the XML puts in front of it: the edges of a Mermaid git
+ * graph, which the converter places behind the commits and their
+ * labels, ended up on top of them. Cells that aren't in the XML follow
+ * the ones that are.
+ */
+function orderCellsAsInXml(graph, xmlNode)
+{
+  var model = graph.getModel();
+  var ids = listCellIdsFromXml(xmlNode);
+  var nextIndex = Object.create(null);
+
+  model.beginUpdate();
+  try
+  {
+    for (var i = 0; i < ids.length; i++)
+    {
+      var cell = model.getCell(ids[i]);
+      var parent = (cell != null) ? model.getParent(cell) : null;
+
+      if (parent == null) continue;
+
+      var index = nextIndex[parent.id] || 0;
+
+      if (model.getChildAt(parent, index) !== cell)
+      {
+        model.add(parent, cell, index);
+      }
+
+      nextIndex[parent.id] = index + 1;
+    }
+  }
+  finally
+  {
+    model.endUpdate();
+  }
+}
+
+/**
+ * Returns the cell IDs declared in an mxGraphModel XML node, in
+ * document order.
+ */
+function listCellIdsFromXml(xmlNode)
+{
+  var ids = [];
   if (xmlNode == null) return ids;
 
   var rootEl = null;
@@ -3162,7 +3220,7 @@ function collectCellIdsFromXml(xmlNode)
       var inner = n.getElementsByTagName('mxCell');
       if (inner.length > 0) idAttr = inner[0].getAttribute('id');
     }
-    if (idAttr != null) ids[idAttr] = true;
+    if (idAttr != null) ids.push(idAttr);
   }
   return ids;
 }
@@ -5100,6 +5158,8 @@ function finalizeStreamingView(xml, opts)
         var keepIds = collectCellIdsFromXml(doc.documentElement);
         removeOrphanCells(streamGraph, keepIds);
       }
+
+      orderCellsAsInXml(streamGraph, doc.documentElement);
 
       if (newIds.length > 0)
       {
