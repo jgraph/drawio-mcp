@@ -17,7 +17,7 @@ This repository offers four approaches for integrating draw.io with AI assistant
 | **Requires installation** | No (hosted at `mcp.draw.io`) | Yes (npm package) | One-line plugin install (draw.io Desktop only for PNG/SVG/PDF export) | No — just paste instructions |
 | **Supports XML, CSV, Mermaid** | XML and Mermaid | ✅ All three | XML and Mermaid (Mermaid needs draw.io Desktop) | ✅ All three |
 | **Editable in draw.io** | Via "Open in draw.io" button | ✅ Directly | ✅ Directly | Via link |
-| **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, GitHub Copilot CLI, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, Cursor, OpenCode | Claude.ai (with Projects) |
+| **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, GitHub Copilot CLI, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity, OpenCode | Claude.ai (with Projects) |
 | **Best for** | Inline previews in chat | Local desktop workflows | Local development workflows | Quick setup, no install needed |
 
 ---
@@ -104,6 +104,12 @@ Other Copilot surfaces (VS Code agent mode, the coding agent, code review) load 
 
 **Cursor** ([full documentation →](plugins/cursor/README.md)) — the same skill plus the hosted MCP App Server, so diagrams also render inline in Cursor's Agent chat. Install it from the Cursor Marketplace (**Customize** → **drawio** → **Install**), or copy `plugins/cursor` to `~/.cursor/plugins/local/drawio` and reload the window.
 
+**Antigravity** ([full documentation →](plugins/antigravity/README.md)) — install from the plugin's directory on GitHub:
+
+```bash
+agy plugin install https://github.com/jgraph/drawio-mcp/tree/main/plugins/antigravity
+```
+
 **OpenCode** needs no plugin at all: it discovers skills in `.opencode/skills/` and `.claude/skills/` (and their `~/` equivalents), so the Claude Code skill folder works as-is — see [OpenCode (no plugin needed)](plugins/README.md#opencode-no-plugin-needed) for the one-line install.
 
 By default, the plugin writes a `.drawio` file and opens it in draw.io. Mention a format in your request to change the output:
@@ -154,7 +160,7 @@ nothing is sent.
 | **MCP App Server — hosted (`mcp.draw.io`)** | **Yes** — it is sent to the draw.io server as the MCP request. Self-host instead (below) to keep it local. |
 | **MCP App Server — self-hosted** (local Node, the `jgraph/drawio-mcp` Docker image, or your own Cloudflare) | No — processed by your server and embedded in HTML that renders client-side. |
 | **MCP Tool Server** (`@drawio/mcp`) | No — carried in the URL `#fragment`, which browsers do not transmit to the server. |
-| **Assistant Plugins** (Claude Code, Codex CLI, GitHub Copilot, Cursor) | No — written locally and exported by your local draw.io Desktop CLI. The Claude Code and Cursor plugins also bundle the hosted App Server: diagrams drawn with it are sent to `mcp.draw.io` (row above). |
+| **Assistant Plugins** (Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity) | No — written locally and exported by your local draw.io Desktop CLI. The Claude Code and Cursor plugins also bundle the hosted App Server: diagrams drawn with it are sent to `mcp.draw.io` (row above). |
 
 By default the servers do not write diagram content to their logs — only request
 metadata (method, session, status, timing). The Cloudflare-hosted App Server logs

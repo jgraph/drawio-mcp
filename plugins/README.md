@@ -8,9 +8,11 @@ This directory groups assistant-side integrations by **host** — one subdirecto
 | [`codex/drawio/`](codex/drawio/README.md) | [Codex CLI](https://github.com/openai/codex) | ✅ Available |
 | [`copilot/`](copilot/README.md) | [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) | ✅ Available |
 | [`cursor/`](cursor/README.md) | [Cursor](https://cursor.com) | ✅ Available (Marketplace listing in review) |
+| [`antigravity/`](antigravity/README.md) | [Antigravity](https://antigravity.google) | ✅ Available |
 
 Each host has its own marketplace manifest at the repo root, so users install with that
-host's own commands.
+host's own commands. Antigravity has no marketplace for other publishers, so its plugin installs
+from its directory URL.
 
 **Claude Code** — via [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json):
 
@@ -34,6 +36,12 @@ copilot plugin install drawio@drawio
 ```
 
 **Cursor** — via [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json): install from the Cursor Marketplace (**Customize** → **drawio** → **Install**). Teams and Enterprise admins can also import this repo as a team marketplace; to try it locally, copy [`cursor/`](cursor/README.md) to `~/.cursor/plugins/local/drawio`. Unlike the other ports, it also bundles the hosted MCP App Server ([`cursor/mcp.json`](cursor/mcp.json)), because Cursor's Agent chat shows its diagrams inline.
+
+**Antigravity** — from the plugin's directory on GitHub (not the repository URL, which would install every plugin in it under the same name):
+
+```bash
+agy plugin install https://github.com/jgraph/drawio-mcp/tree/main/plugins/antigravity
+```
 
 ## OpenCode (no plugin needed)
 
@@ -62,13 +70,14 @@ plugins/
 ├── codex/                   ← Codex host group
 │   └── drawio/              ← Codex plugin root (folder name == plugin.json "name")
 ├── copilot/                 ← GitHub Copilot CLI plugin (plugin root)
-└── cursor/                  ← Cursor plugin (plugin root)
+├── cursor/                  ← Cursor plugin (plugin root)
+└── antigravity/             ← Antigravity plugin (plugin root)
 ```
 
 Codex normalizes a plugin's root folder name to match its `plugin.json` `"name"`, so the
 Codex plugin root is nested one level (`codex/drawio/`) inside the host group directory;
-Claude Code, Copilot and Cursor have no such rule, so `claude-code/`, `copilot/` and
-`cursor/` are themselves the plugin roots. Another assistant added later follows the same
+Claude Code, Copilot, Cursor and Antigravity have no such rule, so `claude-code/`, `copilot/`,
+`cursor/` and `antigravity/` are themselves the plugin roots. Another assistant added later follows the same
 pattern in its own way.
 
 The draw.io guidance itself — *how* to generate `.drawio` files, embed XML in PNG/SVG/PDF, and produce `app.diagrams.net` URLs — is shared. Only the wrapping (manifest format, file layout, invocation prefix) differs per host, and each host has its own plugin/skill model, so the wrapping is not assumed to be uniform.

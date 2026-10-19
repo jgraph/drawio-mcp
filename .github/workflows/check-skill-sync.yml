@@ -8,12 +8,14 @@ on:
       - "plugins/codex/drawio/skills/drawio/SKILL.md"
       - "plugins/copilot/skills/drawio/SKILL.md"
       - "plugins/cursor/skills/drawio/SKILL.md"
+      - "plugins/antigravity/skills/drawio/SKILL.md"
   pull_request:
     paths:
       - "plugins/claude-code/skills/drawio/SKILL.md"
       - "plugins/codex/drawio/skills/drawio/SKILL.md"
       - "plugins/copilot/skills/drawio/SKILL.md"
       - "plugins/cursor/skills/drawio/SKILL.md"
+      - "plugins/antigravity/skills/drawio/SKILL.md"
   workflow_dispatch:
 
 permissions:
@@ -34,7 +36,8 @@ jobs:
           for port in \
             "plugins/codex/drawio/skills/drawio/SKILL.md" \
             "plugins/copilot/skills/drawio/SKILL.md" \
-            "plugins/cursor/skills/drawio/SKILL.md"; do
+            "plugins/cursor/skills/drawio/SKILL.md" \
+            "plugins/antigravity/skills/drawio/SKILL.md"; do
 
             if [ ! -f "$port" ]; then
               echo "$port does not exist (port not present) — nothing to check."

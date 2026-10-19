@@ -1,0 +1,4 @@
+{
+  "name": "drawio",
+  "description": "Generate native .drawio diagrams in Antigravity — author as Mermaid or XML with optional ELK auto-layout, export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL."
+}
