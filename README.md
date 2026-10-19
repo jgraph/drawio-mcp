@@ -26,7 +26,7 @@ This repository offers four approaches for integrating draw.io with AI assistant
 
 User guides with tested prompts and examples are in the draw.io documentation, and the setup for each assistant is on [drawio.com/mcp](https://www.drawio.com/mcp/):
 
-- [Write prompts](https://www.drawio.com/docs/manual/generate/ai-assistants/prompts/): Mermaid or draw.io XML, speed, cost and models
+- [Write prompts](https://www.drawio.com/docs/manual/generate/ai-assistants/prompts/): Mermaid or draw.io XML, speed and models
 - [Diagram types and examples](https://www.drawio.com/docs/manual/generate/ai-assistants/diagram-types/) and the [gallery of every diagram type](https://www.drawio.com/docs/manual/generate/ai-assistants/gallery/)
 - [Change and style diagrams](https://www.drawio.com/docs/manual/generate/ai-assistants/edit-and-style/): changes by prompt, color themes, styles
 - [Install options and output formats](https://www.drawio.com/docs/manual/generate/drawio-mcp-server/)
