@@ -335,6 +335,17 @@
      "featured": false
     },
     {
+     "image": "gallery-sap",
+     "title": "SAP integration",
+     "format": "draw.io XML",
+     "seconds": 46,
+     "cost": 0.24,
+     "prompt": "Draw an SAP integration architecture: in an SAP BTP subaccount, SAP Integration Suite connects a partner's system to SAP S/4HANA on premise through the SAP Cloud Connector, and stores data in SAP HANA Cloud. Use SAP icons.",
+     "width": 842,
+     "height": 514,
+     "featured": false
+    },
+    {
      "image": "gallery-k8s",
      "title": "Kubernetes",
      "format": "draw.io XML",
