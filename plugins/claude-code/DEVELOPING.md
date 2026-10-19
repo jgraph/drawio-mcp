@@ -13,7 +13,7 @@ Previously distributed as a bare `SKILL.md` users copied into `~/.claude/skills/
 | `README.md` | Installation and usage documentation |
 | `../../.claude-plugin/marketplace.json` | Marketplace manifest at the repo root; lists this plugin with `source: "./plugins/claude-code"` and inherits the rest of its metadata from `plugin.json` |
 
-**⚠️ Mirrored skill:** the Codex, Copilot, Cursor and Antigravity plugins ship byte-identical copies of `skills/drawio/SKILL.md`. Any edit to the skill must be applied to every copy — CI ([`check-skill-sync.yml`](../../.github/workflows/check-skill-sync.yml)) fails if the copies drift, or if the body (after the front matter) reaches 24,000 bytes, the most Antigravity loads.
+**⚠️ Mirrored skill:** the Codex, Copilot, Cursor and Antigravity plugins ship byte-identical copies of `skills/drawio/SKILL.md`. Any edit to the skill must be applied to every copy — CI ([`check-skill-sync.yml`](../../.github/workflows/check-skill-sync.yml)) fails if the copies drift, or if the body (after the front matter) reaches 24,000 bytes, the most Antigravity loads, or if the front matter isn't valid YAML. Claude Code forgives an unquoted `: ` in the `description`, but Copilot CLI and other strict parsers drop the skill, so the description is a double-quoted string.
 
 ## How It Works
 

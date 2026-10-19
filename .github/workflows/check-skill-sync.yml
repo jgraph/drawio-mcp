@@ -64,3 +64,23 @@ jobs:
             echo "::error file=$skill::The body is $body bytes; Antigravity loads only the first 24,000. Trim it."
             exit 1
           fi
+
+      - name: Keep the front matter valid YAML for strict parsers
+        run: |
+          # Claude Code forgives a value YAML can't parse (an unquoted ": " in the
+          # description); Copilot CLI and other strict parsers drop the skill.
+          ruby -ryaml - plugins/claude-code/skills/drawio/SKILL.md <<'RUBY'
+          skill = ARGV[0]
+          fm = File.read(skill, encoding: "UTF-8")[/\A---\n(.*?)\n---\n/m, 1] or abort "::error file=#{skill}::No front matter."
+          begin
+            data = YAML.safe_load(fm)
+          rescue Psych::SyntaxError => e
+            abort "::error file=#{skill},line=#{e.line + 1}::The front matter is not valid YAML (#{e.problem}). Quote a value that contains \": \"."
+          end
+          %w[name description].each do |key|
+            abort "::error file=#{skill}::The front matter needs a string #{key}." unless data.is_a?(Hash) && data[key].is_a?(String)
+          end
+          len = data["description"].length
+          abort "::error file=#{skill}::The description is #{len} characters; skill hosts accept at most 1,024." if len > 1024
+          puts "Front matter OK; description #{len} characters."
+          RUBY
