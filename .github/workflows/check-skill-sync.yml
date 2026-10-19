@@ -54,3 +54,13 @@ jobs:
           done
 
           exit $status
+
+      - name: Keep the skill body under Antigravity's 24,000-byte load limit
+        run: |
+          skill="plugins/claude-code/skills/drawio/SKILL.md"
+          body=$(awk 'f>=2 {print} /^---$/ {f++}' "$skill" | wc -c)
+          echo "SKILL.md body: $body bytes"
+          if [ "$body" -ge 24000 ]; then
+            echo "::error file=$skill::The body is $body bytes; Antigravity loads only the first 24,000. Trim it."
+            exit 1
+          fi

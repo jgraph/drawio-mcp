@@ -1,6 +1,6 @@
 {
   "name": "drawio",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Generate native .drawio diagrams from Codex using Mermaid or XML, with optional ELK layout, PNG/SVG/PDF export, and browser URL output.",
   "author": {
     "name": "draw.io",

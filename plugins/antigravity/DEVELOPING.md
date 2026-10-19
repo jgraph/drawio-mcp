@@ -45,10 +45,10 @@ Antigravity reads `plugin.json` at the plugin root, or in `.antigravity-plugin/`
   answer with a link, and with both installed the agent mixed the two (one run: the server's
   XML saved to a file, 199 s, about 120k tokens). The README shows `agy mcp add` for people
   who want the server instead.
-- **Skill size.** Antigravity loads the first 24,000 bytes of a skill body and
-  `agy plugin validate` warns about the rest. In the tests the agent read the whole
-  `SKILL.md` with its file tool anyway, so nothing was lost; trimming the shared skill below
-  24 KB would remove the warning for every host.
+- **Skill size.** Antigravity loads the first 24,000 bytes of a skill body, and
+  `agy plugin validate` warns about the rest. The body was 27,138 bytes (the agent read the
+  whole file with its file tool anyway); 1.2.4 trims it to about 23,400 by removing repeated
+  commands and prose, and `check-skill-sync.yml` now fails at 24,000.
 - **Print mode.** `agy -p` can't ask before running commands, so the draw.io CLI call is
   denied unless commands are approved (`--dangerously-skip-permissions`, or an allow rule in
   `settings.json`). `--sandbox` blocks draw.io Desktop (an Electron app) entirely.

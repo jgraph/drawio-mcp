@@ -13,7 +13,7 @@ Previously distributed as a bare `SKILL.md` users copied into `~/.claude/skills/
 | `README.md` | Installation and usage documentation |
 | `../../.claude-plugin/marketplace.json` | Marketplace manifest at the repo root; lists this plugin with `source: "./plugins/claude-code"` and inherits the rest of its metadata from `plugin.json` |
 
-**⚠️ Mirrored skill:** the Codex plugin ships a byte-identical copy of `skills/drawio/SKILL.md` at `plugins/codex/drawio/skills/drawio/SKILL.md`. Any edit to the skill must be applied to both files — CI ([`check-skill-sync.yml`](../../.github/workflows/check-skill-sync.yml)) fails if the copies drift.
+**⚠️ Mirrored skill:** the Codex, Copilot, Cursor and Antigravity plugins ship byte-identical copies of `skills/drawio/SKILL.md`. Any edit to the skill must be applied to every copy — CI ([`check-skill-sync.yml`](../../.github/workflows/check-skill-sync.yml)) fails if the copies drift, or if the body (after the front matter) reaches 24,000 bytes, the most Antigravity loads.
 
 ## How It Works
 
