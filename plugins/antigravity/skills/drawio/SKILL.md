@@ -1,6 +1,6 @@
 ---
 name: drawio
-description: Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF. Exception: in a chat that shows diagrams inline (VS Code's or Cursor's own chat, Claude.ai, ChatGPT) where the draw.io MCP server's create_diagram tool is available, call that tool instead, unless the user asks for a file or an export. Claude Code, Codex and Copilot CLI, also in their VS Code and JetBrains extensions, don't show diagrams inline: use this skill there.
+description: "Always use when user asks to create, generate, draw, or design a diagram, flowchart, architecture diagram, ER diagram, sequence diagram, class diagram, network diagram, mockup, wireframe, or UI sketch, or mentions draw.io, drawio, drawoi, .drawio files, or diagram export to PNG/SVG/PDF. Exception: in a chat that shows diagrams inline (VS Code's or Cursor's own chat, Claude.ai, ChatGPT) where the draw.io MCP server's create_diagram tool is available, call that tool instead, unless the user asks for a file or an export. Claude Code, Codex and Copilot CLI, also in their VS Code and JetBrains extensions, don't show diagrams inline: use this skill there."
 ---
 
 # Draw.io Diagram Skill

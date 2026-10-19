@@ -12,7 +12,7 @@
     {
       "name": "drawio",
       "description": "Generate native .drawio diagrams from GitHub Copilot — author as Mermaid or XML with optional ELK auto-layout, export PNG/SVG/PDF with embedded XML, or open via app.diagrams.net URL.",
-      "version": "1.2.4",
+      "version": "1.2.5",
       "author": {
         "name": "draw.io",
         "url": "https://www.drawio.com"
