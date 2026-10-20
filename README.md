@@ -2,7 +2,7 @@
 
 The official [draw.io](https://www.draw.io) MCP (Model Context Protocol) server that enables LLMs to create and open diagrams in the draw.io editor.
 
-[![An AI assistant turns a prompt for a customer refund flowchart into an editable draw.io diagram in the chat, with Open in draw.io, Copy and Download diagram buttons](https://www.drawio.com/img/mcp/drawio-mcp-hero-poster.jpg?v=6)](https://www.drawio.com/mcp/)
+[![An AI assistant turns a prompt for a customer refund flowchart into an editable draw.io diagram in the chat, with Open in draw.io, Copy and Download diagram buttons](https://www.drawio.com/img/mcp/drawio-mcp-hero-poster.jpg?v=7)](https://www.drawio.com/mcp/)
 
 ▶ [Watch the video](https://www.drawio.com/mcp/) and set up draw.io in your AI assistant on drawio.com/mcp.
 
