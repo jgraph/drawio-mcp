@@ -104,11 +104,11 @@ test("edges and the labels of edges get the label gap", function()
 
   assert.equal(r.changed, 4);
   // Side by side: the labels also move above the line.
-  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
-  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
+  assert.equal(styleOf(r.xml, "plain"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=page;verticalAlign=bottom;labelPlacement=auto;");
+  assert.equal(styleOf(r.xml, "dflt"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=page;verticalAlign=bottom;labelPlacement=auto;");
   // Unlabeled edges get the gap for labels added later in draw.io, but no placement.
-  assert.equal(styleOf(r.xml, "unlabeled"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
-  assert.equal(styleOf(r.xml, "m"), "edgeLabel;html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(styleOf(r.xml, "unlabeled"), "html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=page;");
+  assert.equal(styleOf(r.xml, "m"), "edgeLabel;html=1;labelBackgroundColor=default;defaultLabelBackgroundColor=page;");
 });
 
 test("unlabeled edges get the gap once, other children of edges are left alone", function()
@@ -121,7 +121,7 @@ test("unlabeled edges get the gap once, other children of edges are left alone",
   var r = fitEdgeLabels(xml);
 
   assert.equal(r.changed, 1);
-  assert.equal(styleOf(r.xml, "u"), "endArrow=none;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+  assert.equal(styleOf(r.xml, "u"), "endArrow=none;labelBackgroundColor=default;defaultLabelBackgroundColor=page;");
   assert.equal(styleOf(r.xml, "white"), "labelBackgroundColor=#ffffff;");
   assert.equal(styleOf(r.xml, "sym"), "ellipse;html=1;");
   assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
@@ -129,6 +129,7 @@ test("unlabeled edges get the gap once, other children of edges are left alone",
 
 test("explicit label backgrounds and existing gaps are kept", function()
 {
+  // The value gap of draw.io 32.5.6 to 32.5.8 is read as page and left alone.
   // Stacked, so no label moves above a line either; placement is the only addition.
   var xml = model(box("a", 40, "rounded=1;", 140, 60) + box("b", 40, "rounded=1;", 140, 60).replace('y="40"', 'y="240"') +
     edge("none", "No", "labelBackgroundColor=none;", "a", "b") +
@@ -154,11 +155,11 @@ test("a label wider than a short edge between diamonds moves above the line", fu
   var r = fitEdgeLabels(xml);
 
   assert.equal(styleOf(r.xml, "yes"),
-    "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;verticalAlign=bottom;labelPlacement=auto;");
+    "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=page;verticalAlign=bottom;labelPlacement=auto;");
   // Rectangles leave no room above the line, and a placed label stays where the diagram put it.
-  assert.equal(styleOf(r.xml, "rect"), "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;labelPlacement=auto;");
+  assert.equal(styleOf(r.xml, "rect"), "edgeStyle=orthogonalEdgeStyle;labelBackgroundColor=default;defaultLabelBackgroundColor=page;labelPlacement=auto;");
   assert.equal(styleOf(r.xml, "placed"),
-    "edgeStyle=orthogonalEdgeStyle;verticalAlign=top;labelBackgroundColor=default;defaultLabelBackgroundColor=gap;");
+    "edgeStyle=orthogonalEdgeStyle;verticalAlign=top;labelBackgroundColor=default;defaultLabelBackgroundColor=page;");
   assert.equal(fitEdgeLabels(r.xml).xml, r.xml);
 });
 
