@@ -78,7 +78,7 @@ export function addLabelPerimeters(xml)
 // Edge labels of generated diagrams.
 //
 // Gap: draw.io (after 32.5.5) paints a label with labelBackgroundColor=default
-// and defaultLabelBackgroundColor=page (the Page option in its Text tab)
+// and defaultLabelBackgroundColor=page (Transparent in its Text tab)
 // without a background and cuts its box out of the edge, so the line stops at
 // the text and the page, a grid or a gradient shows behind it. Edge labels
 // have the default background unless a color is set, so every edge, labeled
