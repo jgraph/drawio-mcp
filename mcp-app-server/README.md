@@ -1,5 +1,7 @@
 # Draw.io MCP App Server
 
+[![LightNow capabilities](https://lightnow.ai/badge/io.draw/mcp)](https://lightnow.ai/servers/io.draw/mcp)
+
 The MCP App server renders draw.io diagrams **inline** in AI chat interfaces using the [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) protocol. Instead of opening a browser tab, diagrams appear directly in the conversation as interactive iframes.
 
 ## How It Works
