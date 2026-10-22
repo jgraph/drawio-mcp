@@ -5088,7 +5088,7 @@
     "type": "vertex"
   },
   {
-    "style": "image;html=1;aspect=fixed;strokeColor=none;labelBackgroundColor=none;verticalLabelPosition=bottom;verticalAlign=top;align=center;image=img/lib/atlassian/Sourcetree_Logo.svg;",
+    "style": "image;html=1;aspect=fixed;strokeColor=none;labelBackgroundColor=none;verticalLabelPosition=bottom;verticalAlign=top;align=center;image=img/lib/atlassian/Sourcetree_Logo.svg;points=[[0.502,0.003,0],[0.5,0.998,0],[0.009,0.396,0],[0.994,0.4,0],[0.882,0.145,0],[0.646,0.987,0],[0.354,0.987,0],[0.115,0.15,0]];",
     "w": 39,
     "h": 48,
     "title": "Sourcetree",
@@ -10824,7 +10824,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=umlState;rounded=1;verticalAlign=top;spacingTop=5;umlStateSymbol=collapseState;absoluteArcSize=1;arcSize=10;html=1;whiteSpace=wrap;",
+    "style": "shape=umlState;rounded=1;verticalAlign=top;spacingTop=5;umlStateSymbol=collapseState;absoluteArcSize=1;arcSize=10;html=1;whiteSpace=wrap;points=[[0.5,0,0],[0.5,1,0],[0,0.5,0],[1,0.5,0],[0,0,0,2.93,2.93],[1,0,0,-2.93,2.93],[1,1,0,-2.93,-2.93],[0,1,0,2.93,-2.93]];",
     "w": 140,
     "h": 60,
     "title": "State",
@@ -68888,7 +68888,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=ellipse;html=1;whiteSpace=wrap;fillColor=#D1BADC;",
+    "style": "shape=ellipse;perimeter=ellipsePerimeter;html=1;whiteSpace=wrap;fillColor=#D1BADC;",
     "w": 70,
     "h": 35,
     "title": "Value",
@@ -69888,7 +69888,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=ellipse;html=1;whiteSpace=wrap;fillColor=#CCCCFF;",
+    "style": "shape=ellipse;perimeter=ellipsePerimeter;html=1;whiteSpace=wrap;fillColor=#CCCCFF;",
     "w": 70,
     "h": 35,
     "title": "Value",
@@ -70776,7 +70776,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#ffff99;whiteSpace=wrap;shape=ellipse;html=1;",
+    "style": "fillColor=#ffff99;whiteSpace=wrap;shape=ellipse;perimeter=ellipsePerimeter;html=1;",
     "w": 100,
     "h": 56,
     "title": "Value",
@@ -71088,7 +71088,7 @@
     "type": "vertex"
   },
   {
-    "style": "html=1;outlineConnect=0;whiteSpace=wrap;fillColor=#ffe0e0;shape=mxgraph.archimate.rounded=1",
+    "style": "html=1;outlineConnect=0;whiteSpace=wrap;fillColor=#ffe0e0;rounded=1;absoluteArcSize=1;arcSize=20;roundedPerimeter=1;",
     "w": 100,
     "h": 75,
     "title": "Work Package",
@@ -71744,7 +71744,7 @@
     "type": "vertex"
   },
   {
-    "style": "whiteSpace=wrap;shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];whiteSpace=wrap;shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;html=1;",
     "w": 120,
     "h": 20,
     "title": "Participant, Initiating, Top",
@@ -71752,7 +71752,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 20,
     "title": "Additional Participant, Initiating",
@@ -71760,7 +71760,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;isLoopSub=0;topLeftStyle=square;topRightStyle=square;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;isLoopSub=0;topLeftStyle=square;topRightStyle=square;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 20,
     "title": "Participant, Initiating, Bottom",
@@ -71768,7 +71768,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;verticalAlign=top;isLoopMultiParallel=1;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;verticalAlign=top;isLoopMultiParallel=1;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 40,
     "title": "Participant, Initiating, Multi-Instance, Top",
@@ -71776,7 +71776,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;verticalAlign=top;isLoopMultiParallel=1;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;verticalAlign=top;isLoopMultiParallel=1;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 40,
     "title": "Additional Participant, Initiating, Multi-Instance, Bottom",
@@ -71784,7 +71784,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;verticalAlign=top;isLoopMultiParallel=1;topLeftStyle=square;topRightStyle=square;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;verticalAlign=top;isLoopMultiParallel=1;topLeftStyle=square;topRightStyle=square;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 40,
     "title": "Participant, Initiating, Multi-Instance, Bottom",
@@ -71792,7 +71792,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 20,
     "title": "Participant, Non-Initiating, Top",
@@ -71800,7 +71800,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 20,
     "title": "Additional Participant, Non-Initiating",
@@ -71808,7 +71808,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;isLoopSub=0;topLeftStyle=square;topRightStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;isLoopSub=0;topLeftStyle=square;topRightStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 20,
     "title": "Participant, Non-Initiating, Bottom",
@@ -71816,7 +71816,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;verticalAlign=top;isLoopMultiParallel=1;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;bottomRightStyle=square;bottomLeftStyle=square;verticalAlign=top;isLoopMultiParallel=1;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 40,
     "title": "Participant, Non-Initiating, Multi-Instance, Top",
@@ -71824,7 +71824,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;verticalAlign=top;isLoopMultiParallel=1;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=square;verticalAlign=top;isLoopMultiParallel=1;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 40,
     "title": "Additional Participant, Non-Initiating, Multi-Instance, Bottom",
@@ -71832,7 +71832,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;verticalAlign=top;isLoopMultiParallel=1;topLeftStyle=square;topRightStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
+    "style": "points=[[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0.5,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.5,0]];shape=mxgraph.bpmn.task2;part=1;taskMarker=abstract;rectStyle=rounded;verticalAlign=top;isLoopMultiParallel=1;topLeftStyle=square;topRightStyle=square;fillColor=#C0C0C0;whiteSpace=wrap;html=1;",
     "w": 120,
     "h": 40,
     "title": "Participant, Non-Initiating, Multi-Instance, Bottom",
@@ -73216,7 +73216,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=ellipse;html=1;fontSize=18;align=center;",
+    "style": "shape=ellipse;perimeter=ellipsePerimeter;html=1;fontSize=18;align=center;",
     "w": 40,
     "h": 40,
     "title": "History, Deep Pseudo State",
@@ -73224,7 +73224,7 @@
     "type": "vertex"
   },
   {
-    "style": "shape=ellipse;html=1;fillColor=strokeColor;fontSize=18;fontColor=#ffffff;",
+    "style": "shape=ellipse;perimeter=ellipsePerimeter;html=1;fillColor=strokeColor;fontSize=18;fontColor=#ffffff;",
     "w": 40,
     "h": 40,
     "title": "Initial Pseudo State",
@@ -76544,7 +76544,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=middle;shadow=0;dashed=0;align=center;html=1;verticalAlign=middle;strokeWidth=1;shape=ellipse;aspect=fixed;fontSize=50;",
+    "style": "verticalLabelPosition=middle;shadow=0;dashed=0;align=center;html=1;verticalAlign=middle;strokeWidth=1;shape=ellipse;perimeter=ellipsePerimeter;aspect=fixed;fontSize=50;",
     "w": 90,
     "h": 90,
     "title": "Ammeter",
@@ -76608,7 +76608,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=middle;shadow=0;dashed=0;align=center;html=1;verticalAlign=middle;strokeWidth=1;shape=ellipse;aspect=fixed;fontSize=35;",
+    "style": "verticalLabelPosition=middle;shadow=0;dashed=0;align=center;html=1;verticalAlign=middle;strokeWidth=1;shape=ellipse;perimeter=ellipsePerimeter;aspect=fixed;fontSize=35;",
     "w": 60,
     "h": 60,
     "title": "Electrical Motor",
@@ -77869,14 +77869,6 @@
     "h": 80,
     "title": "Optical Fiber",
     "tags": "electrical transmission optical fiber electrical transmission paths bus buses Optical Fiber",
-    "type": "vertex"
-  },
-  {
-    "style": "verticalLabelPosition=bottom;shadow=0;dashed=0;align=center;html=1;verticalAlign=top;strokeWidth=1;shape=ellipse;",
-    "w": 10,
-    "h": 10,
-    "title": "Terminal",
-    "tags": "electrical transmission terminal electrical transmission paths bus buses Terminal",
     "type": "vertex"
   },
   {
