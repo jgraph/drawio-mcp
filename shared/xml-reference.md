@@ -115,7 +115,7 @@ Styles users ask for, and the keys that draw them. Apply a requested look to eve
 | Connector path | `edgeStyle=orthogonalEdgeStyle` right angles (`rounded=1` rounds the bends), `curved=1` curves, no `edgeStyle` straight lines |
 | Arrowheads | `endArrow=block` (`classic`, `open`, `oval`, `diamond`, `none`), `endFill=0` hollow, `startArrow=…` at the start too, `endSize=10` |
 | Crossing connectors | `jumpStyle=arc;jumpSize=10;` on the edges that cross others: a small bridge at each crossing (`gap`, `sharp`) |
-| Edge labels | `labelBackgroundColor=default;defaultLabelBackgroundColor=gap` on every edge and edge label cell, so the line stops at the text, with the page showing behind it, as on new edges in draw.io (the MCP servers add it) |
+| Edge labels | `labelBackgroundColor=default;defaultLabelBackgroundColor=page` on every edge and edge label cell, so the line stops at the text, with the page showing behind it, as on new edges in draw.io (the MCP servers add it) |
 | Dark or colored page | `background="#0F172A"` on `mxGraphModel`, with `adaptiveColors="none"` so the colors stay as written in a dark host too; see the dark and blueprint themes below. Without a request, keep `adaptiveColors="auto"` and the usual colors: draw.io adapts them to dark mode itself |
 | Icon with its name below | `verticalLabelPosition=bottom;verticalAlign=top;` on the icon (48–64 px), with a free row below each row of icons. draw.io ends connectors that come from below at the name, not inside it, on shapes with `labelPerimeter=1` (the MCP servers add it) |
 
@@ -196,7 +196,7 @@ draw.io's built-in router is **basic**: it draws each edge as a straight line or
 | Mind map | `edgeStyle=entityRelationEdgeStyle;startArrow=none;endArrow=none;segment=10;curved=1;html=1;` |
 | Sequence | use Mermaid |
 
-Add `defaultLabelBackgroundColor=gap` to every connector style, as draw.io does for new connectors, so a label cuts the line instead of sitting in a white box (the MCP servers add it when it is missing).
+Add `defaultLabelBackgroundColor=page` to every connector style, as draw.io does for new connectors, so a label cuts the line instead of sitting in a white box (the MCP servers add it when it is missing).
 
 Straight and curved lines are meant to stay that way: place their ends where the line between them is clear.
 
@@ -211,7 +211,7 @@ Straight and curved lines are meant to stay that way: place their ends where the
 
 **Where edge labels go**, in every diagram type:
 - **Along the edge, where the meaning is:** in the middle for the relationship itself (an event, the data or protocol, a verb); near the start for the outcome of a decision or gateway on a long edge (`x="-0.6"` on the edge's `mxGeometry`); at an end for something about that end (multiplicity, role, cardinality, port), as an `edgeLabel` cell whose `parent` is the edge, with `x="-0.8"` or `x="0.8"` and an `offset` to one side (a name and a multiplicity on opposite sides).
-- **Across the line:** the text stays horizontal. On a horizontal line it sits just above the line; on a vertical or diagonal line it sits on the line, which breaks for the text (`labelBackgroundColor=default;defaultLabelBackgroundColor=gap`). `labelPlacement=auto` on the edge makes draw.io choose by the segment under the label, also on bent edges; the MCP servers add it, the gap, and `verticalAlign=bottom` on straight horizontal edges for older viewers.
+- **Across the line:** the text stays horizontal. On a horizontal line it sits just above the line; on a vertical or diagonal line it sits on the line, which breaks for the text (`labelBackgroundColor=default;defaultLabelBackgroundColor=page`). `labelPlacement=auto` on the edge makes draw.io choose by the segment under the label, also on bent edges; the MCP servers add it, the gap, and `verticalAlign=bottom` on straight horizontal edges for older viewers.
 - **Room:** a label never touches a shape, another label or another line. When it doesn't fit, shorten it or leave more room in the layout rather than shrinking the font.
 
 **Visual semantics — stay consistent, add a legend when mixing styles.** Within one diagram apply `dashed=1`, `strokeColor`, and `strokeWidth` consistently for one chosen meaning (e.g. dashed = optional / async / inferred relationship). Don't mix several dashed meanings without a small legend explaining them.

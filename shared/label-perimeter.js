@@ -78,14 +78,16 @@ export function addLabelPerimeters(xml)
 // Edge labels of generated diagrams.
 //
 // Gap: draw.io (after 32.5.5) paints a label with labelBackgroundColor=default
-// and defaultLabelBackgroundColor=gap without a background and cuts its box
-// out of the edge, so the line stops at the text and the page, a grid or a
-// gradient shows behind it. Edge labels have the default background unless a
-// color is set, so every edge, labeled or not, and the labeled label cells
-// on edges whose background is default get the gap. New edges in draw.io
-// (after 32.5.5) have it in the default edge style, so a label that is added
-// to an edge later in draw.io gets the gap too. Older viewers keep painting
-// the default background as before.
+// and defaultLabelBackgroundColor=page (Transparent in its Text tab)
+// without a background and cuts its box out of the edge, so the line stops at
+// the text and the page, a grid or a gradient shows behind it. Edge labels
+// have the default background unless a color is set, so every edge, labeled
+// or not, and the labeled label cells on edges whose background is default
+// get the gap. New edges in draw.io have it in the default edge style, so a
+// label that is added to an edge later in draw.io gets the gap too. Older
+// viewers paint the page color (32.0.2 to 32.5.5) or the default background.
+// The value gap of draw.io 32.5.6 to 32.5.8 is read the same way and left
+// alone.
 //
 // Placement, the same for every diagram type: the text stays horizontal, so
 // on a horizontal line it sits just above the line (verticalAlign=bottom) and
@@ -291,7 +293,7 @@ export function fitEdgeLabels(xml)
         return "";
       }
 
-      return ((bg == null) ? "labelBackgroundColor=default;" : "") + "defaultLabelBackgroundColor=gap;";
+      return ((bg == null) ? "labelBackgroundColor=default;" : "") + "defaultLabelBackgroundColor=page;";
     }
 
     function visit(cell)

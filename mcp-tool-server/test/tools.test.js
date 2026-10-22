@@ -73,8 +73,8 @@ test("open_drawio_xml inlines the XML essentials", async function()
   const essentials = readShared("xml-essentials.md").trim();
 
   // Without the label gap, which fitEdgeLabels adds to every edge
-  assert.ok(essentials.includes("defaultLabelBackgroundColor=gap;"));
-  assert.ok(xmlTool.description.includes(essentials.replace("defaultLabelBackgroundColor=gap;", "")));
+  assert.ok(essentials.includes("defaultLabelBackgroundColor=page;"));
+  assert.ok(xmlTool.description.includes(essentials.replace("defaultLabelBackgroundColor=page;", "")));
   assert.ok(!xmlTool.description.includes("defaultLabelBackgroundColor"));
 });
 

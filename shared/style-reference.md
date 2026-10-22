@@ -275,7 +275,7 @@ From version 31.7.1 onwards:
 | `spacingRight` | number | `0` | Right padding |
 | `textOpacity` | `0`–`100` | `100` | Text opacity |
 | `labelBackgroundColor` | `#RRGGBB`, `none`, `default` | — | Background behind text (useful for edge labels) |
-| `defaultLabelBackgroundColor` | `gap` | — | With `labelBackgroundColor=default`: no background, the label box is cut out of the shape and of the parent edge. draw.io sets it on new edges and edge labels |
+| `defaultLabelBackgroundColor` | `page` | — | With `labelBackgroundColor=default`: no background, the label box is cut out of the shape and of the parent edge, so the page shows behind the label (_Transparent_ in the _Background_ list of draw.io's Text tab). `gap` has the same effect. draw.io sets it on new edges and edge labels |
 | `labelPlacement` | `auto` | — | On an edge or an edge label: the label stays horizontal and sits just above horizontal segments, below the line when something is in the way above, and on the line (with the gap) on vertical and diagonal segments. It keeps clear of bends and arrowheads; a label in the middle of the edge that doesn't fit its segment moves to the nearest segment that does. Placed again when the route changes. draw.io releases after 32.5.5; older viewers ignore it |
 | `labelBorderColor` | `#RRGGBB`, `none` | — | Border around label |
 | `labelWidth` | number | — | Fixed label width |
