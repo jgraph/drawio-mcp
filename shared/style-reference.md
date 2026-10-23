@@ -480,6 +480,7 @@ Keys that placeholders and style rules can set:
 | `fontStyle` | `0` to `15`, rounded |
 | `rotation` | `-360` to `360` |
 | `dashed`, `rounded`, `shadow` | `0`, `1` |
+| `image` | `https://` URL without quotes, spaces, `;` or parentheses, up to 2048 characters. An image without placeholders, for example a `data:` URI that contains `%`, is kept as it is |
 
 ---
 
