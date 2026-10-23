@@ -460,6 +460,27 @@ From version 32.3.1 onwards, `flowLayout`, `treeLayout` and `organicLayout` run 
 | `pointerEvents` | `0`, `1` | `1` | Enable mouse events |
 | `autosize` | `0`, `1` | `0` | Auto-size to fit content |
 
+### 4.11 Data Properties
+
+Values in the style of a cell can come from its data, and from the [style rules](https://www.drawio.com/docs/manual/pages/style-rules/) of the page.
+
+| Property | Values | Default | Description |
+|---|---|---|---|
+| `stylePlaceholders` | `0`, `1` | `0` | `1` replaces placeholders such as `%color%` in the values of the keys in the table below with the data of the cell, its ancestors and the page, like placeholders in labels. Each value is checked for its key: keys whose value is not valid after the placeholders are replaced are removed, numbers are limited to the range of the key. Placeholders in other keys are not replaced. The CSV import keeps these placeholders in styles with `stylePlaceholders=1`, so the styles follow later changes of the data. Example: `fillColor=%color%;stylePlaceholders=1;` |
+| `styleRules` | `0`, `1` | `1` | `0`: the style rules of the page don't change the cell, for example the shapes of a legend that _Insert Legend_ adds |
+
+Keys that placeholders and style rules can set:
+
+| Keys | Values |
+|---|---|
+| `fillColor`, `gradientColor`, `strokeColor`, `fontColor`, `labelBackgroundColor`, `labelBorderColor`, `swimlaneFillColor` | `#hex`, `rgb()`, `rgba()`, `hsl()` or `hsla()` with numbers, a colour name, `light-dark()` of two colours, `none` or `default` |
+| `opacity`, `fillOpacity`, `strokeOpacity`, `textOpacity` | `0` to `100` |
+| `strokeWidth` | `0` to `100` |
+| `fontSize` | `1` to `500` |
+| `fontStyle` | `0` to `15`, rounded |
+| `rotation` | `-360` to `360` |
+| `dashed`, `rounded`, `shadow` | `0`, `1` |
+
 ---
 
 ## 5. Edge Styles (Routing Algorithms)
