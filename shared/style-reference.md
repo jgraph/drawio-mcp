@@ -278,7 +278,7 @@ From version 32.4.5 onwards, `roundedPerimeter` also applies to `process` and `i
 | `verticalAlign` | `top`, `middle`, `bottom` | `middle` | Vertical text alignment |
 | `labelPosition` | `left`, `center`, `right` | `center` | Horizontal label position relative to shape |
 | `verticalLabelPosition` | `top`, `middle`, `bottom` | `middle` | Vertical label position relative to shape |
-| `labelPerimeter` | `0`, `1` | `0` | On a vertex whose label is outside the shape, centered on one side (`verticalLabelPosition=top` or `bottom` with `labelPosition=center`, or `labelPosition=left` or `right` with `verticalLabelPosition=middle`): edges that would cross the label end at its outline instead (plus the perimeter spacing), and a fixed connection point on that side moves to the far edge of the label. Ignored on rotated and flipped shapes. Library shapes with an outside label have it, and the _Position_ control in the _Text_ tab sets it; set it on generated vertices with outside labels, for example icons with `verticalLabelPosition=bottom` |
+| `labelPerimeter` | `0`, `1` | `0` | On a shape whose label is outside its outline, centred on one side (`verticalLabelPosition=top` or `bottom` with `labelPosition=center`, or `labelPosition=left` or `right` with `verticalLabelPosition=middle`), connectors that would cross the label end at its outline instead (plus the perimeter spacing), and a fixed connection point on that side moves to the far edge of the label. Ignored on rotated and flipped shapes. Automatically set on library shapes with an outside label, and when the _Position_ in the _Text_ tab is changed to an outside position. Set it on generated vertices with outside labels, for example icons with `verticalLabelPosition=bottom` |
 | `overflow` | `visible`, `hidden`, `fill`, `width` | — | Text overflow handling |
 | `spacing` | number | `2` | General padding in pixels |
 | `spacingTop` | number | `0` | Top padding |
@@ -286,13 +286,14 @@ From version 32.4.5 onwards, `roundedPerimeter` also applies to `process` and `i
 | `spacingLeft` | number | `0` | Left padding |
 | `spacingRight` | number | `0` | Right padding |
 | `textOpacity` | `0`–`100` | `100` | Text opacity |
-| `labelBackgroundColor` | `#RRGGBB`, `none`, `default` | — | Background behind text (useful for edge labels) |
-| `defaultLabelBackgroundColor` | `page` | — | With `labelBackgroundColor=default`: no background, the label box is cut out of the shape and of the parent edge, so the page shows behind the label (_Transparent_ in the _Background_ list of draw.io's Text tab). `gap` has the same effect. draw.io sets it on new edges and edge labels |
-| `labelPlacement` | `auto` | — | On an edge or an edge label: the label stays horizontal and sits just above horizontal segments, below the line when something is in the way above, and on the line (with the gap) on vertical and diagonal segments. It keeps clear of bends and arrowheads; a label in the middle of the edge that doesn't fit its segment moves to the nearest segment that does. Placed again when the route changes. draw.io releases after 32.5.5; older viewers ignore it |
+| `labelPlacement` | `auto` | — | On a connector or a connector label: the label stays horizontal and sits just above horizontal segments, or below when something is in the way, and on the line (with a label gap) on vertical and diagonal segments. It avoids bends and arrowheads, and a label that doesn't fit its segment moves to the nearest longer segment. Placed again when the route changes. A label with an offset maintains that offset and only moves to the side appropriate for its segment. Not applied to vertical text (`horizontal=0`). draw.io releases after 32.5.5; older viewers ignore it |
+| `labelBackgroundColor` | `#RRGGBB`, `none`, `default` | — | Background behind text (useful for edge labels). Shown as _None_ (`none`) or _Solid_ (a colour) in the _Background_ list of the _Text_ tab |
+| `defaultLabelBackgroundColor` | `page` | — | With `labelBackgroundColor=default`: no background, the label box is cut out of the shape and of the parent edge, so the page and the cells behind the label stay visible. `gap` has the same effect. The default edge style sets it, so new edges and edge labels use it. Shown as _Transparent_ in the _Background_ list of the _Text_ tab, which offers it for edges and their label cells |
+| `inheritText` | `1`, comma-separated keys | — | On a label cell of an edge: the text styles that the label takes from the edge, `1` for all of `fontFamily` (with `fontSource`), `fontSize`, `fontColor`, `fontStyle`, `textOpacity`, `labelBorderColor`, `labelBorderWidth`, `labelBackgroundColor`, `defaultLabelBackgroundColor` and `labelPadding`. The label also stores the values of the edge in these keys for applications that don't support `inheritText`. Setting one of these keys on the label removes it from the list. The value `inherit` of one of these keys also takes it from the edge. New double-click labels and the label cells of the edge templates use `inheritText=1`; _Use Connector Style_ in the _Text_ tab sets it again. Ignored before version 32.6.0 |
 | `labelBorderColor` | `#RRGGBB`, `none` | — | Border around label |
 | `labelWidth` | number | — | Fixed label width |
 | `textDirection` | `default`, `ltr`, `rtl` | `default` | Text direction |
-| `horizontal` | `0`, `1` | `1` | `0` for vertical text |
+| `horizontal` | `0`, `1` | `1` | `0` for vertical text. For swimlanes and table rows, it also sets the side of the title region; combine `horizontal=1;direction=north` for a title on the left with horizontal text (table rows from version 32.5.0) |
 
 ### 4.4 Edge / Connector Properties
 
@@ -806,6 +807,19 @@ Edge labels are usually encoded in the edge cell's `value`. The label position i
 - `x` on geometry: position along edge (-1 to 1, where 0 = center, -1 = near source, 1 = near target)
 - `y` on geometry: perpendicular offset in pixels
 - With `labelOnCurve=1` on a curved edge, `x` and `y` are measured along and perpendicular to the painted curve instead of the line through the waypoints
+
+### Edge with Label Cells
+
+More labels are vertex children of the edge with a relative geometry, `connectable="0"` and the `edgeLabel` style. With `inheritText=1` they take the text styles of the edge (see 4.3 Text and Labels):
+
+```xml
+<mxCell id="l1" value="1" style="edgeLabel;html=1;align=left;verticalAlign=bottom;resizable=0;inheritText=1;"
+        vertex="1" connectable="0" parent="e3">
+  <mxGeometry x="-1" relative="1" as="geometry" />
+</mxCell>
+```
+
+- `x` on geometry: position along the edge (-1 to 1), `y`: perpendicular offset, `offset`: an extra offset in pixels
 
 ### Unconnected Edge (Floating)
 
