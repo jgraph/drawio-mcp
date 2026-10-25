@@ -579,6 +579,203 @@
 	};
 
 	/**
+	 * Suffix of the id of the obstacle that libavoidLabels adds for the
+	 * outside label of a vertex.
+	 */
+	AvoidRouting.LABEL_SUFFIX = '\u0000label';
+
+	/**
+	 * Outside labels (labelPerimeter=1, mxGraphView.getLabelPerimeterSide):
+	 * a vertex may carry label = {side, x, y, w, h}, the box of its label
+	 * placed outside the shape on side 'N', 'S', 'E' or 'W', in the vertex's
+	 * coordinates. Such a vertex routes as the shape grown over the label on
+	 * that side, as wide (or tall) as the shape, plus the label's own box as
+	 * a second obstacle, so no route crosses the label. An end on the label
+	 * side ends at the label's far edge, where mxGraphView.getPerimeterPoint
+	 * ends the edge: a floating end gets one pin at the middle of each side,
+	 * the label side's at the label's far edge, and the shape's own
+	 * connection points move with the grown box. Vertices with a frame
+	 * (rotated, turned or flipped) and labels that don't reach beyond the
+	 * shape are left as they are. Returns {vertices, edges, any} with new
+	 * arrays, or the inputs and any false when no vertex has a label.
+	 */
+	AvoidRouting.withOutsideLabels = function(vertices, edges)
+	{
+		var grown = Object.create(null);
+		var out = [];
+		var any = false;
+		var i, k;
+
+		for (i = 0; i < vertices.length; i++)
+		{
+			var v = vertices[i];
+			var l = (v != null && v.frame == null) ? v.label : null;
+			var d = (l == null) ? 0 : ((l.side == 'S') ? l.y + l.h - (v.y + v.h) :
+				((l.side == 'N') ? v.y - l.y : ((l.side == 'E') ?
+				l.x + l.w - (v.x + v.w) : ((l.side == 'W') ? v.x - l.x : 0))));
+
+			if (!(d > 0) || !(l.w > 0) || !(l.h > 0))
+			{
+				out.push(v);
+				continue;
+			}
+
+			var g = {id: v.id, x: v.x, y: v.y, w: v.w, h: v.h};
+
+			if (l.side == 'S' || l.side == 'N')
+			{
+				g.h += d;
+				g.y -= (l.side == 'N') ? d : 0;
+			}
+			else
+			{
+				g.w += d;
+				g.x -= (l.side == 'W') ? d : 0;
+			}
+
+			grown[v.id] = {v: v, g: g, side: l.side};
+			out.push(g);
+			out.push({id: v.id + AvoidRouting.LABEL_SUFFIX, x: l.x, y: l.y, w: l.w, h: l.h});
+			any = true;
+		}
+
+		if (!any)
+		{
+			return {vertices: vertices, edges: edges, any: false};
+		}
+
+		// A pin of the shape (proportional to v) as a pin of the grown box: a
+		// pin on the label side's edge that is projected on the perimeter moves
+		// to the label's far edge, like the renderer's perimeter point.
+		function move(o, pin)
+		{
+			if (pin == null)
+			{
+				return pin;
+			}
+
+			var v = o.v, g = o.g;
+			var c = {};
+
+			for (var key in pin)
+			{
+				c[key] = pin[key];
+			}
+
+			c.x = (v.x + pin.x * v.w - g.x) / g.w;
+			c.y = (v.y + pin.y * v.h - g.y) / g.h;
+
+			if (pin.perimeter !== false)
+			{
+				if (o.side == 'S' && pin.y >= 1)
+				{
+					c.y = 1;
+				}
+				else if (o.side == 'N' && pin.y <= 0)
+				{
+					c.y = 0;
+				}
+				else if (o.side == 'E' && pin.x >= 1)
+				{
+					c.x = 1;
+				}
+				else if (o.side == 'W' && pin.x <= 0)
+				{
+					c.x = 0;
+				}
+			}
+
+			return c;
+		}
+
+		function pins(o, pts)
+		{
+			if (pts == null)
+			{
+				return pts;
+			}
+
+			var res = [];
+
+			for (var q = 0; q < pts.length; q++)
+			{
+				res.push(move(o, pts[q]));
+			}
+
+			return res;
+		}
+
+		// One pin at the middle of each side of the shape, the label side's at
+		// the label's far edge: where a floating end meets the shape.
+		function floating(o)
+		{
+			var DIR = AvoidRouting.DIR;
+			var v = o.v, g = o.g;
+			var cx = (v.x + v.w / 2 - g.x) / g.w;
+			var cy = (v.y + v.h / 2 - g.y) / g.h;
+
+			return [{x: cx, y: 0, dir: DIR.up}, {x: 1, y: cy, dir: DIR.right},
+				{x: cx, y: 1, dir: DIR.down}, {x: 0, y: cy, dir: DIR.left}];
+		}
+
+		function end(o, e, prefix, c)
+		{
+			var constraint = e[prefix + 'Constraint'];
+			var points = e[prefix + 'Points'];
+			var sides = e[prefix + 'Sides'];
+
+			if (constraint != null && constraint.dir != null)
+			{
+				c[prefix + 'Constraint'] = move(o, constraint);
+			}
+			else if (points != null && points.length > 0)
+			{
+				c[prefix + 'Points'] = pins(o, points);
+			}
+			else if (sides == null || sides.length == 0)
+			{
+				c[prefix + 'Points'] = floating(o);
+			}
+		}
+
+		var mapped = [];
+
+		for (i = 0; i < edges.length; i++)
+		{
+			var e = edges[i];
+			var so = (e != null) ? grown[e.source] : null;
+			var to = (e != null) ? grown[e.target] : null;
+
+			if (so == null && to == null)
+			{
+				mapped.push(e);
+				continue;
+			}
+
+			var c = {};
+
+			for (k in e)
+			{
+				c[k] = e[k];
+			}
+
+			if (so != null)
+			{
+				end(so, e, 'source', c);
+			}
+
+			if (to != null)
+			{
+				end(to, e, 'target', c);
+			}
+
+			mapped.push(c);
+		}
+
+		return {vertices: out, edges: mapped, any: true};
+	};
+
+	/**
 	 * The candidate pins of one end on bounds b ({x,y,w,h}), as proportional
 	 * {x, y, dir}, by the renderer's precedence: a fixed constraint (just its
 	 * anchor) wins over a snap-point set (the shape's declared connection
@@ -804,7 +1001,9 @@
 	 *        obstacle is then its rotated box and its ends' constraints and
 	 *        snap points, given in the shape's own frame, are mapped to where
 	 *        it draws them (toWorldFrame). Shapes enclosing a terminal of a
-	 *        routed edge are dropped (filterEnclosing).
+	 *        routed edge are dropped (filterEnclosing). label = the box of a
+	 *        label outside the shape, {side, x, y, w, h}: see
+	 *        withOutsideLabels.
 	 * @param {Array<{id,source,target,sourcePoint?,targetPoint?,
 	 *        sourceConstraint?,targetConstraint?,
 	 *        sourcePoints?,targetPoints?,sourceSides?,targetSides?,
@@ -836,8 +1035,12 @@
 	 *        minimum; snapped and masked ends behave like floating ones here
 	 *        (their first bend naturally sits ~shapeBufferDistance out).
 	 *        Ends with the same candidate pins on one shape share them.
-	 * @param {{shapeBufferDistance?:number,idealNudgingDistance?:number}} [opts]
-	 *        Defaults: 16 / 14. A connector libavoid finds no route for is
+	 * @param {{shapeBufferDistance?:number,idealNudgingDistance?:number,
+	 *        nudgeShapeSegments?:boolean}} [opts]
+	 *        Defaults: 16 / 14 / false. nudgeShapeSegments nudges apart the
+	 *        segments that attach to a shape, so that ends sharing a pin
+	 *        (a side midpoint) don't share their first segment; always on when
+	 *        a vertex has an outside label. A connector libavoid finds no route for is
 	 *        retried alone at half the buffer, down to 2px. The buffer is at
 	 *        most maxShapeBufferDistance, and a buffer that is not a finite
 	 *        number uses the default.
@@ -871,6 +1074,17 @@
 		{
 			buffer = AvoidRouting.maxShapeBufferDistance;
 		}
+
+		// Outside labels: route around the shape and its label, and end on the
+		// label side at the label's far edge.
+		var labels = AvoidRouting.withOutsideLabels(vertices, edges);
+		vertices = labels.vertices;
+		edges = labels.edges;
+
+		// Opt-in, so that routes without outside labels stay as they are:
+		// nudge apart the segments that attach to a shape, so that ends
+		// sharing a pin don't share their first segment.
+		var nudgeShapeSegments = labels.any || (opts != null && opts.nudgeShapeSegments === true);
 
 		// Rotated, turned and flipped shapes: route around the box they are
 		// drawn in, from the connection points where they are drawn.
@@ -988,27 +1202,73 @@
 		// libavoid found NO route for (isFallbackRoute), in batch order.
 		function solveWith(batch, clearance, obstacles)
 		{
-			var router = new Avoid.Router(Avoid.RouterFlag.OrthogonalRouting.value);
-
-			try { router.setRoutingParameter(Avoid.RoutingParameter.shapeBufferDistance, clearance); } catch (e) {}
-			try { router.setRoutingParameter(Avoid.RoutingParameter.idealNudgingDistance, nudge); } catch (e) {}
-
+			var result = {routes: Object.create(null), points: [], failed: []};
 			var bounds = Object.create(null);
-			var shapeRefs = Object.create(null);
-			var pinClasses = Object.create(null);
-			var pinClass = 0;
+			var shapes = [];
+			var routable = [];
 			var i;
 
 			for (i = 0; i < obstacles.length; i++)
 			{
 				var v = obstacles[i];
 
-				if (v == null || v.id == null || !(v.w > 0) || !(v.h > 0))
+				if (v != null && v.id != null && v.w > 0 && v.h > 0)
 				{
-					continue;
+					bounds[v.id] = v;
+					shapes.push(v);
 				}
+			}
 
-				bounds[v.id] = v;
+			for (i = 0; i < batch.length; i++)
+			{
+				var e = batch[i];
+
+				// An end is either a known vertex or a dangling free point
+				// (e.sourcePoint / e.targetPoint, absolute coords) for an
+				// unconnected endpoint. Self-loops are out of scope: obstacle
+				// avoidance between identical endpoints is meaningless and the
+				// orthogonal router degenerates to a buffer-sized hook beside the
+				// shape. Skipping leaves the caller's loop styling and waypoints
+				// untouched (an edge with no route entry is never written), e.g.
+				// draw.io's inner-loop-waypoint self-loops.
+				if (e != null && (bounds[e.source] != null || e.sourcePoint != null) &&
+					(bounds[e.target] != null || e.targetPoint != null) &&
+					(e.source == null || e.source !== e.target))
+				{
+					routable.push(e);
+				}
+			}
+
+			// No router without connectors: a ShapeRef only queues its ShapeAdd,
+			// it becomes one of the obstacles that ~Router deletes in
+			// processTransaction, so a router deleted before a transaction
+			// leaked every shape with its vertices and pins (eg. a batch whose
+			// terminals are all on edges). The leak moved the next solves'
+			// allocations, and libavoid breaks ties by address.
+			if (routable.length === 0)
+			{
+				return result;
+			}
+
+			var router = new Avoid.Router(Avoid.RouterFlag.OrthogonalRouting.value);
+
+			try { router.setRoutingParameter(Avoid.RoutingParameter.shapeBufferDistance, clearance); } catch (e) {}
+			try { router.setRoutingParameter(Avoid.RoutingParameter.idealNudgingDistance, nudge); } catch (e) {}
+
+			if (nudgeShapeSegments)
+			{
+				try { router.setRoutingOption(Avoid.RoutingOption.nudgeOrthogonalSegmentsConnectedToShapes, true); } catch (e) {}
+				try { router.setRoutingOption(Avoid.RoutingOption.penaliseOrthogonalSharedPathsAtConnEnds, true); } catch (e) {}
+			}
+
+			var shapeRefs = Object.create(null);
+			var pinClasses = Object.create(null);
+			var pinClass = 0;
+
+			for (i = 0; i < shapes.length; i++)
+			{
+				v = shapes[i];
+
 				// Point/Rectangle are embind value wrappers that COPY into the
 				// ShapeRef and are NOT freed by router.delete(); free the temporaries.
 				var rp1 = new Avoid.Point(v.x, v.y);
@@ -1112,37 +1372,11 @@
 
 			var conns = [];
 
-			for (i = 0; i < batch.length; i++)
+			for (i = 0; i < routable.length; i++)
 			{
-				var e = batch[i];
-
-				if (e == null)
-				{
-					continue;
-				}
-
+				e = routable[i];
 				var sb = bounds[e.source];
 				var tb = bounds[e.target];
-
-				// An end is either a known vertex (sb/tb) or a dangling free point
-				// (e.sourcePoint / e.targetPoint, absolute coords) for an unconnected
-				// endpoint. Skip only when an end is neither.
-				if ((sb == null && e.sourcePoint == null) ||
-					(tb == null && e.targetPoint == null))
-				{
-					continue;
-				}
-
-				// Self-loops are out of scope: obstacle avoidance between identical
-				// endpoints is meaningless and the orthogonal router degenerates to
-				// a buffer-sized hook beside the shape. Skipping leaves the caller's
-				// loop styling and waypoints untouched (an edge with no route entry
-				// is never written), e.g. draw.io's inner-loop-waypoint self-loops.
-				if (e.source != null && e.source === e.target)
-				{
-					continue;
-				}
-
 				var sPins = (sb != null) ? AvoidRouting.endPins(sb,
 					e.sourceConstraint, e.sourceSides, e.sourcePoints) : null;
 				var tPins = (tb != null) ? AvoidRouting.endPins(tb,
@@ -1207,14 +1441,6 @@
 					sourcePins: absolutePins(sb, sPins),
 					targetPins: absolutePins(tb, tPins),
 					sourceEnd: [e.source, sb, sPins, e.sourcePoint]});
-			}
-
-			var result = {routes: Object.create(null), points: [], failed: []};
-
-			if (conns.length === 0)
-			{
-				router.delete();
-				return result;
 			}
 
 			router.processTransaction();
