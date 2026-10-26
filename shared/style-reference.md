@@ -166,6 +166,7 @@ These are registered via `mxCellRenderer.registerShape()`:
 | `tableRow` | Table row |
 | `tableLine` | Table line |
 | `rect2` | Alternative rectangle |
+| `tie` | Tie that bundles edges (with `tie=1`, see §4.4): a line across the lanes of its edges with a head at one end, drawn with `strokeColor`, `strokeWidth` and `dashed`. New ties use `shape=tie;tie=1;resizable=0;rotatable=0;connectable=0;fillColor=none;strokeWidth=3;` |
 
 ### 3.3 UML Shapes
 
@@ -300,6 +301,9 @@ From version 32.4.5 onwards, `roundedPerimeter` also applies to `process` and `i
 | Property | Values | Default | Description |
 |---|---|---|---|
 | `edgeStyle` | see Edge Styles below | — | Routing algorithm |
+| `ties` | comma-separated cell IDs | — | IDs of the tie vertices (`tie=1`) the edge runs through, in order from source to target. The edge passes each tie in its own lane and is routed between its terminals and the ties with its `edgeStyle` (edges without an `edgeStyle` get a short straight piece along each tie). Waypoints and `libavoidRouting` are ignored while the edge has ties. IDs of missing or hidden cells are ignored. The edge stays one edge (source, target, labels and arrows are unchanged) |
+| `tie` | `0`, `1` | `0` | On a vertex: the vertex is a tie that the edges listing its ID in `ties` run through. Its center is where its edges cross it and its size follows the number of lanes. It points in the direction most of its edges travel, or along an axis if all of them are orthogonal |
+| `tieSpacing` | number | `6` | On a tie: distance between the lanes of its edges |
 | `libavoidRouting` | `0`, `1` | `0` | Auto-route the edge around shapes (obstacle-avoiding orthogonal routing, paired with `edgeStyle=orthogonalEdgeStyle`). Re-routed when a terminal or a shape on the route changes; a manual waypoint edit removes it |
 | `curved` | `0`, `1` | `0` | Curved edge path |
 | `curveGeometry` | `0`, `1` | `0` | With `curved=1` or `bezier=1`: labels and line jumps follow the painted curve instead of the control points. Added to new curved edges |
