@@ -39,12 +39,14 @@ The `url` mode produces the same `https://app.diagrams.net/#R...` URL format as 
 
 ## draw.io CLI Locations
 
-- **macOS**: `/Applications/draw.io.app/Contents/MacOS/draw.io`
+- **macOS**: `/Applications/draw.io.app/Contents/MacOS/draw.io`, or `~/Applications/…` for a per-user install
 - **Linux**: `drawio` (on PATH via snap/apt/flatpak)
 - **Windows**: `"C:\Program Files\draw.io\draw.io.exe"` (default) — the installer neither registers PATH nor forces a drive
 - **WSL2**: `"/mnt/c/Program Files/draw.io/draw.io.exe"` (detect via `grep -qi microsoft /proc/version`)
 
 The skill tries `drawio` first, then falls back to the platform-specific path. On WSL2, use `wslpath -w` to convert paths when opening files with `cmd.exe /c start`.
+
+On macOS the skill tries `drawio` on PATH (the Homebrew cask's wrapper script), `/Applications`, the per-user `~/Applications`, then Spotlight (`mdfind` on the bundle ID `com.jgraph.drawio.desktop`) for an app moved anywhere else. The binary only runs inside its `.app` bundle: a copy or a symlink elsewhere dies with `Unable to find helper app`, which is why Homebrew installs a wrapper script and not a symlink.
 
 On Windows and WSL2 the default path is only the start of the chain: draw.io Desktop can be installed to any drive or directory, so `SKILL.md` also has the skill check the per-user install (`%LOCALAPPDATA%\Programs\draw.io`), the registry uninstall keys (`InstallLocation` / `DisplayIcon`), and `Program Files\draw.io` on the other drives before reporting the CLI as absent.
 

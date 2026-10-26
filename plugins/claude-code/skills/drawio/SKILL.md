@@ -224,8 +224,15 @@ done
 
 #### macOS and Linux
 
-- **macOS**: `/Applications/draw.io.app/Contents/MacOS/draw.io`
 - **Linux (native)**: `drawio`, typically on PATH via snap/apt/flatpak — confirm with `which drawio`
+- **macOS**: this prints the first of `drawio` on PATH (Homebrew), `/Applications`, the per-user `~/Applications` and Spotlight, or nothing if draw.io is absent:
+
+```bash
+{ command -v drawio; ls /Applications/draw.io.app/Contents/MacOS/draw.io ~/Applications/draw.io.app/Contents/MacOS/draw.io
+  mdfind "kMDItemCFBundleIdentifier == 'com.jgraph.drawio.desktop'" | sed 's|$|/Contents/MacOS/draw.io|'; } 2>/dev/null | head -1
+```
+
+Call the binary inside the `.app`: a copy or symlink outside it dies with `Unable to find helper app`.
 
 #### Windows (native, non-WSL2)
 

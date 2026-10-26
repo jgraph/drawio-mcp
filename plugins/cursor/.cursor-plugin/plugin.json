@@ -1,7 +1,7 @@
 {
   "name": "drawio",
   "description": "Official draw.io plugin: diagrams drawn right in Cursor's chat, ready to open in draw.io, plus native .drawio files in your project. Author as Mermaid or draw.io XML with 10,000+ shapes, optional ELK auto-layout and PNG/SVG/PDF export.",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "author": {
     "name": "draw.io"
   },
