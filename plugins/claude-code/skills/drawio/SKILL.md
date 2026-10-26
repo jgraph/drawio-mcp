@@ -32,7 +32,7 @@ Every diagram becomes a native `.drawio` file first, then is delivered in the re
      ```bash
      drawio -x -f xml -o diagram.drawio diagram.mmd
      ```
-     Delete the `.mmd` afterward — the `.drawio` is the artifact. draw.io's Mermaid parser has already laid the diagram out, so no `--layout` is needed.
+     Delete the `.mmd` afterward — the `.drawio` is the artifact.
    - **XML**: write the mxGraphModel XML to `diagram.drawio` (see [XML format](#xml-format)), then run the [repair pass](#repair-pass) on it. Optionally apply an [ELK layout](#elk-layout-for-xml).
 2. **Deliver** (identical for both sources):
    - *(no format)* → keep `diagram.drawio` and open it.
@@ -111,7 +111,7 @@ PNG, SVG and PDF are exported with `-e` (`--embed-diagram`): the file contains t
 
 ## Browser URL output
 
-For `url` format, keep the `.drawio` file on disk as the user's local copy, compress its XML with Node.js's built-in `zlib` into a `https://app.diagrams.net/#R...` URL, and open that in the default browser — no draw.io Desktop needed to *view* it. (Mermaid still needs the desktop CLI to convert to `.drawio` first; without it, author the diagram as XML.)
+For `url` format, keep the `.drawio` file on disk as the user's local copy, compress its XML with Node.js's built-in `zlib` into a `https://app.diagrams.net/#R...` URL, and open that in the default browser — no draw.io Desktop needed to *view* it.
 
 ### URL generation
 
@@ -316,13 +316,13 @@ On WSL2, `wslpath -w` turns the path into a Windows path, since `cmd.exe` can't 
 
 ## File naming
 
-- Use a descriptive, lowercase, hyphenated name based on the content (e.g., `login-flow`, `database-schema`); a Mermaid source goes in a matching `.mmd`, deleted after conversion
-- Exports use double extensions — `name.drawio.png`, `name.drawio.svg`, `name.drawio.pdf` — to signal the embedded diagram XML; delete the intermediate `.drawio` after a successful export
+- Use a descriptive, lowercase, hyphenated name based on the content (e.g., `login-flow`, `database-schema`)
+- Exports use double extensions — `name.drawio.png`, `name.drawio.svg`, `name.drawio.pdf` — to signal the embedded diagram XML
 - For `url` mode, keep the `.drawio` file (no double extension) — the URL is a view/edit handle and the local file is the persistent copy
 
 ## XML format
 
-A `.drawio` file is native mxGraphModel XML. When authoring as XML, generate it directly; Mermaid is converted to this same format by the CLI (`-f xml`), so both authoring routes end up as a native `.drawio`.
+A `.drawio` file is native mxGraphModel XML, the same format the CLI converts Mermaid to.
 
 ### Basic structure
 
@@ -333,7 +333,6 @@ Every diagram must have this structure:
   <root>
     <mxCell id="0"/>
     <mxCell id="1" parent="0"/>
-    <!-- Diagram cells go here with parent="1" -->
   </root>
 </mxGraphModel>
 ```
@@ -343,8 +342,6 @@ Every diagram must have this structure:
 - All diagram elements use `parent="1"` unless using multiple layers
 - **Cells inside a container** use `parent="<container_id>"` and coordinates relative to that container
 - **Edges belong to the innermost container that holds BOTH endpoints** — same container (at any nesting depth) → that container's id; one end outside every container → `parent="1"`. An auto-layout reads an edge's coordinates in its parent's frame, so an edge parked further out than its endpoints is laid out in the wrong place
-
-(The example above uses an XML comment only to point out where cells go — never emit comments in real output; see [XML well-formedness](#critical-xml-well-formedness).)
 
 ### CRITICAL: XML well-formedness
 
@@ -378,8 +375,16 @@ fs.writeFileSync(file, xml);
 Before authoring XML, fetch and follow the condensed XML rules — skeleton, vertex and edge templates, labels, shapes, the layout grid, containers, swimlanes and edge styles:
 https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-essentials.md
 
-They cover most diagrams. Only when a diagram needs layers, tags, metadata and placeholders, tables, cross-functional grids or dark-mode colors, also fetch the full XML reference (it describes the draw.io MCP servers, so where it mentions their `search_shapes` tool or `postLayout` / `routing` options, use the CLI's [`--layout`](#elk-layout-for-xml) here instead):
+They cover most diagrams. Only when a diagram needs layers, tags, metadata and placeholders, tables, cross-functional grids or dark-mode colors, also fetch the full XML reference (it describes the draw.io MCP servers: for their `search_shapes` tool use the [lookup below](#shapes-and-icons), for `postLayout` / `routing` the CLI's [`--layout`](#elk-layout-for-xml)):
 https://raw.githubusercontent.com/jgraph/drawio-mcp/main/shared/xml-reference.md
+
+### Shapes and icons
+
+When a diagram needs cloud, network or brand icons (AWS, Azure, GCP, Cisco, Kubernetes, GitHub, Slack…), never guess `mxgraph.*` names: look them all up in one call to `scripts/find-shapes.js` in this skill's folder (Node.js 18+, network), one query per icon, narrowed by library (`aws4`, `azure2`, `cisco19`). It searches draw.io's shape libraries, then its icon service, and prints `title width×height style` lines; use a style as is:
+
+```bash
+node <skill-folder>/scripts/find-shapes.js "aws4 lambda" "github" "slack"
+```
 
 ## Troubleshooting
 

@@ -4,18 +4,18 @@ on:
   push:
     branches: [main]
     paths:
-      - "plugins/claude-code/skills/drawio/SKILL.md"
-      - "plugins/codex/drawio/skills/drawio/SKILL.md"
-      - "plugins/copilot/skills/drawio/SKILL.md"
-      - "plugins/cursor/skills/drawio/SKILL.md"
-      - "plugins/antigravity/skills/drawio/SKILL.md"
+      - "plugins/claude-code/skills/drawio/**"
+      - "plugins/codex/drawio/skills/drawio/**"
+      - "plugins/copilot/skills/drawio/**"
+      - "plugins/cursor/skills/drawio/**"
+      - "plugins/antigravity/skills/drawio/**"
   pull_request:
     paths:
-      - "plugins/claude-code/skills/drawio/SKILL.md"
-      - "plugins/codex/drawio/skills/drawio/SKILL.md"
-      - "plugins/copilot/skills/drawio/SKILL.md"
-      - "plugins/cursor/skills/drawio/SKILL.md"
-      - "plugins/antigravity/skills/drawio/SKILL.md"
+      - "plugins/claude-code/skills/drawio/**"
+      - "plugins/codex/drawio/skills/drawio/**"
+      - "plugins/copilot/skills/drawio/**"
+      - "plugins/cursor/skills/drawio/**"
+      - "plugins/antigravity/skills/drawio/**"
   workflow_dispatch:
 
 permissions:
@@ -28,27 +28,27 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Verify port SKILL.md copies are byte-identical to the Claude Code copy
+      - name: Verify port skill folders are byte-identical to the Claude Code copy
         run: |
-          claude="plugins/claude-code/skills/drawio/SKILL.md"
+          claude="plugins/claude-code/skills/drawio"
           status=0
 
           for port in \
-            "plugins/codex/drawio/skills/drawio/SKILL.md" \
-            "plugins/copilot/skills/drawio/SKILL.md" \
-            "plugins/cursor/skills/drawio/SKILL.md" \
-            "plugins/antigravity/skills/drawio/SKILL.md"; do
+            "plugins/codex/drawio/skills/drawio" \
+            "plugins/copilot/skills/drawio" \
+            "plugins/cursor/skills/drawio" \
+            "plugins/antigravity/skills/drawio"; do
 
-            if [ ! -f "$port" ]; then
+            if [ ! -d "$port" ]; then
               echo "$port does not exist (port not present) — nothing to check."
               continue
             fi
 
-            if cmp -s "$claude" "$port"; then
+            if diff -r "$claude" "$port" > /dev/null; then
               echo "OK: $port is byte-identical to $claude."
             else
-              echo "::error file=$port::Must be byte-identical to $claude — mirror the edit to every copy."
-              diff -u "$claude" "$port" || true
+              echo "::error file=$port::Must be byte-identical to $claude (SKILL.md and scripts/) — mirror the edit to every copy."
+              diff -ru "$claude" "$port" || true
               status=1
             fi
           done
@@ -64,6 +64,12 @@ jobs:
             echo "::error file=$skill::The body is $body bytes; Antigravity loads only the first 24,000. Trim it."
             exit 1
           fi
+
+      - name: Check the bundled scripts parse
+        run: |
+          for script in plugins/claude-code/skills/drawio/scripts/*.js; do
+            node --check "$script"
+          done
 
       - name: Keep the front matter valid YAML for strict parsers
         run: |

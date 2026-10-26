@@ -19,7 +19,8 @@ export var DEFAULT_ICON_SERVICE_URL = "https://icons.diagrams.net/api/icons";
 // Style template the draw.io editor uses when inserting icon search results
 // (Sidebar.extractIconsFromResponse), except labelBackgroundColor uses the
 // adaptive 'default' color instead of #ffffff so labels stay readable in
-// dark mode.
+// dark mode. The skill's plugins/*/skills/drawio/scripts/find-shapes.js
+// carries a copy: change both.
 var ICON_STYLE_PREFIX = "shape=image;html=1;verticalAlign=top;" +
   "verticalLabelPosition=bottom;labelBackgroundColor=default;imageAspect=0;" +
   "aspect=fixed;image=";

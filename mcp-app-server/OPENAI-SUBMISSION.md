@@ -214,7 +214,7 @@ definition changes until that review is decided.
 ### Skills — not in v1
 
 Left out of the first submission (see §5). When it is added later, the bundle is
-`plugins/codex/drawio` (`skills/drawio/SKILL.md` + manifest), which is already
+`plugins/codex/drawio` (`skills/drawio/` with `SKILL.md` and `scripts/find-shapes.js`, + manifest), which is already
 provider-neutral: no Claude references, no `userConfig`, no hooks, no
 commands/agents, no live-artifact instructions.
 

@@ -10,10 +10,11 @@ Previously distributed as a bare `SKILL.md` users copied into `~/.claude/skills/
 |------|---------|
 | `.claude-plugin/plugin.json` | Plugin manifest — the single source of truth for name, version, description, author, license |
 | `skills/drawio/SKILL.md` | The skill itself (its folder name `drawio` becomes the second half of the `/drawio:drawio` invocation) |
+| `skills/drawio/scripts/find-shapes.js` | The shape and icon lookup the skill runs for XML diagrams (see [Shape and icon lookup](#shape-and-icon-lookup)) |
 | `README.md` | Installation and usage documentation |
 | `../../.claude-plugin/marketplace.json` | Marketplace manifest at the repo root; lists this plugin with `source: "./plugins/claude-code"` and inherits the rest of its metadata from `plugin.json` |
 
-**⚠️ Mirrored skill:** the Codex, Copilot, Cursor and Antigravity plugins ship byte-identical copies of `skills/drawio/SKILL.md`. Any edit to the skill must be applied to every copy — CI ([`check-skill-sync.yml`](../../.github/workflows/check-skill-sync.yml)) fails if the copies drift, or if the body (after the front matter) reaches 24,000 bytes, the most Antigravity loads, or if the front matter isn't valid YAML. Claude Code forgives an unquoted `: ` in the `description`, but Copilot CLI and other strict parsers drop the skill, so the description is a double-quoted string.
+**⚠️ Mirrored skill:** the Codex, Copilot, Cursor and Antigravity plugins ship byte-identical copies of the `skills/drawio/` folder (`SKILL.md` and `scripts/find-shapes.js`). Any edit to the skill must be applied to every copy — CI ([`check-skill-sync.yml`](../../.github/workflows/check-skill-sync.yml)) fails if the copies drift, if a script doesn't parse, or if the body (after the front matter) reaches 24,000 bytes, the most Antigravity loads, or if the front matter isn't valid YAML. Claude Code forgives an unquoted `: ` in the `description`, but Copilot CLI and other strict parsers drop the skill, so the description is a double-quoted string.
 
 ## How It Works
 
@@ -61,6 +62,12 @@ Shared references live at the repo root (single source of truth for all prompts)
 - `shared/xml-essentials.md` — the condensed XML rules (used when authoring XML)
 - `shared/xml-reference.md` — the full XML generation guide (only for layers, tags, metadata, tables, cross-functional grids, dark-mode colors)
 - `shared/mermaid-reference.md` — Mermaid syntax for all supported diagram types (used when authoring Mermaid)
+
+## Shape and icon lookup
+
+`scripts/find-shapes.js` gives the skill what the MCP servers' `search_shapes` tool gives them ([#90](https://github.com/jgraph/drawio-mcp/issues/90)), so it never guesses `mxgraph.*` names. It downloads `shape-search/search-index.json` from jsDelivr (`@main`, the URL the tool server uses, ~430 KB brotli) and lists, in index order, up to six shapes whose tags contain every word of a query. With fewer than six it adds up to three results from the draw.io icon service, styled with `ICON_STYLE_PREFIX` from `shared/icon-search.js`. Relative library images (`image=img/lib/…`) become `https://app.diagrams.net/` URLs, as `shared/shape-search.js` does for the MCP servers: an SVG export from draw.io Desktop would otherwise point them at the local app bundle.
+
+It is a bundled script rather than an inline `node -e` because the skill body must stay under 24,000 bytes. It matches whole words rather than reusing the shared Soundex ranking, which keeps it small; a library name in the query (`aws4 lambda`, `azure2 sql`) does the narrowing, since every shape's first tag is its library.
 
 ## Coding Conventions
 

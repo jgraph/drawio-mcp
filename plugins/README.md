@@ -45,11 +45,14 @@ agy plugin install https://github.com/jgraph/drawio-mcp/tree/main/plugins/antigr
 
 ## OpenCode (no plugin needed)
 
-[OpenCode](https://opencode.ai) implements the Agent Skills layout directly: it looks for `SKILL.md` files in `.opencode/skills/`, `.claude/skills/` and `.agents/skills/` (walking up from the working directory to the git root) and in their global equivalents `~/.config/opencode/skills/`, `~/.claude/skills/` and `~/.agents/skills/`. The Claude Code skill folder therefore works unchanged — no manifest, no marketplace. The skill is a single file, so one download installs it for every project:
+[OpenCode](https://opencode.ai) implements the Agent Skills layout directly: it looks for `SKILL.md` files in `.opencode/skills/`, `.claude/skills/` and `.agents/skills/` (walking up from the working directory to the git root) and in their global equivalents `~/.config/opencode/skills/`, `~/.claude/skills/` and `~/.agents/skills/`. The Claude Code skill folder therefore works unchanged — no manifest, no marketplace. The skill is two files, so one download installs it for every project:
 
 ```bash
-curl -fsSL --create-dirs -o ~/.config/opencode/skills/drawio/SKILL.md \
-  https://raw.githubusercontent.com/jgraph/drawio-mcp/main/plugins/claude-code/skills/drawio/SKILL.md
+curl -fsSL --create-dirs \
+  -o ~/.config/opencode/skills/drawio/SKILL.md \
+  https://raw.githubusercontent.com/jgraph/drawio-mcp/main/plugins/claude-code/skills/drawio/SKILL.md \
+  -o ~/.config/opencode/skills/drawio/scripts/find-shapes.js \
+  https://raw.githubusercontent.com/jgraph/drawio-mcp/main/plugins/claude-code/skills/drawio/scripts/find-shapes.js
 ```
 
 Or, per project, from a clone of this repo:

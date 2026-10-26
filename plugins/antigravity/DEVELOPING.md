@@ -7,8 +7,8 @@ XML) via the desktop CLI, or a browser URL that opens the diagram directly at
 `app.diagrams.net`. No MCP server required.
 
 This is the Antigravity counterpart of the [Claude Code plugin](../claude-code/README.md).
-`skills/drawio/SKILL.md` is kept **byte-identical** to the Claude plugin's `SKILL.md`
-(`.github/workflows/check-skill-sync.yml` checks it). Only the host wrapping differs.
+`skills/drawio/` (`SKILL.md` and `scripts/find-shapes.js`) is kept **byte-identical** to the
+Claude plugin's copy (`.github/workflows/check-skill-sync.yml` checks it). Only the host wrapping differs.
 
 ## Key Files
 
@@ -16,6 +16,7 @@ This is the Antigravity counterpart of the [Claude Code plugin](../claude-code/R
 |------|---------|
 | `plugin.json` | Antigravity plugin manifest at the plugin root. Its schema allows only `name`, `description` and `$schema` — skills, MCP servers, rules and hooks are found by folder (`skills/`, `mcp_config.json`, `rules/`, `hooks.json`) |
 | `skills/drawio/SKILL.md` | The skill itself; byte-identical to the Claude plugin's copy |
+| `skills/drawio/scripts/find-shapes.js` | The shape and icon lookup the skill runs; byte-identical to the Claude plugin's copy |
 | `README.md` | Installation and usage documentation |
 
 ## Layout
@@ -23,7 +24,7 @@ This is the Antigravity counterpart of the [Claude Code plugin](../claude-code/R
 ```
 plugins/antigravity/    ← Antigravity plugin root
 ├── plugin.json
-├── skills/drawio/SKILL.md
+├── skills/drawio/SKILL.md, scripts/find-shapes.js
 ├── README.md
 └── DEVELOPING.md
 ```
