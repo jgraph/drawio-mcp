@@ -1580,7 +1580,54 @@ function commitDiagramXml(xml)
 
   currentXml = out;
   drawioEditUrl = generateDrawioEditUrl(out);
+  setOpenInAppUrl(drawioEditUrl);
   scheduleModelContext(xml);
+}
+
+// --- Links out of the sandbox ---
+//
+// The sandbox has no allow-popups, so links open through the host. In ChatGPT,
+// ui/open-link shows a link check that prints the whole URL; for a #create
+// link it is taller than the window, which cuts off its buttons. ChatGPT's
+// window.openai.openExternal trusts the targets in openai/widgetCSP
+// redirect_domains (see the app resource). redirectUrl: false keeps ChatGPT
+// from appending ?redirectUrl=…, which would end up in the #create hash.
+function openUrl(url)
+{
+  if (window.openai != null && typeof window.openai.openExternal === 'function')
+  {
+    try
+    {
+      window.openai.openExternal({ href: url, redirectUrl: false });
+      console.log('[open-link] openExternal', url.length);
+
+      return;
+    }
+    catch (e)
+    {
+      console.log('[open-link] openExternal failed', e && e.message);
+    }
+  }
+
+  app.openLink({ url: url });
+}
+
+// ChatGPT's fullscreen header has its own "Open in draw.io" button. Without a
+// target it opens the component's iframe path on ui.domain, which is Claude's
+// sandbox domain, so it answered "Not Found". It opens the diagram instead.
+function setOpenInAppUrl(url)
+{
+  if (window.openai != null && typeof window.openai.setOpenInAppUrl === 'function')
+  {
+    try
+    {
+      window.openai.setOpenInAppUrl({ href: url });
+    }
+    catch (e)
+    {
+      console.log('[open-link] setOpenInAppUrl failed', e && e.message);
+    }
+  }
 }
 
 // --- The diagram as shown, for the model ---
@@ -7134,7 +7181,7 @@ openDrawioBtn.addEventListener("click", function()
 {
   if (drawioEditUrl)
   {
-    app.openLink({ url: drawioEditUrl });
+    openUrl(drawioEditUrl);
   }
 });
 
@@ -7259,12 +7306,12 @@ layoutBtn.addEventListener('click', function()
   applyLayoutChange(next);
 });
 
-// Help → opens a Discussions topic in the drawio-mcp repo. Use
-// app.openLink because the iframe sandbox lacks allow-popups, so
+// Help → opens the diagram viewer page of the drawio.com docs through the
+// host (openUrl), because the iframe sandbox lacks allow-popups, so
 // window.open / target=_blank don't work.
 document.getElementById('help-btn').addEventListener('click', function()
 {
-  app.openLink({ url: "https://www.drawio.com/docs/manual/generate/ai-assistants/diagram-viewer/" });
+  openUrl("https://www.drawio.com/docs/manual/generate/ai-assistants/diagram-viewer/");
 });
 
 // When the tab becomes visible, re-notify our size so the host can
@@ -7766,6 +7813,17 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
 
 // ── Server ───────────────────────────────────────────────────────────────────
 
+// The CSP of the app resource. icons.diagrams.net: remote icon images
+// referenced by search_shapes icon-service results (shape=image styles).
+// fonts.googleapis.com / fonts.gstatic.com: Google fonts of fontSource styles
+// (the viewer links the font CSS, which loads the font files), e.g. Recursive
+// in Mermaid 12 diagrams. The redirect domains are where the viewer's links
+// go: Open in draw.io and Help.
+var RESOURCE_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
+  "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
+var CONNECT_DOMAINS = ["https://viewer.diagrams.net"];
+var REDIRECT_DOMAINS = ["https://app.diagrams.net", "https://www.drawio.com"];
+
 // The values create_diagram accepts for its pass options (its inputSchema uses
 // them) — also the only arguments recovered when a model writes them into the
 // XML string (leakedArguments).
@@ -8263,16 +8321,19 @@ export function createServer(html, options = {})
                 ...(domain ? { domain } : {}),
                 csp:
                 {
-                  // icons.diagrams.net: remote icon images referenced by
-                  // search_shapes icon-service results (shape=image styles)
-                  // fonts.googleapis.com / fonts.gstatic.com: Google fonts
-                  // of fontSource styles (the viewer links the font CSS,
-                  // which loads the font files), e.g. Recursive in Mermaid
-                  // 12 diagrams
-                  resourceDomains: ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
-                    "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
-                  connectDomains: ["https://viewer.diagrams.net"],
+                  resourceDomains: RESOURCE_DOMAINS,
+                  connectDomains: CONNECT_DOMAINS,
                 },
+              },
+              // ChatGPT reads redirect_domains, the targets its
+              // window.openai.openExternal trusts (the viewer's Open in
+              // draw.io and Help links), only from its own key. The other
+              // lists repeat ui.csp, so both keys give the same CSP.
+              "openai/widgetCSP":
+              {
+                resource_domains: RESOURCE_DOMAINS,
+                connect_domains: CONNECT_DOMAINS,
+                redirect_domains: REDIRECT_DOMAINS,
               },
             },
           },

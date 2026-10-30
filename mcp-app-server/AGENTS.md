@@ -37,7 +37,8 @@ For local dev, set `VIEWER_PATH` / `ELK_PATH` / `MERMAID_PATH` to a built bundle
 ### Sandbox constraints
 
 - The MCP Apps sandbox uses `sandbox="allow-scripts"` but **not** `allow-same-origin` — Blob URL module imports fail silently. That's why we strip the ESM export and use a plain `var` alias.
-- `app.openLink({ url })` must be used instead of `<a target="_blank">` — no `allow-popups`.
+- Links open through the host (`openUrl`), never `<a target="_blank">` — no `allow-popups`. `app.openLink({ url })` (`ui/open-link`) everywhere but ChatGPT, where `window.openai.openExternal({ href, redirectUrl: false })` opens them: ChatGPT's link check for `ui/open-link` prints the whole URL, and for a `#create` link it was taller than the window, which cut off its buttons. `openExternal` trusts the targets in `_meta["openai/widgetCSP"].redirect_domains` of the app resource (`REDIRECT_DOMAINS`: app.diagrams.net, www.drawio.com; `ui.csp` can't carry them, so that key repeats the rest of the CSP too), and `redirectUrl: false` keeps ChatGPT from appending `?redirectUrl=…`, which would land in the `#create` hash. `test/open-link.test.js` checks both paths.
+- ChatGPT's fullscreen header has its own "Open in draw.io" button. Without a target it opens the component's iframe path on `ui.domain`, our Claude sandbox domain, so it answered "Not Found" (2026-10-30). `commitDiagramXml` passes every new `drawioEditUrl` to `window.openai.setOpenInAppUrl({ href })`, so it opens the diagram.
 - `GraphViewer.processElements()` requires nonzero `offsetWidth` on the container — hence `min-width: 200px` on `#diagram-container`.
 
 ### Node.js vs Workers
