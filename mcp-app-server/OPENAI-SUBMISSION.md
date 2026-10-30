@@ -144,6 +144,10 @@ cd mcp-app-server/openai-plugin && zip -r "${TMPDIR:-/tmp}/drawio-openai-plugin.
   review** with the six acknowledgments pre-ticked. The test cases stayed as
   they were. The dialog's Submit needed a script click and the page only
   showed "In review" after a reload.
+- **1.0.1 approved and published (2026-10-30).** Listed in the directory at
+  <https://chatgpt.com/plugins/plugin_asdk_app_6abea666ca5081919375ed8d1d38da95>
+  and installable in ChatGPT and Codex. App server 1.4.2 went to production
+  the same day with tools/list unchanged, so no new review.
 
 When the privacy page changes, keep it in step with what the server does:
 tool inputs/outputs, the icon-service forwarding (`search_shapes` →

@@ -48,6 +48,8 @@ Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copil
 
 ### Using with ChatGPT
 
+draw.io is listed in OpenAI's plugin directory, shared by ChatGPT and Codex: open [draw.io in ChatGPT Plugins](https://chatgpt.com/plugins/plugin_asdk_app_6abea666ca5081919375ed8d1d38da95) and select **Install plugin**. To add the server yourself instead:
+
 1. Open [ChatGPT Plugins](https://chatgpt.com/plugins), select **+**, then **Add custom MCP server**.
 2. Enter a name, for example *draw.io*, and under **Connection** the URL `https://mcp.draw.io/mcp`. The server needs no sign-in, so leave authentication off.
 3. Confirm the warning with **I understand and want to continue**, select **Create as a plugin**, and install it.
