@@ -167,6 +167,22 @@ The MCP servers read these files at startup and return the full references from 
 
 When updating diagram-generation guidance, edit only these files — changes propagate to all consumers automatically.
 
+## Release Cycle
+
+A release cycle ships everything on `main` that isn't live yet to every channel it affects. First compare each channel's live version with what changed since its last release; skip the channels with nothing to ship.
+
+| Channel | Gets a release when | How |
+|---|---|---|
+| Hosted app server (`mcp.draw.io/mcp`, Worker `drawio-mcp-app`) | `mcp-app-server/`, `shared/`, `shape-search/search-index.json` or its lockfile changed | Bump `version` in `mcp-app-server/package.json`, `package-lock.json` and `server.json` (lockstep). `npx wrangler deploy --env staging` from `mcp-app-server/`, smoke test (initialize → tools/list → create_diagram, check `_buildId`), then `npx wrangler deploy --env ""` for production (ask first, every time) |
+| Docker Hub (`jgraph/drawio-mcp`) | the app server version changed | `gh workflow run publish-app-server-image.yml --ref main` (pushes `<version>` and `latest`, syncs `DOCKER_HUB.md`) |
+| MCP Registry (`io.draw/mcp`) | the app server version changed | `mcp-publisher login dns …` and `mcp-publisher publish` from `mcp-app-server/` (runbook in its README) |
+| npm (`@drawio/mcp`) | `mcp-tool-server/`, `shared/` or its lockfile changed | Bump `mcp-tool-server/package.json` and `package-lock.json`, push, `gh workflow run publish-tool-server.yml --ref main` (Trusted Publishing, no token) |
+| Glama (release of the tool server) | npm got a release | Build & Release from the latest commit on the listing's admin page |
+| Plugins (Claude Code, Codex, Copilot, Cursor, Antigravity) | the skill changed | Bump the version in every plugin manifest and `.github/plugin/marketplace.json` in the commit that changes the skill. Live on push: the marketplaces read `main`, the Claude directory scans it every few hours; Cursor reviews each version by hand |
+| ChatGPT app (OpenAI) | `tools/list` changed (compare its hash on staging and production) | Rescan and resubmit, `mcp-app-server/OPENAI-SUBMISSION.md` |
+
+Version bumps are their own commits (`chore(app-server): bump version to x.y.z`); pushing main deploys nothing by itself.
+
 ## Coding Conventions
 
 - **Allman brace style**: Opening braces go on their own line for all control structures, functions, objects, and callbacks.
