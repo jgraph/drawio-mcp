@@ -21,7 +21,7 @@
  */
 
 import { DurableObject } from "cloudflare:workers";
-import { createServer, capabilitiesDeclareUi } from "./shared.js";
+import { createServer, clientRendersUi } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
@@ -62,7 +62,8 @@ function jsonRpcError(status, code, message, headers)
 
 /**
  * Session id prefixes carrying whether the client declared the MCP Apps UI
- * capability at initialize, so a later request can tell without any stored
+ * capability at initialize (and isn't known to declare it without rendering,
+ * see clientRendersUi), so a later request can tell without any stored
  * state. They are not a credential: a client that forges one only changes
  * whether its own create_diagram results get the "open in draw.io" link.
  * An id with neither prefix (issued before this scheme) reads as "not
@@ -212,7 +213,7 @@ async function handleMcp(request, env, debug)
 
   if (init != null)
   {
-    session = mintSessionId(capabilitiesDeclareUi(init.params.capabilities));
+    session = mintSessionId(clientRendersUi(init.params.capabilities, init.params.clientInfo));
   }
   else if (sessionId)
   {

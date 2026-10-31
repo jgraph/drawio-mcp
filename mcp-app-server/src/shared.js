@@ -7762,10 +7762,47 @@ export function capabilitiesDeclareUi(capabilities)
   }
 }
 
-/** capabilitiesDeclareUi for the client this server was initialized by. */
+/**
+ * Clients that declare the UI capability but never render the app, by the
+ * `clientInfo` they send in `initialize`. ChatGPT Work runs a plugin's own
+ * MCP server (the plugin page's starter prompts insert a plugin:// mention)
+ * through OpenAI's hosted Codex harness. The harness declares the capability,
+ * but the page shows its calls as a "Made N tool calls" line and never the
+ * app, so users got neither the diagram nor the link (2026-10-31). The same
+ * server reached as the app (an app:// mention, client "openai-mcp") renders.
+ * The harness is a Codex build without a release version; the Codex app and
+ * CLI send their real version and keep their declaration.
+ */
+var UI_DECLARED_NOT_RENDERED = [{ name: "codex-mcp-client", version: "0.0.0" }];
+
+/**
+ * Whether `initialize` says the client renders the app: it declares the UI
+ * capability (capabilitiesDeclareUi) and isn't one of the clients known to
+ * declare it without rendering (UI_DECLARED_NOT_RENDERED).
+ *
+ * @param {object|null|undefined} capabilities - as sent in `initialize`
+ * @param {object|null|undefined} clientInfo - as sent in `initialize`
+ * @returns {boolean}
+ */
+export function clientRendersUi(capabilities, clientInfo)
+{
+  if (!capabilitiesDeclareUi(capabilities))
+  {
+    return false;
+  }
+
+  return !UI_DECLARED_NOT_RENDERED.some(function(client)
+  {
+    return clientInfo != null && clientInfo.name === client.name &&
+      clientInfo.version === client.version;
+  });
+}
+
+/** clientRendersUi for the client this server was initialized by. */
 function clientDeclaresUi(server)
 {
-  return capabilitiesDeclareUi(server.server.getClientCapabilities());
+  return clientRendersUi(server.server.getClientCapabilities(),
+    server.server.getClientVersion());
 }
 
 /**
