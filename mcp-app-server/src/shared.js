@@ -7808,8 +7808,19 @@ function clientDeclaresUi(server)
 /**
  * Adds an "open in draw.io" text block for clients that don't render the
  * app, and nothing at all for the ones that do — without it those clients
- * get a JSON payload and no diagram anywhere. The wording stays true even
- * if the detection is wrong and the diagram did render.
+ * get a JSON payload and no diagram anywhere. It states only what the server
+ * knows (the client hasn't declared that it shows the diagram) and tells the
+ * model to act on it: worded as a condition ("if this client doesn't show
+ * the diagram inline"), the model in ChatGPT Work assumed it did and left
+ * the link out.
+ *
+ * It first points the model at a draw.io create_diagram tool that does show
+ * the diagram. ChatGPT Work offers the same server twice: as the plugin's
+ * MCP server, which never renders (see UI_DECLARED_NOT_RENDERED), and as the
+ * draw.io app, which does. The link is the way out for clients without one,
+ * but a model can't copy a link of several KB reliably (in Work, its copy
+ * broke off after 447 characters), and a shorter link would have to store
+ * the diagram, which the service doesn't do.
  *
  * Everything the app does to a diagram (Mermaid conversion, the ELK
  * postLayout, libavoid routing) happens inside it, so an XML URL carries the
@@ -7836,8 +7847,12 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
     data = withElkLayout(data);
   }
 
-  var note = "If this client doesn't show the diagram inline, open it in the " +
-    "draw.io editor (give the user this link):\n" + drawioEditorUrl(data, type);
+  var note = "This client hasn't declared that it shows draw.io diagrams, so " +
+    "assume the user can't see this one. If another draw.io create_diagram " +
+    "tool is available to you that shows diagrams in the conversation (the " +
+    "draw.io app in ChatGPT), call that one with the same arguments. " +
+    "Otherwise give the user this link, which opens the diagram in the " +
+    "draw.io editor:\n" + drawioEditorUrl(data, type);
 
   if (type === "xml" && postLayout)
   {

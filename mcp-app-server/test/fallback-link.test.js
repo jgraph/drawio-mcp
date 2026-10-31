@@ -66,6 +66,19 @@ test("create_diagram gives the hosted Codex harness the link", async function()
   assert.ok(await linkBlock({ name: "codex-mcp-client", version: "0.0.0", title: "Codex" }));
 });
 
+test("the note sends the model to the draw.io app first, the link second", async function()
+{
+  const block = await linkBlock({ name: "codex-mcp-client", version: "0.0.0", title: "Codex" });
+
+  // Worded as a condition, the note was ignored in ChatGPT Work: the model
+  // assumed the diagram showed. It says what the server knows instead.
+  assert.doesNotMatch(block.text, /^If this client/);
+  assert.match(block.text, /assume the user can't see this one/);
+  assert.match(block.text, /another draw\.io create_diagram tool/);
+  assert.match(block.text, /same arguments/);
+  assert.ok(block.text.indexOf("create_diagram") < block.text.indexOf("https://app.diagrams.net/"));
+});
+
 test("create_diagram gives no link to a Codex release that declares the capability", async function()
 {
   assert.equal(await linkBlock({ name: "codex-mcp-client", version: "0.166.0", title: "Codex" }), undefined);
