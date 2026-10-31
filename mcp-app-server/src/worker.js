@@ -21,7 +21,7 @@
  */
 
 import { DurableObject } from "cloudflare:workers";
-import { createServer, clientRendersUi } from "./shared.js";
+import { createServer, clientUiState } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
@@ -61,20 +61,24 @@ function jsonRpcError(status, code, message, headers)
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 /**
- * Session id prefixes carrying whether the client declared the MCP Apps UI
- * capability at initialize (and isn't known to declare it without rendering,
- * see clientRendersUi), so a later request can tell without any stored
- * state. They are not a credential: a client that forges one only changes
- * whether its own create_diagram results get the "open in draw.io" link.
- * An id with neither prefix (issued before this scheme) reads as "not
- * declared", which at worst appends that link.
+ * Session id prefixes carrying what the client said about the MCP Apps UI at
+ * initialize (clientUiState): declared it ("renders"), declared it but is
+ * known not to render ("hidden"), or didn't declare it ("none"), so a later
+ * request can tell without any stored state. They are not a credential: a
+ * client that forges one only changes the "open in draw.io" note its own
+ * create_diagram results get. An id with none of them (issued before this
+ * scheme) reads as "not declared", which at worst appends that note.
  */
 const UI_SESSION_PREFIX = "ui-";
+const HIDDEN_SESSION_PREFIX = "hidden-";
 const PLAIN_SESSION_PREFIX = "noui-";
 
-function mintSessionId(declaresUi)
+function mintSessionId(uiState)
 {
-  return (declaresUi ? UI_SESSION_PREFIX : PLAIN_SESSION_PREFIX) + crypto.randomUUID();
+  const prefix = uiState === "renders" ? UI_SESSION_PREFIX :
+    uiState === "hidden" ? HIDDEN_SESSION_PREFIX : PLAIN_SESSION_PREFIX;
+
+  return prefix + crypto.randomUUID();
 }
 
 /**
@@ -130,6 +134,7 @@ function uiSessionFor(env, sessionId, log)
 
   return {
     declared: sessionId.startsWith(UI_SESSION_PREFIX),
+    hidden: sessionId.startsWith(HIDDEN_SESSION_PREFIX),
     markResourceRead: async function()
     {
       try
@@ -213,7 +218,7 @@ async function handleMcp(request, env, debug)
 
   if (init != null)
   {
-    session = mintSessionId(clientRendersUi(init.params.capabilities, init.params.clientInfo));
+    session = mintSessionId(clientUiState(init.params.capabilities, init.params.clientInfo));
   }
   else if (sessionId)
   {

@@ -11,7 +11,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { readReference } from "./references.js";
-import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientRendersUi } from "./shared.js";
+import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
 
@@ -183,13 +183,13 @@ let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
 
 // The HTTP transport is stateless (a server per request), so the server that
 // answers a tools/call never saw the client's initialize. The one thing it
-// needs from it, whether the client declared the MCP Apps UI capability (see
-// clientRendersUi), is written into the session id minted at initialize: the
-// same scheme as the Worker (see mintSessionId in worker.js). Not a
-// credential: a forged id only changes whether that client's create_diagram
-// results get the "open in draw.io" link. An id without either prefix reads
-// as "not declared".
+// needs from it, what the client said about the MCP Apps UI (clientUiState),
+// is written into the session id minted at initialize: the same scheme as the
+// Worker (see mintSessionId in worker.js). Not a credential: a forged id only
+// changes the "open in draw.io" note that client's create_diagram results
+// get. An id without any of the prefixes reads as "not declared".
 const UI_SESSION_PREFIX = "ui-";
+const HIDDEN_SESSION_PREFIX = "hidden-";
 const PLAIN_SESSION_PREFIX = "noui-";
 
 // The other "renders the app" signal: sessions whose client fetched the app
@@ -200,9 +200,12 @@ const PLAIN_SESSION_PREFIX = "noui-";
 const UI_RESOURCE_FLAG_TTL = 24 * 60 * 60 * 1000;
 const uiResourceReads = new Map();
 
-function mintSessionId(declaresUi)
+function mintSessionId(uiState)
 {
-  return (declaresUi ? UI_SESSION_PREFIX : PLAIN_SESSION_PREFIX) + randomUUID();
+  const prefix = uiState === "renders" ? UI_SESSION_PREFIX :
+    uiState === "hidden" ? HIDDEN_SESSION_PREFIX : PLAIN_SESSION_PREFIX;
+
+  return prefix + randomUUID();
 }
 
 /**
@@ -213,6 +216,7 @@ function uiSessionFor(sessionId)
 {
   return {
     declared: sessionId.startsWith(UI_SESSION_PREFIX),
+    hidden: sessionId.startsWith(HIDDEN_SESSION_PREFIX),
     markResourceRead: async function()
     {
       const now = Date.now();
@@ -311,7 +315,7 @@ async function startStreamableHTTPServer()
 
     if (init != null)
     {
-      session = mintSessionId(clientRendersUi(init.params.capabilities, init.params.clientInfo));
+      session = mintSessionId(clientUiState(init.params.capabilities, init.params.clientInfo));
       res.setHeader("Mcp-Session-Id", session);
     }
     else if (req.headers["mcp-session-id"])

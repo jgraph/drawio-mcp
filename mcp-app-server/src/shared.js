@@ -7776,51 +7776,64 @@ export function capabilitiesDeclareUi(capabilities)
 var UI_DECLARED_NOT_RENDERED = [{ name: "codex-mcp-client", version: "0.0.0" }];
 
 /**
- * Whether `initialize` says the client renders the app: it declares the UI
- * capability (capabilitiesDeclareUi) and isn't one of the clients known to
- * declare it without rendering (UI_DECLARED_NOT_RENDERED).
+ * What `initialize` says about the client and the app: "renders" when it
+ * declares the UI capability (capabilitiesDeclareUi), "hidden" when it
+ * declares it but is one of the clients known not to render
+ * (UI_DECLARED_NOT_RENDERED), "none" when it doesn't declare it. A client
+ * that declares nothing can still render (Claude.ai often doesn't declare it
+ * up front), which is why only "hidden" is treated as certain.
  *
  * @param {object|null|undefined} capabilities - as sent in `initialize`
  * @param {object|null|undefined} clientInfo - as sent in `initialize`
- * @returns {boolean}
+ * @returns {"renders"|"hidden"|"none"}
  */
-export function clientRendersUi(capabilities, clientInfo)
+export function clientUiState(capabilities, clientInfo)
 {
   if (!capabilitiesDeclareUi(capabilities))
   {
-    return false;
+    return "none";
   }
 
-  return !UI_DECLARED_NOT_RENDERED.some(function(client)
+  var hidden = UI_DECLARED_NOT_RENDERED.some(function(client)
   {
     return clientInfo != null && clientInfo.name === client.name &&
       clientInfo.version === client.version;
   });
+
+  return hidden ? "hidden" : "renders";
 }
 
-/** clientRendersUi for the client this server was initialized by. */
-function clientDeclaresUi(server)
+/** Whether `initialize` says the client renders the app (clientUiState). */
+export function clientRendersUi(capabilities, clientInfo)
 {
-  return clientRendersUi(server.server.getClientCapabilities(),
+  return clientUiState(capabilities, clientInfo) === "renders";
+}
+
+/** clientUiState for the client this server was initialized by. */
+function clientUiStateOf(server)
+{
+  return clientUiState(server.server.getClientCapabilities(),
     server.server.getClientVersion());
 }
 
 /**
  * Adds an "open in draw.io" text block for clients that don't render the
  * app, and nothing at all for the ones that do — without it those clients
- * get a JSON payload and no diagram anywhere. It states only what the server
- * knows (the client hasn't declared that it shows the diagram) and tells the
- * model to act on it: worded as a condition ("if this client doesn't show
- * the diagram inline"), the model in ChatGPT Work assumed it did and left
- * the link out.
+ * get a JSON payload and no diagram anywhere.
  *
- * It first points the model at a draw.io create_diagram tool that does show
- * the diagram. ChatGPT Work offers the same server twice: as the plugin's
- * MCP server, which never renders (see UI_DECLARED_NOT_RENDERED), and as the
- * draw.io app, which does. The link is the way out for clients without one,
- * but a model can't copy a link of several KB reliably (in Work, its copy
- * broke off after 447 characters), and a shorter link would have to store
- * the diagram, which the service doesn't do.
+ * For most of them the server only knows that the client didn't declare the
+ * UI capability, and some of those do show the diagram (Claude.ai), so the
+ * note stays a condition. Worded as a fact ("assume the user can't see this
+ * one", 1.4.5), Claude showed the diagram and told the user it didn't.
+ *
+ * For a "hidden" client (clientUiState) the server knows the user sees
+ * nothing, and the condition was ignored: the model in ChatGPT Work assumed
+ * the diagram showed and left the link out. That note says so and first
+ * points the model at the draw.io app's create_diagram: ChatGPT Work offers
+ * the same server as the plugin's MCP server, which never renders, and as
+ * the app, which does. A model can't copy a link of several KB reliably (in
+ * Work, its copy broke off after 447 characters), and a shorter link would
+ * have to store the diagram, which the service doesn't do.
  *
  * Everything the app does to a diagram (Mermaid conversion, the ELK
  * postLayout, libavoid routing) happens inside it, so an XML URL carries the
@@ -7831,11 +7844,12 @@ function clientDeclaresUi(server)
  *
  * @param {Array} content - the tool result's content blocks, appended to
  * @param {boolean} rendersInline - whether the client renders the app
+ * @param {boolean} hidden - whether the client is known not to show it
  * @param {string} data - XML, or the Mermaid source for type "mermaid"
  * @param {"xml"|"mermaid"} type
  * @param {string|null} postLayout - the requested postLayout, if any
  */
-function appendOpenUrl(content, rendersInline, data, type, postLayout)
+function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout)
 {
   if (rendersInline) return;
 
@@ -7847,12 +7861,16 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
     data = withElkLayout(data);
   }
 
-  var note = "This client hasn't declared that it shows draw.io diagrams, so " +
-    "assume the user can't see this one. If another draw.io create_diagram " +
-    "tool is available to you that shows diagrams in the conversation (the " +
-    "draw.io app in ChatGPT), call that one with the same arguments. " +
-    "Otherwise give the user this link, which opens the diagram in the " +
-    "draw.io editor:\n" + drawioEditorUrl(data, type);
+  var note = hidden ?
+    "This client doesn't show draw.io diagrams, so the user can't see this " +
+    "one. If another draw.io create_diagram tool is available to you that " +
+    "shows diagrams in the conversation (the draw.io app in ChatGPT), call " +
+    "that one with the same arguments. Otherwise give the user this link, " +
+    "which opens the diagram in the draw.io editor:\n" :
+    "If this client doesn't show the diagram inline, open it in the " +
+    "draw.io editor (give the user this link):\n";
+
+  note += drawioEditorUrl(data, type);
 
   if (type === "xml" && postLayout)
   {
@@ -7938,7 +7956,7 @@ function isMermaidSource(text)
  * @param {Array} [options.shapeIndex] - Shape search index array from search-index.json.
  * @param {string|null} [options.iconServiceUrl] - Base URL of the draw.io icon service used to supplement sparse search_shapes results (default: icons.diagrams.net). Pass null to disable icon supplementation.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
- * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize, and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
+ * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize (clientUiState "renders"), `hidden` whether it declared it but is known not to render (clientUiState "hidden"), and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
  * @returns {McpServer}
  */
 export function createServer(html, options = {})
@@ -7952,7 +7970,7 @@ export function createServer(html, options = {})
   const resourceUri = "ui://drawio/mcp-app.html";
 
   // Set once this session's client fetches the app resource — see
-  // clientDeclaresUi / appendOpenUrl.
+  // clientUiState / appendOpenUrl.
   let uiResourceRead = false;
 
   /**
@@ -7963,10 +7981,17 @@ export function createServer(html, options = {})
   {
     if (uiSession == null)
     {
-      return clientDeclaresUi(server) || uiResourceRead;
+      return clientUiStateOf(server) === "renders" || uiResourceRead;
     }
 
     return uiSession.declared || uiResourceRead || await uiSession.resourceRead();
+  }
+
+  /** Whether this session's client is known not to show the app. */
+  function hiddenUi()
+  {
+    return uiSession == null ? clientUiStateOf(server) === "hidden" :
+      uiSession.hidden === true;
   }
 
   registerAppTool(
@@ -8092,8 +8117,8 @@ export function createServer(html, options = {})
           mermaidContent.push({ type: "text", text: swapNote });
         }
 
-        appendOpenUrl(mermaidContent, await rendersInline(), mermaid, "mermaid",
-          postLayout);
+        appendOpenUrl(mermaidContent, await rendersInline(), hiddenUi(), mermaid,
+          "mermaid", postLayout);
 
         return { content: mermaidContent };
       }
@@ -8184,8 +8209,8 @@ export function createServer(html, options = {})
       }
 
       // The absolutized XML, so image URLs resolve in the editor too.
-      appendOpenUrl(content, await rendersInline(), xmlPayload.xml, "xml",
-        postLayout);
+      appendOpenUrl(content, await rendersInline(), hiddenUi(), xmlPayload.xml,
+        "xml", postLayout);
 
       return { content: content };
     }
@@ -8352,7 +8377,7 @@ export function createServer(html, options = {})
     async function()
     {
       // Only a client that renders the app fetches its HTML — a second
-      // signal next to the declared capability (see clientDeclaresUi).
+      // signal next to the declared capability (see clientUiState).
       uiResourceRead = true;
 
       // A per-request server forgets that with the response, so it's kept

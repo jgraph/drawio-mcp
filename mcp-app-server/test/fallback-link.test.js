@@ -3,13 +3,15 @@ import assert from "node:assert/strict";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
-import { createServer, clientRendersUi } from "../src/shared.js";
+import { createServer, clientRendersUi, clientUiState } from "../src/shared.js";
 
 // Which clients create_diagram hands the "open in draw.io" link: those that
 // don't declare the MCP Apps UI capability, and those known to declare it
 // without ever rendering the app — ChatGPT Work's hosted Codex harness, which
 // runs a plugin's MCP server and sends "codex-mcp-client" without a release
-// version. The Codex app and CLI send their real version.
+// version. The Codex app and CLI send their real version. Only the harness
+// gets a note that says the user can't see the diagram: clients that declare
+// nothing may still show it (Claude.ai), so theirs stays a condition.
 
 const UI = { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [RESOURCE_MIME_TYPE] } } };
 
@@ -35,14 +37,22 @@ test("ChatGPT Work's hosted Codex harness doesn't, although it declares it", fun
   assert.equal(clientRendersUi(UI, { name: "codex-mcp-client", version: "0.0.0", title: "Codex" }), false);
 });
 
-async function linkBlock(clientInfo)
+test("clientUiState tells declared, hidden and undeclared apart", function()
+{
+  assert.equal(clientUiState(UI, { name: "openai-mcp", version: "1.0.0" }), "renders");
+  assert.equal(clientUiState(UI, { name: "codex-mcp-client", version: "0.0.0" }), "hidden");
+  assert.equal(clientUiState({}, { name: "codex-mcp-client", version: "0.0.0" }), "none");
+  assert.equal(clientUiState({}, { name: "claude-ai", version: "0.1.0" }), "none");
+});
+
+async function linkBlock(clientInfo, capabilities = UI)
 {
   const server = createServer("", { iconServiceUrl: null });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
   await server.connect(serverTransport);
 
-  const client = new Client(clientInfo, { capabilities: UI });
+  const client = new Client(clientInfo, { capabilities: capabilities });
 
   await client.connect(clientTransport);
 
@@ -71,12 +81,23 @@ test("the note sends the model to the draw.io app first, the link second", async
   const block = await linkBlock({ name: "codex-mcp-client", version: "0.0.0", title: "Codex" });
 
   // Worded as a condition, the note was ignored in ChatGPT Work: the model
-  // assumed the diagram showed. It says what the server knows instead.
+  // assumed the diagram showed. For this client the server knows it doesn't.
   assert.doesNotMatch(block.text, /^If this client/);
-  assert.match(block.text, /assume the user can't see this one/);
+  assert.match(block.text, /the user can't see this one/);
   assert.match(block.text, /another draw\.io create_diagram tool/);
   assert.match(block.text, /same arguments/);
   assert.ok(block.text.indexOf("create_diagram") < block.text.indexOf("https://app.diagrams.net/"));
+});
+
+test("a client that declares nothing gets the note as a condition", async function()
+{
+  // Claude.ai often declares nothing and still shows the diagram. Told the
+  // user couldn't see it (1.4.5), Claude said the diagram didn't display.
+  const block = await linkBlock({ name: "claude-ai", version: "0.1.0" }, {});
+
+  assert.match(block.text, /^If this client doesn't show the diagram inline/);
+  assert.doesNotMatch(block.text, /can't see/);
+  assert.doesNotMatch(block.text, /another draw\.io create_diagram tool/);
 });
 
 test("create_diagram gives no link to a Codex release that declares the capability", async function()
