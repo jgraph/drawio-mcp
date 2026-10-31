@@ -105,6 +105,9 @@ test("the app resource lists the link targets for ChatGPT and repeats its CSP th
     assert.ok(openai.redirect_domains.includes("https://www.drawio.com"));
     assert.deepEqual(openai.resource_domains, meta.ui.csp.resourceDomains);
     assert.deepEqual(openai.connect_domains, meta.ui.csp.connectDomains);
+    // ChatGPT's fullscreen button takes the setOpenInAppUrl target only from
+    // the connect domains (or the widget domain), not the redirect domains.
+    assert.ok(meta.ui.csp.connectDomains.includes("https://app.diagrams.net"));
   }
   finally
   {

@@ -7870,10 +7870,14 @@ function appendOpenUrl(content, rendersInline, data, type, postLayout)
 // fonts.googleapis.com / fonts.gstatic.com: Google fonts of fontSource styles
 // (the viewer links the font CSS, which loads the font files), e.g. Recursive
 // in Mermaid 12 diagrams. The redirect domains are where the viewer's links
-// go: Open in draw.io and Help.
+// go: Open in draw.io and Help. app.diagrams.net is a connect domain only for
+// ChatGPT's fullscreen "Open in draw.io" button: it takes the target the
+// viewer passes to setOpenInAppUrl only from the connect domains or the
+// widget domain, and otherwise opens ui.domain (Not Found). The viewer
+// fetches nothing from there.
 var RESOURCE_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
   "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
-var CONNECT_DOMAINS = ["https://viewer.diagrams.net"];
+var CONNECT_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net"];
 var REDIRECT_DOMAINS = ["https://app.diagrams.net", "https://www.drawio.com"];
 
 // The values create_diagram accepts for its pass options (its inputSchema uses

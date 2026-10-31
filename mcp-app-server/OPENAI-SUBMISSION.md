@@ -148,6 +148,14 @@ cd mcp-app-server/openai-plugin && zip -r "${TMPDIR:-/tmp}/drawio-openai-plugin.
   <https://chatgpt.com/plugins/plugin_asdk_app_6abea666ca5081919375ed8d1d38da95>
   and installable in ChatGPT and Codex. App server 1.4.2 went to production
   the same day with tools/list unchanged, so no new review.
+- **Rescan of the published plugin (2026-10-31).** ChatGPT uses the app
+  resource's metadata (CSP, `ui.domain`) from the latest scan and loads only
+  the HTML live, so `openai/widgetCSP.redirect_domains` (app server 1.4.3) had
+  no effect: the toolbar's Open in draw.io still got ChatGPT's link check.
+  **MCPs → Rescan** on the published plugin runs OpenAI's continuous review
+  (`continuous-review/rescan`): no draft, no review, the tools stay
+  Published, and ChatGPT had the new metadata within a minute. Conversations
+  keep the CSP they ran with, so only new ones change.
 
 When the privacy page changes, keep it in step with what the server does:
 tool inputs/outputs, the icon-service forwarding (`search_shapes` →
@@ -165,7 +173,7 @@ and the fact that the `mcp.draw.io` Worker has no persisted logs (no
 | MCP Server URL | `https://mcp.draw.io/mcp` |
 | Transport | Streamable HTTP |
 | Authentication | None. The server holds no accounts and no user data, so there is no OAuth, no UserInfo endpoint and no reviewer credentials to supply. |
-| Custom UI | Yes — ChatGPT renders the MCP-UI (`ui://`) resource inline, streaming animation and viewer toolbar included (verified in the desktop app). Content security policy: `https://viewer.diagrams.net` (viewer, ELK, Mermaid and libavoid scripts), `https://app.diagrams.net` (favicon, the shape images the viewer resolves against that base, and the "Open in draw.io" target), `https://icons.diagrams.net` (images for icon-service shapes), `https://fonts.googleapis.com` and `https://fonts.gstatic.com` (Google fonts of `fontSource` styles, e.g. the Recursive font of Mermaid 12 diagrams; added after the 1.0.1 submission). `github.com` appears only as the help button's link target, not as a fetch. Clients without an MCP Apps UI get an `app.diagrams.net` link in a second text block. |
+| Custom UI | Yes — ChatGPT renders the MCP-UI (`ui://`) resource inline, streaming animation and viewer toolbar included (verified in the desktop app). Content security policy: `https://viewer.diagrams.net` (viewer, ELK, Mermaid and libavoid scripts), `https://app.diagrams.net` (favicon, the shape images the viewer resolves against that base, and the "Open in draw.io" target; also a connect domain since 2026-10-31, because ChatGPT's fullscreen "Open in draw.io" button only accepts targets on the connect domains), `https://icons.diagrams.net` (images for icon-service shapes), `https://fonts.googleapis.com` and `https://fonts.gstatic.com` (Google fonts of `fontSource` styles, e.g. the Recursive font of Mermaid 12 diagrams; added after the 1.0.1 submission). `github.com` appears only as the help button's link target, not as a fetch. Clients without an MCP Apps UI get an `app.diagrams.net` link in a second text block. |
 | Domain verification | see §2 |
 
 Setup in the portal: **MCPs** tab → **Connect** → the panel shows the URL from
@@ -281,6 +289,14 @@ separate action in the portal. Once published, OpenAI periodically re-fetches th
 tool list: deleted tools drop out immediately, changed definitions go live after
 automated checks. Listing changes and skill updates need a new version, a new
 review and a new publish.
+
+A change to the app resource's metadata (`ui.csp`, `openai/widgetCSP`,
+`ui.domain`) reaches ChatGPT only through a scan: after deploying it, run
+**MCPs → Rescan**. On the published plugin that is a continuous review, live
+within a minute, with no new version (2026-10-31). To check what ChatGPT holds,
+signed in to chatgpt.com: `GET /backend-api/aip/connectors/<app id>` with the
+`accessToken` from `/api/auth/session`; `templates[0].meta` is the scanned
+metadata.
 
 ## 5. Open decisions / risks
 
