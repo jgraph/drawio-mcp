@@ -177,7 +177,10 @@ requests. To reduce or remove them:
   viewer instead of loading it from `viewer.diagrams.net`. Server-side, it makes a
   version check against `viewer.diagrams.net` at startup and daily (no data, 5 s
   timeout, safe to block), and `search_shapes` queries `icons.diagrams.net` with the
-  search terms unless `DRAWIO_ICON_SERVICE_URL=off`.
+  search terms unless `DRAWIO_ICON_SERVICE_URL=off`. Set `DRAWIO_BASE_URL` to a
+  self-hosted draw.io instance to have "Open in draw.io" and the link for clients
+  without inline diagrams open there; the inline viewer still loads its code and
+  shape images from diagrams.net.
 - **Tool Server:** set the `DRAWIO_BASE_URL` environment variable to a self-hosted
   draw.io instance. Its two server-side passes also fetch **code** from
   `viewer.diagrams.net` once per draw.io release and cache it per user: the libavoid

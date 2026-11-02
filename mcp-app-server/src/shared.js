@@ -27,6 +27,45 @@ import pkg from "../package.json" with { type: "json" };
  */
 export const MERMAID_DEFAULTS_VERSION = "12";
 
+/** The draw.io editor the links open, unless DRAWIO_BASE_URL names another. */
+export const DEFAULT_DRAWIO_BASE_URL = "https://app.diagrams.net/";
+
+/**
+ * The editor link up to its hash, for "Open in draw.io" and the link for
+ * clients without an MCP Apps UI: the base URL with pv=0&grid=0 added to its
+ * query. A self-hosted draw.io is set with DRAWIO_BASE_URL, as in the tool
+ * server; only the links change, the viewer, shape images and libraries still
+ * load from diagrams.net, so the inline preview needs no sign-in to that
+ * draw.io. Anything but an http(s) URL throws, so a typo fails at startup
+ * rather than in every link.
+ *
+ * @param {string} [drawioBaseUrl] - DRAWIO_BASE_URL (default app.diagrams.net).
+ * @returns {string}
+ */
+export function editorLinkBase(drawioBaseUrl)
+{
+  var url;
+
+  try
+  {
+    url = new URL(drawioBaseUrl || DEFAULT_DRAWIO_BASE_URL);
+  }
+  catch (e)
+  {
+    url = null;
+  }
+
+  if (url == null || (url.protocol !== "https:" && url.protocol !== "http:"))
+  {
+    throw new Error("DRAWIO_BASE_URL is not an http(s) URL: " + drawioBaseUrl);
+  }
+
+  url.hash = "";
+  url.search = (url.search ? url.search + "&" : "?") + "pv=0&grid=0";
+
+  return url.href;
+}
+
 /**
  * Build the self-contained HTML string that renders diagrams.
  * The MCP Apps App class and pako deflate are inlined. The draw.io viewer,
@@ -46,6 +85,7 @@ export const MERMAID_DEFAULTS_VERSION = "12";
  * @param {string} [options.libavoidJs] - If provided, inlines this libavoid-js bundle (the drawio-dev js/libavoid-js/libavoid.min.js pure-JS build, used as-is — a self-contained classic script that publishes `globalThis.Avoid` and parks `window.__libavoidReady` synchronously) with libavoid-routing.js (defines `globalThis.AvoidRouting`) appended, instead of loading the libavoid block from the CDN. Powers the `routing: "libavoid"` edge-routing pass.
  * @param {string[]} [options.libavoidUrls] - The two libavoid script URLs in load order (pure-JS router bundle, routing core), typically ETag-versioned (libavoid-versions.js) so a draw.io release busts the browser cache immediately. Defaults to the plain CDN URLs; ignored when libavoidJs inlines a local build.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Exposed as window.__DRAWIO_BUILD in the iframe.
+ * @param {string} [options.drawioBaseUrl] - The draw.io editor "Open in draw.io" opens (DRAWIO_BASE_URL, see editorLinkBase). Exposed as window.__DRAWIO_EDITOR_URL in the iframe; pass the same value to createServer.
  * @returns {string} Self-contained HTML string.
  */
 export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
@@ -54,6 +94,8 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
   var elkJs = (options && options.elkJs) || null;
   var libavoidJs = (options && options.libavoidJs) || null;
   var buildId = (options && options.buildId) || "unknown";
+  // The URL comes from the environment: never let it close the script element
+  var editorUrlJs = JSON.stringify(editorLinkBase(options && options.drawioBaseUrl)).replace(/</g, "\\u003C");
 
   // libavoid-js (obstacle-avoiding orthogonal edge router). libavoid.min.js
   // is the pure-JS Emscripten build from drawio-dev js/libavoid-js/ — a
@@ -387,6 +429,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
     </style>
     <script>
       window.__DRAWIO_BUILD = ${JSON.stringify(buildId)};
+      window.__DRAWIO_EDITOR_URL = ${editorUrlJs};
     </script>
   </head>
   <body>
@@ -1409,7 +1452,7 @@ function convertMermaidToXml(mermaidText)
 // re-encodes on the way to the browser (VS Code: encodeURI(uri.toString(true)),
 // leaving ':' ',' '+' '/' '=' unescaped) made draw.io ask "All changes will be
 // lost!"; the next draw.io release fixes that (drawio-dev 5170e37146,
-// 6ee7e71444).
+// 6ee7e71444). The editor is the server's DRAWIO_BASE_URL (editorLinkBase).
 function generateDrawioEditUrl(xml)
 {
   var encoded = encodeURIComponent(xml);
@@ -1417,7 +1460,7 @@ function generateDrawioEditUrl(xml)
   var base64 = btoa(Array.from(compressed, function(b) { return String.fromCharCode(b); }).join(""));
   var createObj = { type: "xml", compressed: true, data: base64, effect: "pop" };
 
-  return "https://app.diagrams.net/?pv=0&grid=0#create=" + encodeURIComponent(JSON.stringify(createObj));
+  return window.__DRAWIO_EDITOR_URL + "#create=" + encodeURIComponent(JSON.stringify(createObj));
 }
 
 // The ui/download-file request behind the Download button: the diagram the
@@ -7707,9 +7750,10 @@ function getTagMap(shapeIndex)
  * @param {string} data - draw.io XML, or Mermaid source for type "mermaid"
  *   (the editor converts and lays that out itself).
  * @param {"xml"|"mermaid"} type
+ * @param {string} linkBase - the editor link up to its hash (editorLinkBase)
  * @returns {string}
  */
-function drawioEditorUrl(data, type)
+function drawioEditorUrl(data, type, linkBase)
 {
   const compressed = pako.deflateRaw(encodeURIComponent(data));
   const base64 = btoa(Array.from(compressed, function(b)
@@ -7719,7 +7763,7 @@ function drawioEditorUrl(data, type)
 
   if (type === "xml")
   {
-    return "https://app.diagrams.net/?pv=0&grid=0#R" + encodeURIComponent(base64);
+    return linkBase + "#R" + encodeURIComponent(base64);
   }
 
   const createObj = { type: type, compressed: true, data: base64, effect: "pop" };
@@ -7729,8 +7773,7 @@ function drawioEditorUrl(data, type)
     createObj.version = MERMAID_DEFAULTS_VERSION;
   }
 
-  return "https://app.diagrams.net/?pv=0&grid=0#create=" +
-    encodeURIComponent(JSON.stringify(createObj));
+  return linkBase + "#create=" + encodeURIComponent(JSON.stringify(createObj));
 }
 
 /**
@@ -7848,8 +7891,9 @@ function clientUiStateOf(server)
  * @param {string} data - XML, or the Mermaid source for type "mermaid"
  * @param {"xml"|"mermaid"} type
  * @param {string|null} postLayout - the requested postLayout, if any
+ * @param {string} linkBase - the editor link up to its hash (editorLinkBase)
  */
-function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout)
+function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout, linkBase)
 {
   if (rendersInline) return;
 
@@ -7870,7 +7914,7 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout)
     "If this client doesn't show the diagram inline, open it in the " +
     "draw.io editor (give the user this link):\n";
 
-  note += drawioEditorUrl(data, type);
+  note += drawioEditorUrl(data, type, linkBase);
 
   if (type === "xml" && postLayout)
   {
@@ -7892,11 +7936,21 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout)
 // ChatGPT's fullscreen "Open in draw.io" button: it takes the target the
 // viewer passes to setOpenInAppUrl only from the connect domains or the
 // widget domain, and otherwise opens ui.domain (Not Found). The viewer
-// fetches nothing from there.
+// fetches nothing from there. A self-hosted editor (DRAWIO_BASE_URL) is added
+// to both lists for the same two links (withEditorOrigin); the viewer still
+// loads its images from app.diagrams.net.
 var RESOURCE_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
   "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
 var CONNECT_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net"];
 var REDIRECT_DOMAINS = ["https://app.diagrams.net", "https://www.drawio.com"];
+
+/** A list of CSP domains with the origin of the editor link added. */
+function withEditorOrigin(domains, linkBase)
+{
+  var origin = new URL(linkBase).origin;
+
+  return domains.indexOf(origin) === -1 ? domains.concat([origin]) : domains;
+}
 
 // The values create_diagram accepts for its pass options (its inputSchema uses
 // them) — also the only arguments recovered when a model writes them into the
@@ -7956,13 +8010,15 @@ function isMermaidSource(text)
  * @param {Array} [options.shapeIndex] - Shape search index array from search-index.json.
  * @param {string|null} [options.iconServiceUrl] - Base URL of the draw.io icon service used to supplement sparse search_shapes results (default: icons.diagrams.net). Pass null to disable icon supplementation.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
+ * @param {string} [options.drawioBaseUrl] - The draw.io editor the link for clients without an MCP Apps UI opens (DRAWIO_BASE_URL, see editorLinkBase), added to the CSP's connect and redirect domains. The same value as buildHtml's, which sets "Open in draw.io".
  * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize (clientUiState "renders"), `hidden` whether it declared it but is known not to render (clientUiState "hidden"), and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
  * @returns {McpServer}
  */
 export function createServer(html, options = {})
 {
   const { domain, xmlReference = "", mermaidReference = "", shapeIndex = null,
-    iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", uiSession = null } = options;
+    iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null } = options;
+  const linkBase = editorLinkBase(drawioBaseUrl);
   // The version clients see in serverInfo is the package version, so it moves
   // with each release instead of drifting from package.json/server.json.
   const server = new McpServer({ name: "drawio-mcp-app", version: pkg.version });
@@ -8118,7 +8174,7 @@ export function createServer(html, options = {})
         }
 
         appendOpenUrl(mermaidContent, await rendersInline(), hiddenUi(), mermaid,
-          "mermaid", postLayout);
+          "mermaid", postLayout, linkBase);
 
         return { content: mermaidContent };
       }
@@ -8210,7 +8266,7 @@ export function createServer(html, options = {})
 
       // The absolutized XML, so image URLs resolve in the editor too.
       appendOpenUrl(content, await rendersInline(), hiddenUi(), xmlPayload.xml,
-        "xml", postLayout);
+        "xml", postLayout, linkBase);
 
       return { content: content };
     }
@@ -8403,7 +8459,7 @@ export function createServer(html, options = {})
                 csp:
                 {
                   resourceDomains: RESOURCE_DOMAINS,
-                  connectDomains: CONNECT_DOMAINS,
+                  connectDomains: withEditorOrigin(CONNECT_DOMAINS, linkBase),
                 },
               },
               // ChatGPT reads redirect_domains, the targets its
@@ -8413,8 +8469,8 @@ export function createServer(html, options = {})
               "openai/widgetCSP":
               {
                 resource_domains: RESOURCE_DOMAINS,
-                connect_domains: CONNECT_DOMAINS,
-                redirect_domains: REDIRECT_DOMAINS,
+                connect_domains: withEditorOrigin(CONNECT_DOMAINS, linkBase),
+                redirect_domains: withEditorOrigin(REDIRECT_DOMAINS, linkBase),
               },
             },
           },

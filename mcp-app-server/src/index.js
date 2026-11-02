@@ -172,12 +172,17 @@ if (fs.existsSync(shapeIndexPath))
 // disable icon supplementation entirely).
 const iconServiceUrl = resolveIconServiceUrl(process.env.DRAWIO_ICON_SERVICE_URL);
 
+// The draw.io editor that "Open in draw.io" and the link for clients without
+// an MCP Apps UI open: a self-hosted draw.io instead of app.diagrams.net, as
+// in the tool server. buildHtml throws below unless it is an http(s) URL.
+const drawioBaseUrl = process.env.DRAWIO_BASE_URL;
+
 // Pre-build the HTML once. The buildId is baked into the HTML so the
 // iframe exposes it via window.__DRAWIO_BUILD (visible in DevTools).
 // `let` — the daily libavoid version check rebuilds it in place (each
 // /mcp request creates its McpServer from the current value).
 let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs });
+  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl });
 
 // --- Sessions ---
 
@@ -281,7 +286,7 @@ async function startStreamableHTTPServer()
       {
         libavoidScriptUrls = urls;
         html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs });
+          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl });
         console.log("libavoid CDN versions changed; HTML rebuilt");
       }
     }
@@ -341,6 +346,7 @@ async function startStreamableHTTPServer()
       shapeIndex,
       iconServiceUrl,
       buildId,
+      drawioBaseUrl,
       uiSession: session != null ? uiSessionFor(session) : null,
     });
 
@@ -394,7 +400,7 @@ async function startStreamableHTTPServer()
 
 async function startStdioServer()
 {
-  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId }).connect(new StdioServerTransport());
+  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl }).connect(new StdioServerTransport());
 }
 
 async function main()

@@ -16,6 +16,7 @@ The MCP endpoint is then `http://localhost:3001/mcp` (Streamable HTTP). Add it a
 |---|---|
 | `PORT` | Listening port inside the container (default `3001`); map it with `-p` |
 | `ALLOWED_HOSTS` | Comma-separated hostnames the server answers to (checked against the `Host` header), e.g. `drawio-mcp.internal,localhost`. Unset: any |
+| `DRAWIO_BASE_URL` | The draw.io editor that "Open in draw.io" opens, e.g. a self-hosted `https://drawio.example.com/` (default `https://app.diagrams.net/`) |
 | `DRAWIO_ICON_SERVICE_URL` | Set to `off` to keep `search_shapes` from querying the draw.io icon service |
 
 Hosts that need a public URL (such as Claude.ai or ChatGPT) can reach a local container through a tunnel, for example `npx cloudflared tunnel --url http://localhost:3001`, and use the tunnel URL with `/mcp` appended. Anyone who has that URL can use the server.
@@ -33,7 +34,7 @@ Hosts that need a public URL (such as Claude.ai or ChatGPT) can reach a local co
   - shape images from `app.diagrams.net`, and icons from `icons.diagrams.net`, for diagrams that use them
   - web fonts from `fonts.googleapis.com` and `fonts.gstatic.com`, for diagrams that use them
 
-  These requests fetch code, images and fonts only, never diagram content. "Open in draw.io" opens the diagram in the draw.io editor at `app.diagrams.net`; the diagram travels in the part of the link after `#`, which the browser keeps to itself and never sends to the server.
+  These requests fetch code, images and fonts only, never diagram content. "Open in draw.io" opens the diagram in the draw.io editor at `app.diagrams.net`, or at your own draw.io with `DRAWIO_BASE_URL`; the diagram travels in the part of the link after `#`, which the browser keeps to itself and never sends to the server.
 
 ## Tags
 
