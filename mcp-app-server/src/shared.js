@@ -7,6 +7,7 @@ import {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import pako from "pako";
+import { randomUUID } from "node:crypto";
 import { normalizeDiagramXml, normalizeOptionValue, absolutizeImageUrls, INVALID_DIAGRAM_XML_MESSAGE } from "./normalize-diagram-xml.js";
 import { buildTagMap } from "../../shared/shape-search.js";
 import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/icon-search.js";
@@ -1625,6 +1626,7 @@ function commitDiagramXml(xml)
   drawioEditUrl = generateDrawioEditUrl(out);
   setOpenInAppUrl(drawioEditUrl);
   scheduleModelContext(xml);
+  scheduleImageCapture();
 }
 
 // --- Links out of the sandbox ---
@@ -1688,6 +1690,137 @@ var MODEL_CONTEXT_MAX_CHARS = 60000;
 var modelContextSent = false;
 var routingApplied = false;
 var modelContextTimer = null;
+var currentImageId = null;
+var imageCaptureTimer = null;
+var imageCaptureRevision = 0;
+var imageRenderPending = false;
+var imageUploadQueue = Promise.resolve();
+
+// A capture follows the final layout and is sent to the server through the host.
+function scheduleImageCapture()
+{
+  if (currentImageId == null || imageRenderPending) return;
+  var caps = app.getHostCapabilities();
+  if (caps == null || caps.serverTools == null) return;
+  var id = currentImageId;
+  var revision = ++imageCaptureRevision;
+  if (imageCaptureTimer != null) clearTimeout(imageCaptureTimer);
+  imageCaptureTimer = setTimeout(function()
+  {
+    imageCaptureTimer = null;
+    imageUploadQueue = imageUploadQueue.catch(function() {}).then(async function()
+    {
+      if (id !== currentImageId || revision !== imageCaptureRevision) return;
+      try
+      {
+        var image = await captureDiagramImage();
+        if (id !== currentImageId || revision !== imageCaptureRevision) return;
+        await app.callServerTool({ name: 'store_diagram_image', arguments: { id: id, data: image.data } });
+      }
+      catch (e)
+      {
+        console.log('[diagram-image] capture failed', e && e.message);
+      }
+    });
+  }, 750);
+}
+
+async function captureDiagramImage()
+{
+  await waitForPendingAnimationsToSettle();
+  var graph = streamGraph;
+  var svg = graph && graph.container && graph.container.querySelector('svg');
+
+  if (svg == null || graph.container.clientWidth < 1 || graph.container.clientHeight < 1)
+  {
+    throw new Error('Diagram is not rendered');
+  }
+
+  var textNodes = document.createTreeWalker(graph.container, NodeFilter.SHOW_TEXT);
+  var textNode;
+  while ((textNode = textNodes.nextNode()) != null)
+  {
+    if (textNode.nodeValue.trim() && !svg.contains(textNode))
+    {
+      throw new Error('Diagram has labels outside the SVG');
+    }
+  }
+  var overlays = graph.container.querySelectorAll('img');
+  for (var j = 0; j < overlays.length; j++)
+  {
+    if (!svg.contains(overlays[j])) throw new Error('Diagram has images outside the SVG');
+  }
+
+  var copy = svg.cloneNode(true);
+  var images = copy.querySelectorAll('image, img');
+  var imageSignal = null;
+
+  for (var i = 0; i < images.length; i++)
+  {
+    var href = images[i].getAttribute('href') || images[i].getAttribute('xlink:href') || images[i].getAttribute('src') || '';
+    if (!href || href.startsWith('data:')) continue;
+
+    var url = new URL(href, document.baseURI);
+    var allowed = ['https://viewer.diagrams.net', 'https://app.diagrams.net', 'https://icons.diagrams.net'];
+    if (window.__DRAWIO_EDITOR_URL) allowed.push(new URL(window.__DRAWIO_EDITOR_URL).origin);
+    if (allowed.indexOf(url.origin) === -1) throw new Error('Unsupported diagram image origin');
+    if (imageSignal == null) imageSignal = AbortSignal.timeout(4000);
+    var response = await fetch(url.href, { credentials: 'omit', signal: imageSignal });
+    if (!response.ok) throw new Error('Diagram image could not be loaded');
+    var blob = await response.blob();
+    var type = blob.type.split(';')[0].toLowerCase();
+    if (!/^image\\/(png|jpeg|webp|gif|svg\\+xml)$/.test(type) || blob.size > 1000000)
+    {
+      throw new Error('Unsupported diagram image');
+    }
+
+    // shortcut: SVG icons with nested resources are omitted; support safe recursive inlining when needed.
+    if (type === 'image/svg+xml' && /<(script|foreignObject|image|iframe|object|embed)\\b|(?:href|src)\\s*=|url\\s*\\(|@import/i.test(await blob.text()))
+    {
+      throw new Error('SVG image contains unsupported resources');
+    }
+
+    var dataUrl = await new Promise(function(resolve, reject)
+    {
+      var reader = new FileReader();
+      reader.onload = function() { resolve(reader.result); };
+      reader.onerror = function() { reject(new Error('Diagram image could not be read')); };
+      reader.readAsDataURL(blob);
+    });
+    if (images[i].hasAttribute('src')) images[i].setAttribute('src', dataUrl);
+    if (images[i].hasAttribute('href')) images[i].setAttribute('href', dataUrl);
+    if (images[i].hasAttribute('xlink:href')) images[i].setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
+  }
+
+  var width = graph.container.clientWidth;
+  var height = graph.container.clientHeight;
+  var scale = Math.min(1, 1600 / Math.max(width, height));
+  var transform = getComputedStyle(svg).transform;
+  copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  copy.setAttribute('width', width);
+  copy.setAttribute('height', height);
+  copy.style.transform = 'none';
+  copy.style.transition = 'none';
+  var group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  if (transform && transform !== 'none') group.setAttribute('transform', transform);
+  while (copy.firstChild) group.appendChild(copy.firstChild);
+  copy.appendChild(group);
+  var image = new Image();
+  var encoded = new XMLSerializer().serializeToString(copy);
+  image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(encoded);
+  await image.decode();
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  var context = canvas.getContext('2d');
+  context.fillStyle = getComputedStyle(containerEl).backgroundColor || '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  var data = canvas.toDataURL('image/png').split(',')[1];
+  if (!data || data.length > 1000000) throw new Error('Diagram image is too large');
+  return { type: 'image', mimeType: 'image/png', data: data };
+}
+
 
 /**
  * The text the model gets: what the diagram is and how to change it, then
@@ -4715,6 +4848,7 @@ function applyViewTransform(graph, scale, tx, ty, immediate, durationMs)
   viewTransform.scale = scale;
   viewTransform.tx = tx;
   viewTransform.ty = ty;
+  if (graph === streamGraph && lastFinalizedKey != null) scheduleImageCapture();
 }
 
 // --- Streaming camera spring (two-stage rAF lerp) ---
@@ -5167,6 +5301,10 @@ function endStreaming()
   currentLayoutState = 'none';
   routingApplied = false;
   modelContextSent = false;
+  imageCaptureRevision++;
+  imageRenderPending = false;
+  if (imageCaptureTimer != null) clearTimeout(imageCaptureTimer);
+  imageCaptureTimer = null;
   if (layoutBtn != null) layoutBtn.style.display = 'none';
   dblclickZoomedIn = false;
   updateZoomFitButtonUi();
@@ -5220,6 +5358,7 @@ function finalizeStreamingView(xml, opts)
     '|' + (opts.autoRoute ? 'a' : '');
   if (key === lastFinalizedKey)
   {
+    scheduleImageCapture();
     return;
   }
   lastFinalizedKey = key;
@@ -5261,6 +5400,16 @@ function finalizeStreamingView(xml, opts)
   {
     showError("Failed to render diagram: " + e.message);
     return;
+  }
+
+  var imagePassId = currentImageId;
+  var imagePassRequired = !!(opts.postLayout || opts.routing || (opts.autoRoute && edgesCrossShapes(streamGraph)));
+  imageRenderPending = imagePassRequired;
+  function finishImagePass()
+  {
+    if (imagePassId !== currentImageId || lastFinalizedKey !== key) return;
+    imageRenderPending = false;
+    scheduleImageCapture();
   }
 
   commitDiagramXml(xml);
@@ -5361,7 +5510,7 @@ function finalizeStreamingView(xml, opts)
     {
       applyPostLayout(streamGraph, opts.postLayout, function(applied)
       {
-        if (!applied) return;
+        if (!applied) { finishImagePass(); return; }
 
         try
         {
@@ -5378,7 +5527,11 @@ function finalizeStreamingView(xml, opts)
         // morph so it sees where things actually landed.
         if (opts.routing)
         {
-          runRoutingPass(streamGraph);
+          runRoutingPass(streamGraph, finishImagePass);
+        }
+        else
+        {
+          finishImagePass();
         }
 
         // Second-stage fit: cells have just morphed into place and
@@ -5416,7 +5569,7 @@ function finalizeStreamingView(xml, opts)
         }
       }, awaitAnims);
     }
-    catch (e) {}
+    catch (e) { finishImagePass(); }
   }
   else if (opts.routing || (opts.autoRoute && edgesCrossShapes(streamGraph)))
   {
@@ -5431,7 +5584,7 @@ function finalizeStreamingView(xml, opts)
       console.log('[libavoid] an edge crosses a shape, routing');
     }
 
-    runRoutingPass(streamGraph);
+    runRoutingPass(streamGraph, finishImagePass);
   }
 
   notifySize('finalize');
@@ -7127,6 +7280,9 @@ app.ontoolresult = function(result)
     try
     {
       var parsed = JSON.parse(textBlock.text);
+      currentImageId = (parsed && typeof parsed.imageId === 'string') ? parsed.imageId : null;
+      imageCaptureRevision++;
+      if (currentImageId != null) lastFinalizedKey = null;
 
       if (parsed && typeof parsed.mermaid === 'string')
       {
@@ -7941,7 +8097,7 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout, l
 // loads its images from app.diagrams.net.
 var RESOURCE_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
   "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
-var CONNECT_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net"];
+var CONNECT_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net"];
 var REDIRECT_DOMAINS = ["https://app.diagrams.net", "https://www.drawio.com"];
 
 /** A list of CSP domains with the origin of the editor link added. */
@@ -8017,7 +8173,7 @@ function isMermaidSource(text)
 export function createServer(html, options = {})
 {
   const { domain, xmlReference = "", mermaidReference = "", shapeIndex = null,
-    iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null } = options;
+    iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null, imageStore = null } = options;
   const linkBase = editorLinkBase(drawioBaseUrl);
   // The version clients see in serverInfo is the package version, so it moves
   // with each release instead of drifting from package.json/server.json.
@@ -8062,7 +8218,8 @@ export function createServer(html, options = {})
       // whole batch, other servers' tools included (jgraph/drawio-mcp#76).
       // test/tools.test.js caps every description at 2048 characters.
       description:
-        "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one.\n\n" +
+        "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one. " +
+        "To inspect, set captureImage and call get_diagram_image with imageId.\n\n" +
         "**Choose the format first.** Use `xml` for diagrams of boxes and lines up to about 30 shapes: flowcharts, pipelines, decision trees, " +
         "org charts, ER schemas, UML class, state and use case diagrams, mind maps, timelines, architecture, cloud and network diagrams, " +
         "swimlanes, UI mockups, floor plans and anything with stencils. You place every shape yourself, laid out for the chat view " +
@@ -8082,6 +8239,7 @@ export function createServer(html, options = {})
         "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape.",
       inputSchema:
       {
+        captureImage: z.boolean().optional().describe("Set true to make the rendered image available through get_diagram_image."),
         xml: z
           .string()
           .optional()
@@ -8124,7 +8282,7 @@ export function createServer(html, options = {})
         "openai/toolInvocation/invoked": "Diagram ready.",
       },
     },
-    async function({ xml, mermaid, postLayout, direction, routing })
+    async function({ xml, mermaid, postLayout, direction, routing, captureImage })
     {
       var hasXml = (xml != null && typeof xml === "string" && xml.trim().length > 0);
       var hasMermaid = (mermaid != null && typeof mermaid === "string" && mermaid.trim().length > 0);
@@ -8163,6 +8321,11 @@ export function createServer(html, options = {})
       if (hasMermaid)
       {
         var mermaidPayload = { mermaid: mermaid };
+        if (captureImage && imageStore != null)
+        {
+          mermaidPayload.imageId = randomUUID();
+          await imageStore.reserve(mermaidPayload.imageId);
+        }
         if (postLayout) mermaidPayload.postLayout = postLayout;
         mermaidPayload._buildId = buildId;
 
@@ -8228,6 +8391,11 @@ export function createServer(html, options = {})
       normalizedXml = fitEdgeLabels(normalizedXml).xml;
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };
+      if (captureImage && imageStore != null)
+      {
+        xmlPayload.imageId = randomUUID();
+        await imageStore.reserve(xmlPayload.imageId);
+      }
       if (postLayout) xmlPayload.postLayout = postLayout;
       // direction + routing are XML-only; Mermaid derives direction from the
       // flowchart code and its layout already routes, so routing is omitted there.
@@ -8271,6 +8439,47 @@ export function createServer(html, options = {})
       return { content: content };
     }
   );
+
+  if (imageStore != null)
+  {
+    const imageId = z.string().uuid();
+    registerAppTool(server, "store_diagram_image",
+    {
+      description: "Store the rendered diagram image for retrieval by the model.",
+      inputSchema: { id: imageId, data: z.string().max(1000000) },
+      _meta: { ui: { visibility: ["app"] } },
+    }, async function({ id, data })
+    {
+      if (!data.startsWith("iVBORw0KGgo") || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data))
+      {
+        return { isError: true, content: [{ type: "text", text: "Invalid PNG image." }] };
+      }
+
+      if (await imageStore.set(id, data) === false)
+      {
+        return { isError: true, content: [{ type: "text", text: "Unknown or expired image ID." }] };
+      }
+      return { content: [{ type: "text", text: "Image ready." }] };
+    });
+
+    server.registerTool("get_diagram_image",
+    {
+      description: "Read the rendered diagram as a PNG image. Pass the imageId returned by create_diagram. The viewer must finish rendering first.",
+      inputSchema: { id: imageId.describe("The imageId from the create_diagram response.") },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async function({ id })
+    {
+      // The viewer renders asynchronously after create_diagram returns.
+      for (var attempt = 0; attempt < 40; attempt++)
+      {
+        var data = await imageStore.get(id);
+        if (data != null) return { content: [{ type: "image", mimeType: "image/png", data: data }] };
+        await new Promise(function(resolve) { setTimeout(resolve, 250); });
+      }
+
+      return { isError: true, content: [{ type: "text", text: "The diagram image is not available. The viewer may not have rendered or image capture failed." }] };
+    });
+  }
 
   // ── search_shapes tool (only registered when shapeIndex is provided) ───────
 

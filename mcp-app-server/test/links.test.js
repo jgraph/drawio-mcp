@@ -168,11 +168,11 @@ test("the self-hosted editor is a connect and redirect domain, next to app.diagr
   const standard = await csp({});
   const custom = await csp({ drawioBaseUrl: selfHosted });
 
-  assert.deepEqual(standard.ui.csp.connectDomains, ["https://viewer.diagrams.net", "https://app.diagrams.net"]);
+  assert.deepEqual(standard.ui.csp.connectDomains, ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net"]);
   assert.deepEqual(standard["openai/widgetCSP"].redirect_domains, ["https://app.diagrams.net", "https://www.drawio.com"]);
 
   assert.deepEqual(custom.ui.csp.connectDomains,
-    ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://drawio.example.com"]);
+    ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net", "https://drawio.example.com"]);
   assert.deepEqual(custom["openai/widgetCSP"].connect_domains, custom.ui.csp.connectDomains);
   assert.deepEqual(custom["openai/widgetCSP"].redirect_domains,
     ["https://app.diagrams.net", "https://www.drawio.com", "https://drawio.example.com"]);

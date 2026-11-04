@@ -17,6 +17,7 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 | `mermaid` | string | One of `xml` / `mermaid` | Mermaid.js diagram definition (28 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. Mutually exclusive with `xml`. |
 | `postLayout` | enum | No | Optional ELK layered-flow pass applied after render. Only value: `"elk"`. Vertex positions are replaced; only edge topology survives. |
 | `direction` | enum | No | XML-only flow direction for `postLayout: "elk"`: `"vertical"` (default) or `"horizontal"`. Ignored for Mermaid (direction comes from the `flowchart TD/LR` code). |
+| `captureImage` | boolean | No | Capture the rendered view for `get_diagram_image`. Defaults to `false`. |
 
 Provide exactly one of `xml` or `mermaid` as a plain string — not an object or array.
 
@@ -25,6 +26,25 @@ The rendered diagram includes:
 - Layer toggling and lightbox mode
 - "Open in draw.io" button to edit the diagram in the full editor
 - Fullscreen mode
+
+## Tool: `get_diagram_image`
+
+To inspect the rendered view, set `captureImage: true` on `create_diagram`.
+Call `get_diagram_image` with the returned `imageId`.
+The tool waits for the viewer and returns a PNG image in its response.
+The host must render the MCP App and support app-to-server tool calls.
+No user action is needed when the host renders the app automatically.
+
+Image capture is opt-in. The server keeps captured images in memory for up to five minutes.
+Images can expire sooner when the server restarts or its cache is full.
+Each image has an unguessable ID and is available only in its MCP session.
+The image reflects the last completed capture, including layout and routing.
+After a view changes, the previous image can remain briefly while the next capture finishes.
+Images cannot include unsupported external resources or diagrams that exceed the size limit.
+
+The browser integration test needs Chromium and the test-only `playwright-core` package.
+After installing both, run `CHROMIUM_PATH=/path/to/chromium node --test test/diagram-image-browser.test.js`.
+It loads viewer assets from the draw.io CDN.
 
 ## Tool: `get_drawio_reference`
 

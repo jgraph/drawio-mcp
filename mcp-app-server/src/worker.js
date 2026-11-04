@@ -22,6 +22,7 @@
 
 import { DurableObject } from "cloudflare:workers";
 import { createServer, clientUiState } from "./shared.js";
+import { createImageStore } from "./image-store.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
@@ -102,6 +103,23 @@ const UI_RESOURCE_FLAG_TTL = 24 * 60 * 60 * 1000;
  */
 export class MCPSessionManager extends DurableObject
 {
+  images = createImageStore();
+
+  async reserveImage(id)
+  {
+    await this.images.reserve(id);
+  }
+
+  async setImage(id, data)
+  {
+    return await this.images.set(id, data);
+  }
+
+  async getImage(id)
+  {
+    return await this.images.get(id);
+  }
+
   async markUiResourceRead()
   {
     await this.ctx.storage.put("uiResourceRead", true);
@@ -258,6 +276,11 @@ async function handleMcp(request, env, debug)
     buildId,
     drawioBaseUrl,
     uiSession: session != null ? uiSessionFor(env, session, log) : null,
+    imageStore: session != null ? {
+      reserve: async function(id) { return await env.MCP_SESSION_MANAGER.get(env.MCP_SESSION_MANAGER.idFromName(session)).reserveImage(id); },
+      set: async function(id, data) { return await env.MCP_SESSION_MANAGER.get(env.MCP_SESSION_MANAGER.idFromName(session)).setImage(id, data); },
+      get: async function(id) { return await env.MCP_SESSION_MANAGER.get(env.MCP_SESSION_MANAGER.idFromName(session)).getImage(id); },
+    } : null,
   });
   const transport = new WebStandardStreamableHTTPServerTransport(
   {
@@ -311,7 +334,13 @@ async function logResponseBody(rpcMethod, session, response)
   {
     const respBody = await response.clone().text();
 
-    if (rpcMethod === "resources/read")
+    if (rpcMethod === "tools/call")
+    {
+      // Tool results may contain diagram images and their retrieval tokens.
+      const parsed = JSON.parse(respBody);
+      console.log(`[response-body] ${rpcMethod} session=${session} isError=${parsed.result && parsed.result.isError === true}`);
+    }
+    else if (rpcMethod === "resources/read")
     {
       // Log metadata but not the HTML text
       const parsed = JSON.parse(respBody);

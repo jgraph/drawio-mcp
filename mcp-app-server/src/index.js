@@ -11,6 +11,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { readReference } from "./references.js";
+import { createImageStore } from "./image-store.js";
 import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
@@ -246,6 +247,17 @@ function uiSessionFor(sessionId)
   };
 }
 
+// HTTP creates one MCP server per request. Keep a bounded, session-keyed cache.
+const sessionImages = createImageStore({ limit: 64 });
+function imageStoreFor(sessionId)
+{
+  return {
+    reserve: function(id) { return sessionImages.reserve(sessionId + ":" + id); },
+    set: function(id, data) { return sessionImages.set(sessionId + ":" + id, data); },
+    get: function(id) { return sessionImages.get(sessionId + ":" + id); },
+  };
+}
+
 // --- Transport setup ---
 
 async function startStreamableHTTPServer()
@@ -265,7 +277,7 @@ async function startStreamableHTTPServer()
   // cloudflared and Tailscale Funnel connect to localhost but forward their
   // public hostname in the Host header.
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "2mb" }));
 
   if (allowedHosts)
   {
@@ -348,6 +360,7 @@ async function startStreamableHTTPServer()
       buildId,
       drawioBaseUrl,
       uiSession: session != null ? uiSessionFor(session) : null,
+      imageStore: session != null ? imageStoreFor(session) : null,
     });
 
     const transport = new StreamableHTTPServerTransport(
@@ -400,7 +413,7 @@ async function startStreamableHTTPServer()
 
 async function startStdioServer()
 {
-  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl }).connect(new StdioServerTransport());
+  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl, imageStore: createImageStore() }).connect(new StdioServerTransport());
 }
 
 async function main()
