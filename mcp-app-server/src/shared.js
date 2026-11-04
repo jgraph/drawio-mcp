@@ -1747,14 +1747,589 @@ function scheduleModelContext(xml)
   modelContextTimer = setTimeout(function()
   {
     modelContextTimer = null;
-    sendModelContext(xml, mermaidText, layoutState, routed);
+
+    // The layout check measures the labels: a web font (Recursive in
+    // Mermaid diagrams) still loading would make them the wrong width
+    whenFontsReady(function()
+    {
+      sendModelContext(xml, mermaidText, layoutState, routed);
+    }, 2000);
   }, 500);
+}
+
+function whenFontsReady(fn, maxWait)
+{
+  var called = false;
+
+  function once()
+  {
+    if (!called)
+    {
+      called = true;
+      fn();
+    }
+  }
+
+  if (document.fonts != null && document.fonts.ready != null &&
+      typeof document.fonts.ready.then === 'function')
+  {
+    document.fonts.ready.then(once, once);
+    setTimeout(once, maxWait);
+  }
+  else
+  {
+    once();
+  }
+}
+
+// A PNG of the diagram as shown, for hosts that accept images in
+// ui/update-model-context (hostCapabilities.updateModelContext.image): the
+// model can't tell from the XML how wide a label comes out, where draw.io
+// routes a line or what overlaps (#92). Made with draw.io's own client-side
+// export (Editor.prototype.exportToCanvas, in the viewer bundle) on an
+// Editor object without an editor.
+var MODEL_IMAGE_MAX_SIDE = 1568;
+var MODEL_IMAGE_MAX_SCALE = 2;
+var modelImageSeq = 0;
+var modelContextCapsLogged = false;
+
+// ChatGPT shows every context block as an attachment in the message box;
+// until that is tested with an image, it gets the text only.
+function hostAcceptsContextImages(caps, isChatGpt)
+{
+  return !isChatGpt && caps != null && caps.updateModelContext != null &&
+    caps.updateModelContext.image != null;
+}
+
+// The scheme the diagram is painted in: adaptive colors are light-dark()
+// values, so a probe's resolved color says which side is used, whatever set
+// it (the host's color-scheme on the iframe, the system setting).
+function graphUsesDarkScheme(graph)
+{
+  try
+  {
+    var probe = document.createElement('div');
+    probe.style.color = 'light-dark(rgb(1, 2, 3), rgb(4, 5, 6))';
+    graph.container.appendChild(probe);
+    var used = window.getComputedStyle(probe).color;
+    probe.parentNode.removeChild(probe);
+
+    if (used == 'rgb(4, 5, 6)' || used == 'rgb(1, 2, 3)')
+    {
+      return used == 'rgb(4, 5, 6)';
+    }
+  }
+  catch (e)
+  {
+    // falls through
+  }
+
+  return window.matchMedia != null &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+var GENERIC_FONT_FAMILIES = ['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui'];
+var FONT_FALLBACK = 'Helvetica, Arial, sans-serif';
+
+function withGenericFontFallback(family)
+{
+  var names = String(family).split(',');
+
+  for (var i = 0; i < names.length; i++)
+  {
+    var name = names[i].trim().toLowerCase().split('"').join('').split("'").join('');
+
+    if (GENERIC_FONT_FAMILIES.indexOf(name) >= 0)
+    {
+      return family;
+    }
+  }
+
+  return family + ', ' + FONT_FALLBACK;
+}
+
+function addGenericFontFallbacks(svgRoot)
+{
+  var nodes = svgRoot.querySelectorAll('[font-family], [style*="font-family"]');
+
+  for (var i = 0; i < nodes.length; i++)
+  {
+    var node = nodes[i];
+    var attr = node.getAttribute('font-family');
+
+    if (attr != null && attr != '')
+    {
+      node.setAttribute('font-family', withGenericFontFallback(attr));
+    }
+
+    if (node.style != null && node.style.fontFamily != null && node.style.fontFamily != '')
+    {
+      node.style.fontFamily = withGenericFontFallback(node.style.fontFamily);
+    }
+  }
+}
+
+// The viewer repaints in the other scheme when it changes, so the image is
+// sent again (the host keeps only the last update).
+var lastModelImageArgs = null;
+
+if (window.matchMedia != null)
+{
+  var modelImageSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  var onModelImageSchemeChange = function()
+  {
+    if (lastModelImageArgs != null)
+    {
+      console.log('[model-image] color scheme changed, sending again');
+      sendModelContextWithImage.apply(null, lastModelImageArgs);
+    }
+  };
+
+  if (typeof modelImageSchemeQuery.addEventListener === 'function')
+  {
+    modelImageSchemeQuery.addEventListener('change', onModelImageSchemeChange);
+  }
+}
+
+// Calls back with { data, width, height, ms } (data: base64 PNG without the
+// data: prefix) or null. Remote images are loaded with CORS and inlined; one
+// that can't be (no CORS) is left out of the image instead of tainting it.
+function renderModelContextImage(graph, callback)
+{
+  var t0 = Date.now();
+  var done = false;
+
+  function finish(result, reason)
+  {
+    if (!done)
+    {
+      done = true;
+
+      if (result == null)
+      {
+        console.log('[model-image] not rendered', reason);
+      }
+
+      callback(result);
+    }
+  }
+
+  if (graph == null || typeof Editor === 'undefined' ||
+      typeof Editor.prototype.exportToCanvas !== 'function')
+  {
+    finish(null, 'no graph or export');
+    return;
+  }
+
+  try
+  {
+    var editor = Object.create(Editor.prototype);
+    editor.graph = graph;
+    // An SVG image can't use the page's web fonts (Recursive of Mermaid
+    // diagrams), and without a generic fallback their labels came out in Times.
+    editor.convertImages = function(svgRoot, cb, cache, conv)
+    {
+      addGenericFontFallbacks(svgRoot);
+      Editor.prototype.convertImages.call(this, svgRoot, cb, cache, conv);
+    };
+    var vs = graph.view.scale;
+    var b = graph.getGraphBounds();
+    var w = b.width / vs;
+    var h = b.height / vs;
+
+    if (!(w > 0 && h > 0))
+    {
+      finish(null, 'empty');
+      return;
+    }
+
+    var scale = Math.min(MODEL_IMAGE_MAX_SCALE, MODEL_IMAGE_MAX_SIDE / (Math.max(w, h) + 16));
+    var dark = graphUsesDarkScheme(graph);
+    // No proxy: the editor's converter sends remote images it can't load with
+    // CORS through draw.io's image proxy.
+    var converter = { convert: function(src) { return src; } };
+
+    // (callback, width, imageCache, background, error, limitHeight,
+    // ignoreSelection, scale, transparentBackground, addShadow, converter,
+    // graph, border, noCrop, grid, theme)
+    editor.exportToCanvas(function(canvas)
+    {
+      try
+      {
+        var uri = canvas.toDataURL('image/png');
+        finish({ data: uri.substring(uri.indexOf(',') + 1),
+          width: canvas.width, height: canvas.height, ms: Date.now() - t0 });
+      }
+      catch (e)
+      {
+        finish(null, 'toDataURL ' + (e && e.message));
+      }
+    }, null, null, null, function(e)
+    {
+      finish(null, 'export ' + (e && (e.message || e.type)));
+    }, false, true, scale, false, false, converter, graph, 8, false, false,
+      dark ? 'dark' : null);
+  }
+  catch (e)
+  {
+    finish(null, 'exception ' + (e && e.message));
+  }
+}
+
+// The layout check: what the rendering shows and the XML doesn't, measured
+// in the viewer, as text for the model (every host that takes model context
+// gets it, the image only some): labels that don't fit their shapes, labelled
+// shapes on each other, labels on labels or shapes, connectors through
+// shapes. Sizes in diagram units. It leaves out what overlaps by design
+// (unlabelled shapes, frames, sequence messages across lifelines, lines that
+// aren't connected at both ends); the rules were tuned on ~600 generated
+// diagrams, where what was left were real defects.
+var LAYOUT_CHECK_MAX_ITEMS = 20;
+var LAYOUT_CHECK_MAX_CELLS = 400;
+
+function plainLabel(graph, cell)
+{
+  var label = graph.getLabel(cell);
+  var text = (label == null) ? '' : String(label);
+
+  if (graph.isHtmlLabel(cell) && text.indexOf('<') >= 0)
+  {
+    try
+    {
+      // DOMParser runs no scripts and loads no images
+      text = new DOMParser().parseFromString(text, 'text/html').body.textContent || '';
+    }
+    catch (e)
+    {
+      // keeps the markup
+    }
+  }
+
+  text = text.split(String.fromCharCode(10)).join(' ').trim();
+
+  return (text.length > 40) ? text.substring(0, 37) + '...' : text;
+}
+
+function reportCellName(graph, cell)
+{
+  var text = plainLabel(graph, cell);
+
+  return (text != '') ? '"' + text + '" (id ' + cell.id + ')' : 'id ' + cell.id;
+}
+
+function reportShortName(graph, cell)
+{
+  if (cell == null)
+  {
+    return 'nothing';
+  }
+
+  var text = plainLabel(graph, cell);
+
+  return (text != '') ? '"' + text + '"' : 'id ' + cell.id;
+}
+
+function reportEdgeName(graph, edge)
+{
+  var model = graph.getModel();
+  var text = plainLabel(graph, edge);
+
+  return 'The edge ' + ((text != '') ? '"' + text + '" ' : '') + '(id ' + edge.id + ') from ' +
+    reportShortName(graph, model.getTerminal(edge, true)) + ' to ' +
+    reportShortName(graph, model.getTerminal(edge, false));
+}
+
+// Returns { text, count } or null.
+function layoutCheck(graph)
+{
+  if (graph == null)
+  {
+    return null;
+  }
+
+  var model = graph.getModel();
+  var view = graph.view;
+  var s = view.scale || 1;
+  var tol = 2 * s;
+  var items = [];
+  var leaves = [];
+  var labels = [];
+  var seen = 0;
+
+  function u(px)
+  {
+    return Math.round(px / s);
+  }
+
+  function overlap(a, b, min)
+  {
+    var w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    var h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    min = (min != null) ? min : tol;
+
+    return (w > min && h > min) ? { w: w, h: h } : null;
+  }
+
+  function contains(a, b)
+  {
+    return a.x <= b.x + tol && a.y <= b.y + tol && a.x + a.w >= b.x + b.w - tol && a.y + a.h >= b.y + b.h - tol;
+  }
+
+  function related(a, b)
+  {
+    return a == b || model.isAncestor(a, b) || model.isAncestor(b, a);
+  }
+
+  function owner(cell)
+  {
+    // the edge of an edge label cell
+    return model.isEdge(model.getParent(cell)) ? model.getParent(cell) : cell;
+  }
+
+  function isTextLike(style)
+  {
+    return style.shape == 'text' || (mxUtils.getValue(style, 'fillColor', 'none') == 'none' &&
+      mxUtils.getValue(style, 'strokeColor', 'none') == 'none' && style.shape != 'image' &&
+      String(style.shape || '').indexOf('mxgraph.') != 0);
+  }
+
+  function vertexChildren(cell)
+  {
+    var n = 0;
+
+    for (var i = 0; i < model.getChildCount(cell); i++)
+    {
+      if (model.isVertex(model.getChildAt(cell, i))) n++;
+    }
+
+    return n;
+  }
+
+  for (var id in model.cells)
+  {
+    var cell = model.cells[id];
+    var state = view.getState(cell);
+
+    if (state == null || cell == model.getRoot() || model.getParent(cell) == model.getRoot() ||
+      !graph.isCellVisible(cell))
+    {
+      continue;
+    }
+
+    if (++seen > LAYOUT_CHECK_MAX_CELLS)
+    {
+      break;
+    }
+
+    var bb = (state.text != null && plainLabel(graph, cell) != '') ? state.text.boundingBox : null;
+    var isVertex = model.isVertex(cell) && !model.isEdge(model.getParent(cell));
+    var style = state.style;
+    var children = isVertex ? vertexChildren(cell) : 0;
+    var textLike = isVertex && isTextLike(style);
+    var inside = isVertex && !textLike && children == 0 &&
+      mxUtils.getValue(style, 'labelPosition', 'center') == 'center' &&
+      mxUtils.getValue(style, 'verticalLabelPosition', 'middle') == 'middle';
+
+    if (bb != null && bb.width > 0 && bb.height > 0)
+    {
+      labels.push({ cell: cell, r: { x: bb.x, y: bb.y, w: bb.width, h: bb.height }, inside: inside, container: children > 0 });
+    }
+
+    if (!isVertex)
+    {
+      continue;
+    }
+
+    if (children == 0 && !textLike)
+    {
+      // A lifeline is its head: the line below it is crossed by design
+      var lh = (style.shape == 'umlLifeline') ?
+        Math.min(state.height, parseFloat(mxUtils.getValue(style, 'size', 40)) * s) : state.height;
+      leaves.push({ cell: cell, r: { x: state.x, y: state.y, w: state.width, h: lh },
+        labeled: plainLabel(graph, cell) != '' });
+    }
+
+    // (not on lines drawn as thin shapes)
+    if (bb != null && inside && style.shape != 'image' && state.width > 8 * s && state.height > 8 * s &&
+      mxUtils.getValue(style, 'overflow', 'visible') == 'visible' &&
+      mxUtils.getValue(style, 'rotation', 0) == 0 && mxUtils.getValue(style, 'horizontal', 1) == 1)
+    {
+      var dw = bb.width - state.width;
+      var dh = bb.height - state.height;
+
+      if (dw > tol || dh > tol)
+      {
+        items.push('The label of ' + reportCellName(graph, cell) + ' is ' +
+          ((dw > tol) ? u(dw) + ' wider' : '') + ((dw > tol && dh > tol) ? ' and ' : '') +
+          ((dh > tol) ? u(dh) + ' taller' : '') + ' than its shape (' + u(state.width) + ' x ' +
+          u(state.height) + ').');
+      }
+    }
+  }
+
+  var crossings = [];
+
+  try
+  {
+    edgesCrossShapes(graph, crossings);
+  }
+  catch (e)
+  {
+    console.log('[layout-check] crossings failed', e && e.message);
+  }
+
+  for (var c = 0; c < crossings.length; c++)
+  {
+    items.push(reportEdgeName(graph, crossings[c].edge) + ' runs through ' +
+      (crossings[c].label ? 'the label of ' : '') + reportCellName(graph, crossings[c].cell) + '.');
+  }
+
+  for (var i = 0; i < leaves.length; i++)
+  {
+    for (var j = i + 1; j < leaves.length; j++)
+    {
+      var a = leaves[i];
+      var b = leaves[j];
+
+      // Unlabelled shapes overlap by design: walls and doors, chairs at a
+      // table, the bands and cells behind a chart
+      if (!a.labeled || !b.labeled)
+      {
+        continue;
+      }
+
+      var o = overlap(a.r, b.r);
+
+      if (o != null && !related(a.cell, b.cell) && !contains(a.r, b.r) && !contains(b.r, a.r))
+      {
+        items.push('The shapes ' + reportCellName(graph, a.cell) + ' and ' + reportCellName(graph, b.cell) +
+          ' overlap by ' + u(o.w) + ' x ' + u(o.h) + '.');
+      }
+    }
+  }
+
+  // Labels outside a shape (edge labels, icon names, free text) on other
+  // labels or on shapes; labels inside overlapping shapes are reported above
+  for (var i = 0; i < labels.length; i++)
+  {
+    var la = labels[i];
+
+    if (la.container)
+    {
+      continue;
+    }
+
+    for (var j = i + 1; j < labels.length; j++)
+    {
+      var lb = labels[j];
+
+      if (lb.container || (la.inside && lb.inside) || related(owner(la.cell), owner(lb.cell)))
+      {
+        continue;
+      }
+
+      // (a few pixels are the line height, not text on text)
+      if (overlap(la.r, lb.r, 4 * s) != null)
+      {
+        items.push('The labels of ' + reportCellName(graph, owner(la.cell)) + ' and ' +
+          reportCellName(graph, owner(lb.cell)) + ' overlap.');
+      }
+    }
+
+    if (la.inside)
+    {
+      continue;
+    }
+
+    var own = owner(la.cell);
+    var src = model.isEdge(own) ? model.getTerminal(own, true) : null;
+    var tgt = model.isEdge(own) ? model.getTerminal(own, false) : null;
+    var ownState = model.isVertex(own) ? view.getState(own) : null;
+
+    for (var k = 0; k < leaves.length; k++)
+    {
+      var leaf = leaves[k];
+
+      // Unlabelled shapes are backgrounds (bands, chart cells), and a label
+      // inside a much larger shape sits in a frame (a subnet, an alt block)
+      if (!leaf.labeled || related(leaf.cell, own) || leaf.cell == src || leaf.cell == tgt ||
+        leaf.r.w * leaf.r.h > 16 * la.r.w * la.r.h)
+      {
+        continue;
+      }
+
+      // a shape drawn behind the labelled shape (a background band)
+      if (ownState != null && contains(leaf.r, { x: ownState.x, y: ownState.y, w: ownState.width, h: ownState.height }))
+      {
+        continue;
+      }
+
+      if (overlap(la.r, leaf.r) != null)
+      {
+        items.push('The label of ' + reportCellName(graph, own) + ' lies on the shape ' +
+          reportCellName(graph, leaf.cell) + '.');
+      }
+    }
+  }
+
+  if (items.length == 0)
+  {
+    return { count: 0, text: 'Layout check of the diagram as rendered: no problems found. Labels fit ' +
+      'their shapes, no shapes or labels overlap and no edge runs through a shape.' };
+  }
+
+  var more = items.length - LAYOUT_CHECK_MAX_ITEMS;
+
+  // The model acts on the list only when asked to; offering once keeps an
+  // unrelated next request from turning into a round of diagram fixes
+  return { count: items.length, text: 'Layout check of the diagram as rendered (' + items.length +
+    ((items.length == 1) ? ' problem' : ' problems') + ', sizes in diagram units). When you next change ' +
+    'this diagram, fix these as well; if the user asks for something else, offer once to fix them.\\n- ' +
+    items.slice(0, LAYOUT_CHECK_MAX_ITEMS).join('\\n- ') + ((more > 0) ? '\\n- and ' + more + ' more.' : '') };
+}
+
+function safeLayoutCheck(graph)
+{
+  try
+  {
+    var t0 = Date.now();
+    var report = layoutCheck(graph);
+
+    if (report != null)
+    {
+      console.log('[layout-check] ' + report.count + ' problem(s) in ' + (Date.now() - t0) + ' ms');
+    }
+
+    return report;
+  }
+  catch (e)
+  {
+    console.log('[layout-check] failed', e && e.message);
+
+    return null;
+  }
 }
 
 function sendModelContext(xml, mermaidText, layoutState, routed)
 {
-  var text = modelContextText(xml, mermaidText, layoutState, routed,
+  var caps = app.getHostCapabilities();
+
+  if (!modelContextCapsLogged)
+  {
+    modelContextCapsLogged = true;
+    console.log('[model-context] host', JSON.stringify(app.getHostVersion != null ? app.getHostVersion() : null),
+      'updateModelContext', JSON.stringify(caps != null ? caps.updateModelContext : null));
+  }
+
+  if (hostAcceptsContextImages(caps, window.openai != null))
+  {
+    sendModelContextWithImage(xml, mermaidText, layoutState, routed);
+    return;
+  }
+
+  var xmlText = modelContextText(xml, mermaidText, layoutState, routed,
     modelContextSent, MODEL_CONTEXT_MAX_CHARS);
+  var text = modelContextTextWithCheck(safeLayoutCheck(streamGraph), xmlText);
 
   if (text == null)
   {
@@ -1762,11 +2337,9 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
     return;
   }
 
-  var caps = app.getHostCapabilities();
-
   if (caps != null && caps.updateModelContext != null)
   {
-    modelContextSent = true;
+    modelContextSent = modelContextSent || xmlText != null;
     app.updateModelContext({ content: [{ type: 'text', text: text }] }).then(function()
     {
       console.log('[model-context] updated', text.length);
@@ -1778,7 +2351,7 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
   // ChatGPT's own channel, for when it doesn't declare the MCP Apps one.
   else if (window.openai != null && typeof window.openai.setWidgetState === 'function')
   {
-    modelContextSent = true;
+    modelContextSent = modelContextSent || xmlText != null;
     window.openai.setWidgetState({ modelContent: text });
     console.log('[model-context] widget state', text.length);
   }
@@ -1786,6 +2359,86 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
   {
     console.log('[model-context] no channel', JSON.stringify(caps));
   }
+}
+
+// For a host that takes text only: the layout check before the XML; alone
+// only when it found something, since the XML as sent isn't repeated.
+// report: { text, count } or null; text: from modelContextText or null.
+function modelContextTextWithCheck(report, text)
+{
+  if (report == null || (text == null && report.count == 0))
+  {
+    return text;
+  }
+
+  return (text != null) ? report.text + '\\n\\n' + text : report.text;
+}
+
+// For a host that takes images: the picture, the layout check and, when it
+// differs from what the model sent, the XML. img: { data, width, height }
+// (data: base64 PNG) or null.
+function modelContextContent(img, report, text)
+{
+  var content = [];
+
+  if (img != null)
+  {
+    content.push({ type: 'text', text: 'The draw.io diagram as the user sees it now, as a PNG image (' +
+      img.width + ' x ' + img.height + ' px)' + ((text == null) ? ', from the XML as you sent it.' : '.') });
+    content.push({ type: 'image', data: img.data, mimeType: 'image/png' });
+  }
+
+  if (report != null)
+  {
+    content.push({ type: 'text', text: report.text });
+  }
+
+  if (text != null)
+  {
+    content.push({ type: 'text', text: text });
+  }
+
+  return content;
+}
+
+// The image and the check are new on every render (the viewer's own layout
+// and routing, how the labels fit), so they are sent even when the XML is as
+// the model wrote it; the XML itself still only when it differs.
+function sendModelContextWithImage(xml, mermaidText, layoutState, routed)
+{
+  var seq = ++modelImageSeq;
+  lastModelImageArgs = [xml, mermaidText, layoutState, routed];
+  var text = modelContextText(xml, mermaidText, layoutState, routed,
+    modelContextSent, MODEL_CONTEXT_MAX_CHARS);
+
+  renderModelContextImage(streamGraph, function(img)
+  {
+    if (seq != modelImageSeq)
+    {
+      console.log('[model-image] stale, dropped', seq);
+      return;
+    }
+
+    var content = modelContextContent(img, safeLayoutCheck(streamGraph), text);
+
+    if (content.length == 0)
+    {
+      console.log('[model-context] not sent', xml != null ? xml.length : 0);
+      return;
+    }
+
+    modelContextSent = modelContextSent || text != null;
+
+    app.updateModelContext({ content: content }).then(function()
+    {
+      console.log('[model-context] updated with image', img != null ? (img.width + 'x' + img.height +
+        ' ' + img.data.length + ' b64 chars ' + img.ms + ' ms') : 'none', 'text', text != null ? text.length : 0,
+        'viewer', window.__DRAWIO_BUILD);
+    }, function(e)
+    {
+      console.log('[model-context] update with image failed', e && e.message);
+    });
+  });
 }
 
 /**
@@ -2566,9 +3219,13 @@ function routeWithLibavoid(graph, Avoid)
  * reader notices first.
  *
  * @param {Graph} graph
+ * @param {Array} [found] - for the layout check: every crossing is collected
+ *   as { edge, cell, label } instead of stopping at the first, and the edges
+ *   are the connectors it follows (see checksConnector), not the ones the
+ *   routing pass would reroute.
  * @returns {boolean}
  */
-function edgesCrossShapes(graph)
+function edgesCrossShapes(graph, found)
 {
   var model = graph.getModel();
   var view = graph.view;
@@ -2652,6 +3309,19 @@ function edgesCrossShapes(graph)
     return st != null && r.x <= st.x && r.y <= st.y && r.x + r.w >= st.x + st.width && r.y + r.h >= st.y + st.height;
   }
 
+  // The connectors the layout check follows: connected at both ends, not a
+  // sequence message (they cross the lifelines between their ends), not
+  // curved (its points are control points, not the line), and not a line
+  // between unlabelled anchors (sankey flows, git branches, chart axes)
+  function checksConnector(edge, style)
+  {
+    var src = model.getTerminal(edge, true);
+    var tgt = model.getTerminal(edge, false);
+
+    return src != null && tgt != null && style.edgeStyle != 'sequenceEdgeStyle' &&
+      mxUtils.getValue(style, 'curved', 0) != 1 && (graph.getLabel(src) != '' || graph.getLabel(tgt) != '');
+  }
+
   for (var id in model.cells)
   {
     var cell = model.cells[id];
@@ -2663,10 +3333,14 @@ function edgesCrossShapes(graph)
     }
 
     // Straight and curved lines are a choice (use cases, mind maps) that the
-    // orthogonal routes of the pass would undo
+    // orthogonal routes of the pass would undo. The layout check (found)
+    // looks at every connector, straight lines too, but not at lines that
+    // aren't connected at both ends (axes, wires, timelines) nor at sequence
+    // messages, which cross the lifelines between their ends by design.
     if (model.isEdge(cell))
     {
-      if (state.absolutePoints != null && state.absolutePoints.length > 1 && libavoidRoutesEdge(state.style))
+      if (state.absolutePoints != null && state.absolutePoints.length > 1 &&
+        ((found == null && libavoidRoutesEdge(state.style)) || (found != null && checksConnector(cell, state.style))))
       {
         edges.push(state);
       }
@@ -2687,7 +3361,19 @@ function edgesCrossShapes(graph)
 
     if (!inTable && ((children == 0 && !textLike) || (children > 0 && isTable(style))))
     {
-      obstacles.push({ cell: cell, r: box(state.x, state.y, state.width, state.height, 3 * s), own: false });
+      var r = box(state.x, state.y, state.width, state.height, 3 * s);
+
+      // The layout check tests round and diamond shapes by the box inside
+      // them: a line past the corner of the bounds doesn't touch the shape
+      if (found != null && (style.shape == 'ellipse' || style.shape == 'doubleEllipse' ||
+        style.shape == 'rhombus' || style.ellipse == 1 || String(style.perimeter).indexOf('ellipse') == 0))
+      {
+        var f = (style.shape == 'rhombus') ? 0.25 : 0.15;
+        r = box(state.x + f * state.width, state.y + f * state.height,
+          (1 - 2 * f) * state.width, (1 - 2 * f) * state.height, s);
+      }
+
+      obstacles.push({ cell: cell, r: r, own: false });
     }
 
     // Outside labels and the text of titles and notes
@@ -2730,13 +3416,19 @@ function edgesCrossShapes(graph)
       {
         if (pts[k - 1] != null && pts[k] != null && crosses(pts[k - 1], pts[k], o.r))
         {
-          return true;
+          if (found == null)
+          {
+            return true;
+          }
+
+          found.push({ edge: e.cell, cell: o.cell, label: o.own });
+          break;
         }
       }
     }
   }
 
-  return false;
+  return found != null && found.length > 0;
 }
 
 /**
