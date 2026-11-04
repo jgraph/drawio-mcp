@@ -37,7 +37,9 @@ No user action is needed when the host renders the app automatically.
 
 Image capture is opt-in. The server keeps captured images in memory for up to five minutes.
 Images can expire sooner when the server restarts or its cache is full.
-Each image has an unguessable ID and is available only in its MCP session.
+Each image has a random temporary ID. Anyone with the ID can retrieve the image through another MCP session on the same server.
+The server keeps up to 64 images globally and 8 images per creating session.
+Each image is limited to 1,000,000 characters of PNG data.
 The image reflects the last completed capture, including layout and routing.
 After a view changes, the previous image can remain briefly while the next capture finishes.
 Images cannot include unsupported external resources or diagrams that exceed the size limit.

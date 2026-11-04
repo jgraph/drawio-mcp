@@ -204,6 +204,11 @@ export function normalizeOptionValue(name, value)
 
   var key = value.trim().toLowerCase();
 
+  if (name === "captureImage" && (key === "true" || key === "false"))
+  {
+    return key === "true";
+  }
+
   if (key === "" || key === "none" || key === "off")
   {
     return (name === "format") ? value : undefined;

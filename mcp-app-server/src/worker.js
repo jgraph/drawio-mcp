@@ -5,12 +5,11 @@
  * built in the Worker and dropped with the response, so nothing is held
  * between requests and the server scales out with the Workers runtime.
  *
- * The 2025-era protocol still has sessions, so an initialize is answered with
- * a minted Mcp-Session-Id, and the one piece of per-session state the server
- * needs, whether the client declared the MCP Apps UI capability, is written
- * into that id (see mintSessionId). The other "renders the app" signal,
- * whether the client fetched the app resource, is kept by a per-session
- * Durable Object that only clients without the declaration ever reach.
+ * The 2025-era protocol still has sessions. An initialize gets a minted
+ * Mcp-Session-Id that records whether the client declared MCP Apps UI.
+ * A per-session Durable Object records whether an undeclared client fetched
+ * the app resource. The same namespace holds the shared image cache under a
+ * fixed object name.
  *
  * Until 2026-09-30 every session's server lived in the memory of sharded
  * Durable Objects, which overloaded under load; see "Cloudflare Workers
@@ -23,6 +22,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { createServer, clientUiState } from "./shared.js";
 import { createImageStore } from "./image-store.js";
+import { createWorkerImageStore } from "./worker-image-store.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
@@ -96,6 +96,7 @@ const UI_RESOURCE_FLAG_TTL = 24 * 60 * 60 * 1000;
  * it. One object per session id (idFromName), written when a client without
  * the declaration reads the resource and read on that client's create_diagram
  * calls, so hardly any traffic reaches it. An alarm drops the flag again.
+ * Image requests use one fixed object name and share its bounded cache.
  *
  * The name predates this role: until 2026-09-30 the class held every
  * session's server in memory, sharded by session id. Renaming it would need
@@ -103,11 +104,16 @@ const UI_RESOURCE_FLAG_TTL = 24 * 60 * 60 * 1000;
  */
 export class MCPSessionManager extends DurableObject
 {
-  images = createImageStore();
+  images = createImageStore({ limit: 64, perSessionLimit: 8 });
 
-  async reserveImage(id)
+  async reserveImage(id, sessionId)
   {
-    await this.images.reserve(id);
+    return await this.images.reserve(id, sessionId);
+  }
+
+  async hasImage(id)
+  {
+    return await this.images.has(id);
   }
 
   async setImage(id, data)
@@ -276,11 +282,7 @@ async function handleMcp(request, env, debug)
     buildId,
     drawioBaseUrl,
     uiSession: session != null ? uiSessionFor(env, session, log) : null,
-    imageStore: session != null ? {
-      reserve: async function(id) { return await env.MCP_SESSION_MANAGER.get(env.MCP_SESSION_MANAGER.idFromName(session)).reserveImage(id); },
-      set: async function(id, data) { return await env.MCP_SESSION_MANAGER.get(env.MCP_SESSION_MANAGER.idFromName(session)).setImage(id, data); },
-      get: async function(id) { return await env.MCP_SESSION_MANAGER.get(env.MCP_SESSION_MANAGER.idFromName(session)).getImage(id); },
-    } : null,
+    imageStore: session != null ? createWorkerImageStore(env, session) : null,
   });
   const transport = new WebStandardStreamableHTTPServerTransport(
   {

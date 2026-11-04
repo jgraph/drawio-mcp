@@ -35,9 +35,8 @@ command = "node src/build-html.js"
 [assets]
 directory = "./public"
 
-# One object per MCP session, holding only the "client fetched the app
-# resource" flag, and only reached by clients that didn't declare the UI
-# capability. /mcp itself is served statelessly by the Worker (see worker.js).
+# One object per MCP session holds the app-resource flag. A fixed object name
+# holds the shared bounded image cache. /mcp itself stays stateless (see worker.js).
 # The class name dates from when these objects held the sessions; keeping it
 # avoids a migration.
 [[durable_objects.bindings]]

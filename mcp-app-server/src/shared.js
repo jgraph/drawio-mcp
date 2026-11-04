@@ -1725,6 +1725,64 @@ function scheduleImageCapture()
   }, 750);
 }
 
+function svgHasUnsupportedResources(source)
+{
+  var parsed = new DOMParser().parseFromString(source, 'image/svg+xml');
+  if (parsed.querySelector('parsererror')) return true;
+  var elements = parsed.querySelectorAll('*');
+
+  for (var i = 0; i < elements.length; i++)
+  {
+    var tag = elements[i].localName.toLowerCase();
+    if (['script', 'foreignobject', 'image', 'iframe', 'object', 'embed'].indexOf(tag) !== -1) return true;
+
+    for (var j = 0; j < elements[i].attributes.length; j++)
+    {
+      var attribute = elements[i].attributes[j];
+      var name = attribute.name.toLowerCase();
+      var value = attribute.value;
+      if (name.indexOf('on') === 0) return true;
+      if ((name === 'href' || name === 'xlink:href' || name === 'src') && value && value.trim().charAt(0) !== '#') return true;
+      if (svgHasExternalCssResource(value)) return true;
+    }
+
+    if (tag === 'style' && svgHasExternalCssResource(elements[i].textContent)) return true;
+  }
+
+  return false;
+}
+
+function svgHasExternalCssResource(value)
+{
+  var lower = value.toLowerCase();
+  if (lower.indexOf('@import') !== -1) return true;
+  var cursor = 0;
+
+  while ((cursor = lower.indexOf('url', cursor)) !== -1)
+  {
+    var open = cursor + 3;
+    while (open < lower.length && lower.charCodeAt(open) <= 32) open++;
+    if (lower.charAt(open) !== '(')
+    {
+      cursor += 3;
+      continue;
+    }
+
+    var close = lower.indexOf(')', open + 1);
+    if (close === -1) return true;
+    var target = value.slice(open + 1, close).trim();
+    if ((target.charAt(0) === '"' && target.charAt(target.length - 1) === '"') ||
+        (target.charAt(0) === "'" && target.charAt(target.length - 1) === "'"))
+    {
+      target = target.slice(1, -1).trim();
+    }
+    if (target.charAt(0) !== '#') return true;
+    cursor = close + 1;
+  }
+
+  return false;
+}
+
 async function captureDiagramImage()
 {
   await waitForPendingAnimationsToSettle();
@@ -1758,51 +1816,88 @@ async function captureDiagramImage()
   for (var i = 0; i < images.length; i++)
   {
     var href = images[i].getAttribute('href') || images[i].getAttribute('xlink:href') || images[i].getAttribute('src') || '';
-    if (!href || href.startsWith('data:')) continue;
+    if (!href || href.startsWith('data:') || href.startsWith('#')) continue;
 
-    var url = new URL(href, document.baseURI);
-    var allowed = ['https://viewer.diagrams.net', 'https://app.diagrams.net', 'https://icons.diagrams.net'];
-    if (window.__DRAWIO_EDITOR_URL) allowed.push(new URL(window.__DRAWIO_EDITOR_URL).origin);
-    if (allowed.indexOf(url.origin) === -1) throw new Error('Unsupported diagram image origin');
-    if (imageSignal == null) imageSignal = AbortSignal.timeout(4000);
-    var response = await fetch(url.href, { credentials: 'omit', signal: imageSignal });
-    if (!response.ok) throw new Error('Diagram image could not be loaded');
-    var blob = await response.blob();
-    var type = blob.type.split(';')[0].toLowerCase();
-    if (!/^image\\/(png|jpeg|webp|gif|svg\\+xml)$/.test(type) || blob.size > 1000000)
+    try
     {
-      throw new Error('Unsupported diagram image');
+      var url = new URL(href, document.baseURI);
+      var allowed = ['https://viewer.diagrams.net', 'https://app.diagrams.net', 'https://icons.diagrams.net'];
+      if (window.__DRAWIO_EDITOR_URL) allowed.push(new URL(window.__DRAWIO_EDITOR_URL).origin);
+      if (allowed.indexOf(url.origin) === -1) throw new Error('Unsupported diagram image origin');
+      if (imageSignal == null) imageSignal = AbortSignal.timeout(4000);
+      var response = await fetch(url.href, { credentials: 'omit', signal: imageSignal });
+      if (!response.ok || allowed.indexOf(new URL(response.url).origin) === -1)
+      {
+        throw new Error('Diagram image could not be loaded');
+      }
+      var blob = await response.blob();
+      var type = blob.type.split(';')[0].toLowerCase();
+      if (!/^image\\/(png|jpeg|webp|gif|svg\\+xml)$/.test(type) || blob.size > 1000000)
+      {
+        throw new Error('Unsupported diagram image');
+      }
+
+      if (type === 'image/svg+xml' && svgHasUnsupportedResources(await blob.text()))
+      {
+        throw new Error('SVG image contains unsupported resources');
+      }
+
+      var dataUrl = await new Promise(function(resolve, reject)
+      {
+        var reader = new FileReader();
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = function() { reject(new Error('Diagram image could not be read')); };
+        reader.readAsDataURL(blob);
+      });
+      if (images[i].hasAttribute('src')) images[i].setAttribute('src', dataUrl);
+      if (images[i].hasAttribute('href')) images[i].setAttribute('href', dataUrl);
+      if (images[i].hasAttribute('xlink:href')) images[i].setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
     }
-
-    // shortcut: SVG icons with nested resources are omitted; support safe recursive inlining when needed.
-    if (type === 'image/svg+xml' && /<(script|foreignObject|image|iframe|object|embed)\\b|(?:href|src)\\s*=|url\\s*\\(|@import/i.test(await blob.text()))
+    catch (e)
     {
-      throw new Error('SVG image contains unsupported resources');
+      images[i].remove();
     }
-
-    var dataUrl = await new Promise(function(resolve, reject)
-    {
-      var reader = new FileReader();
-      reader.onload = function() { resolve(reader.result); };
-      reader.onerror = function() { reject(new Error('Diagram image could not be read')); };
-      reader.readAsDataURL(blob);
-    });
-    if (images[i].hasAttribute('src')) images[i].setAttribute('src', dataUrl);
-    if (images[i].hasAttribute('href')) images[i].setAttribute('href', dataUrl);
-    if (images[i].hasAttribute('xlink:href')) images[i].setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
   }
 
-  var width = graph.container.clientWidth;
-  var height = graph.container.clientHeight;
+  var bbox = computeWholeBBox(graph.getModel());
+  var graphBounds = graph.getGraphBounds();
+  var view = graph.view;
+  var viewScale = view.scale || 1;
+  var viewTranslate = view.translate || { x: 0, y: 0 };
+  if (graphBounds != null && viewScale > 0)
+  {
+    var rendered =
+    {
+      minX: graphBounds.x / viewScale - viewTranslate.x,
+      minY: graphBounds.y / viewScale - viewTranslate.y,
+      maxX: (graphBounds.x + graphBounds.width) / viewScale - viewTranslate.x,
+      maxY: (graphBounds.y + graphBounds.height) / viewScale - viewTranslate.y,
+    };
+    if (bbox == null) bbox = rendered;
+    else
+    {
+      bbox.minX = Math.min(bbox.minX, rendered.minX);
+      bbox.minY = Math.min(bbox.minY, rendered.minY);
+      bbox.maxX = Math.max(bbox.maxX, rendered.maxX);
+      bbox.maxY = Math.max(bbox.maxY, rendered.maxY);
+    }
+  }
+  if (bbox == null) throw new Error('Diagram has no visible cells');
+
+  var padding = 24;
+  var width = Math.max(1, bbox.maxX - bbox.minX + padding * 2);
+  var height = Math.max(1, bbox.maxY - bbox.minY + padding * 2);
   var scale = Math.min(1, 1600 / Math.max(width, height));
-  var transform = getComputedStyle(svg).transform;
   copy.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   copy.setAttribute('width', width);
   copy.setAttribute('height', height);
+  copy.style.width = width + 'px';
+  copy.style.height = height + 'px';
   copy.style.transform = 'none';
   copy.style.transition = 'none';
   var group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  if (transform && transform !== 'none') group.setAttribute('transform', transform);
+  group.setAttribute('transform', 'translate(' + (padding - bbox.minX) + ' ' + (padding - bbox.minY) +
+    ') scale(' + (1 / viewScale) + ') translate(' + (-viewTranslate.x) + ' ' + (-viewTranslate.y) + ')');
   while (copy.firstChild) group.appendChild(copy.firstChild);
   copy.appendChild(group);
   var image = new Image();
@@ -5402,12 +5497,12 @@ function finalizeStreamingView(xml, opts)
     return;
   }
 
-  var imagePassId = currentImageId;
   var imagePassRequired = !!(opts.postLayout || opts.routing || (opts.autoRoute && edgesCrossShapes(streamGraph)));
   imageRenderPending = imagePassRequired;
   function finishImagePass()
   {
-    if (imagePassId !== currentImageId || lastFinalizedKey !== key) return;
+    // The result may add its image ID while this same diagram pass is running.
+    if (lastFinalizedKey !== key) return;
     imageRenderPending = false;
     scheduleImageCapture();
   }
@@ -7282,7 +7377,6 @@ app.ontoolresult = function(result)
       var parsed = JSON.parse(textBlock.text);
       currentImageId = (parsed && typeof parsed.imageId === 'string') ? parsed.imageId : null;
       imageCaptureRevision++;
-      if (currentImageId != null) lastFinalizedKey = null;
 
       if (parsed && typeof parsed.mermaid === 'string')
       {
@@ -8206,6 +8300,20 @@ export function createServer(html, options = {})
       uiSession.hidden === true;
   }
 
+  async function reserveImageId(payload, requested)
+  {
+    if (!requested || imageStore == null || hiddenUi() || !await rendersInline()) return;
+    var id = randomUUID();
+    try
+    {
+      if (await imageStore.reserve(id) === true) payload.imageId = id;
+    }
+    catch (e)
+    {
+      // Image capture is optional; a cache failure must not fail diagram creation.
+    }
+  }
+
   registerAppTool(
     server,
     "create_diagram",
@@ -8239,7 +8347,8 @@ export function createServer(html, options = {})
         "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape.",
       inputSchema:
       {
-        captureImage: z.boolean().optional().describe("Set true to make the rendered image available through get_diagram_image."),
+        captureImage: lenient("captureImage", z.boolean().optional())
+          .describe("Set true to make the rendered image available through get_diagram_image."),
         xml: z
           .string()
           .optional()
@@ -8321,11 +8430,7 @@ export function createServer(html, options = {})
       if (hasMermaid)
       {
         var mermaidPayload = { mermaid: mermaid };
-        if (captureImage && imageStore != null)
-        {
-          mermaidPayload.imageId = randomUUID();
-          await imageStore.reserve(mermaidPayload.imageId);
-        }
+        await reserveImageId(mermaidPayload, captureImage);
         if (postLayout) mermaidPayload.postLayout = postLayout;
         mermaidPayload._buildId = buildId;
 
@@ -8391,11 +8496,7 @@ export function createServer(html, options = {})
       normalizedXml = fitEdgeLabels(normalizedXml).xml;
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };
-      if (captureImage && imageStore != null)
-      {
-        xmlPayload.imageId = randomUUID();
-        await imageStore.reserve(xmlPayload.imageId);
-      }
+      await reserveImageId(xmlPayload, captureImage);
       if (postLayout) xmlPayload.postLayout = postLayout;
       // direction + routing are XML-only; Mermaid derives direction from the
       // flowchart code and its layout already routes, so routing is omitted there.
@@ -8469,6 +8570,11 @@ export function createServer(html, options = {})
       annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     }, async function({ id })
     {
+      if (!await imageStore.has(id))
+      {
+        return { isError: true, content: [{ type: "text", text: "The diagram image is not available. The viewer may not have rendered or image capture failed." }] };
+      }
+
       // The viewer renders asynchronously after create_diagram returns.
       for (var attempt = 0; attempt < 40; attempt++)
       {

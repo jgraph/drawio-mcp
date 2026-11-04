@@ -247,14 +247,15 @@ function uiSessionFor(sessionId)
   };
 }
 
-// HTTP creates one MCP server per request. Keep a bounded, session-keyed cache.
-const sessionImages = createImageStore({ limit: 64 });
+// Image IDs are temporary bearer tokens, so HTTP requests share a bounded cache.
+const diagramImages = createImageStore({ limit: 64, perSessionLimit: 8 });
 function imageStoreFor(sessionId)
 {
   return {
-    reserve: function(id) { return sessionImages.reserve(sessionId + ":" + id); },
-    set: function(id, data) { return sessionImages.set(sessionId + ":" + id, data); },
-    get: function(id) { return sessionImages.get(sessionId + ":" + id); },
+    reserve: function(id) { return diagramImages.reserve(id, sessionId); },
+    has: function(id) { return diagramImages.has(id); },
+    set: function(id, data) { return diagramImages.set(id, data); },
+    get: function(id) { return diagramImages.get(id); },
   };
 }
 
@@ -413,7 +414,7 @@ async function startStreamableHTTPServer()
 
 async function startStdioServer()
 {
-  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl, imageStore: createImageStore() }).connect(new StdioServerTransport());
+  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl, imageStore: createImageStore({ limit: 64 }) }).connect(new StdioServerTransport());
 }
 
 async function main()

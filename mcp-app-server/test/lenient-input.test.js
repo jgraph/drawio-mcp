@@ -96,6 +96,19 @@ test("null, none and off leave an option unset", async function()
   assert.equal(result.routing, undefined);
 });
 
+test("captureImage accepts string booleans and null", async function()
+{
+  for (const captureImage of ["true", "false", null])
+  {
+    const result = await call("create_diagram", { xml: xml, captureImage: captureImage });
+
+    assert.ok(!result.isError, String(captureImage));
+  }
+
+  const invalid = await call("create_diagram", { xml: xml, captureImage: "yes" });
+  assert.equal(invalid.isError, true);
+});
+
 test("options take any case, and LR/RL and TB/TD/BT name the direction", async function()
 {
   const cases = [["LR", "horizontal"], ["rl", "horizontal"], ["TB", "vertical"], ["td", "vertical"], ["BT", "vertical"], ["Horizontal", "horizontal"]];
