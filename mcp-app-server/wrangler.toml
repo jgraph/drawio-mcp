@@ -18,6 +18,24 @@ routes = [
   { pattern = "mcp.draw.io/favicon.png", zone_name = "draw.io" }
 ]
 
+# No Workers Logs, traces, Logpush or tail workers: the privacy policy says the
+# service keeps no request logs. Pinned here so a deploy overrides the dashboard
+# instead of keeping it. `wrangler tail` still works: it is live, nothing stored.
+# TOML ordering: these bare keys must stay ABOVE the first [table] header, or
+# they silently become fields of that table.
+logpush = false
+tail_consumers = []
+streaming_tail_consumers = []
+
+[observability]
+enabled = false
+
+[observability.logs]
+enabled = false
+
+[observability.traces]
+enabled = false
+
 # OpenAI plugin-directory domain verification token, served verbatim at
 # /.well-known/openai-apps-challenge. The portal generates it per plugin and
 # fetches it from there; it is public by design, not a secret, so it lives here
@@ -55,6 +73,9 @@ name = "drawio-mcp-app-staging"
 # deploy would claim production's mcp.draw.io routes and steal traffic.
 routes = []
 workers_dev = true
+# Unlike logpush and observability, these aren't inherited.
+tail_consumers = []
+streaming_tail_consumers = []
 
 [[env.staging.durable_objects.bindings]]
 name = "MCP_SESSION_MANAGER"
