@@ -160,10 +160,11 @@ cd mcp-app-server/openai-plugin && zip -r "${TMPDIR:-/tmp}/drawio-openai-plugin.
 When the privacy page changes, keep it in step with what the server does:
 tool inputs/outputs, the icon-service forwarding (`search_shapes` →
 `icons.diagrams.net`: Workers AI embedding, 30-day result cache, 3-month
-Analytics Engine stats, 7-day Workers Logs), the per-session UI flag (24 h),
-and the fact that the `mcp.draw.io` Worker has no persisted logs (no
-`[observability]` block, no `DEBUG` secret). Turning on Workers Logs or
-`DEBUG` in production changes what the policy has to say.
+Analytics Engine stats, 7-day Workers Logs with query strings redacted), the
+per-session UI flag (24 h), and the fact that the `mcp.draw.io` Worker has no
+persisted logs (`wrangler.toml` pins Workers Logs, traces, Logpush and tail
+workers off; no `DEBUG` secret). Turning on any of these or `DEBUG` in
+production changes what the policy has to say.
 
 ### MCP
 
