@@ -167,6 +167,24 @@ To open diagrams in a self-hosted draw.io instance, set the `DRAWIO_BASE_URL` en
 }
 ```
 
+### Return the link without opening a browser
+
+Every `open_drawio_*` call opens the diagram in your default browser and returns its URL. Set `DRAWIO_BROWSER` to `off` to get only the URL. Use this for headless agents, CI and SSH sessions, where there is no browser or it would open on the wrong machine:
+
+```json
+{
+  "mcpServers": {
+    "drawio": {
+      "command": "npx",
+      "args": ["-y", "@drawio/mcp"],
+      "env": {
+        "DRAWIO_BROWSER": "off"
+      }
+    }
+  }
+}
+```
+
 ## Tools
 
 ### `open_drawio_xml`
@@ -235,6 +253,16 @@ Page-level access to a local multi-page `.drawio` file, so one page can be inspe
 | `list_pages` | `path` | `[{index, id, name, approxSizeBytes}]` for every page |
 | `get_page` | `path`, `page` | The page's `mxGraphModel` XML |
 | `set_page` | `path`, `page`, `content` | Replaces that page's content (a single `<mxGraphModel>` element); all other pages stay untouched |
+
+#### Diagrams in Google Drive, OneDrive, Dropbox, GitHub or GitLab
+
+These tools work on local files only. The server can't read your cloud storage, and a draw.io link always opens a new, untitled diagram, never a file you saved. A link that changed a saved file would let anyone who sends you a link rewrite your diagrams. To have the agent change a diagram in the cloud, go through the draw.io tab where you have it open:
+
+1. In draw.io, choose **Extras > Edit Diagram** (**Insert > Advanced > Edit Diagram** in the Simple and Minimal themes). Copy the XML of the current page and give it to the agent.
+2. Ask the agent to reply with the changed XML.
+3. Open **Edit Diagram** again, replace the XML with the agent's, and click **Apply**. draw.io saves the change to the same file, under the same link, like any other edit.
+
+This works one page at a time. Downloading the file, changing it with `set_page` and uploading it again also works, but a draw.io tab that has the file open can save over your upload.
 
 ## Example Prompts
 

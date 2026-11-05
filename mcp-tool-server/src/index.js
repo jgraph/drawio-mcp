@@ -18,6 +18,11 @@ import { tmpdir } from "os";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DRAWIO_BASE_URL = process.env.DRAWIO_BASE_URL || "https://app.diagrams.net/";
 
+// DRAWIO_BROWSER=off (or none, 0, false, as for DRAWIO_ICON_SERVICE_URL) only
+// returns the link: for headless agents, CI and SSH sessions, where there is
+// no browser to open or it would open on the wrong machine (#94).
+const OPEN_BROWSER = !/^(off|none|0|false)$/i.test(process.env.DRAWIO_BROWSER || "");
+
 // Mermaid defaults version of the diagrams created from #create=type:mermaid
 // links: draw.io converts them with Mermaid 12's defaults (ELK layout,
 // redux-color theme, neo look for most types) and stores the version in the
@@ -1071,15 +1076,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
 
     const url = generateDrawioUrl(content, type, { lightbox, dark });
 
-    // Open the URL in the default browser
-    openBrowser(url);
+    if (OPEN_BROWSER)
+    {
+      openBrowser(url);
+    }
 
     return {
       content:
       [
         {
           type: "text",
-          text: `Draw.io Editor URL:\n${url}\n\nThe diagram has been opened in your default browser.` +
+          text: `Draw.io Editor URL:\n${url}\n\n` +
+            (OPEN_BROWSER ? "The diagram has been opened in your default browser." :
+              "No browser was opened (DRAWIO_BROWSER=off): give the user this URL, which opens the diagram in draw.io.") +
             (notes.length > 0 ? "\n\n" + notes.join("\n") : ""),
         },
       ],

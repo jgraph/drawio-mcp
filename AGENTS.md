@@ -56,6 +56,8 @@ Most subdirectories have their own `AGENTS.md` with implementation details. Ever
 
 ## MCP Tool Server Tools
 
+Every `open_drawio_*` tool returns the `app.diagrams.net` URL and opens it in the default browser; `DRAWIO_BROWSER=off` only returns it (headless agents, CI, SSH sessions — [#94](https://github.com/jgraph/drawio-mcp/issues/94)).
+
 ### `open_drawio_xml`
 
 Opens the draw.io editor with XML content.
@@ -124,7 +126,7 @@ Page-level access to a local multi-page `.drawio` file, so a large file doesn't 
 - **`get_page`**: `{ path: string, page: string }` (`page` is a zero-based index, exact page name, or page id) → raw `mxGraphModel` XML for that page
 - **`set_page`**: `{ path: string, page: string, content: string }` → replaces that page's content with new `mxGraphModel` XML (a single `<mxGraphModel>` element, no `<diagram>` tags), leaving all other pages untouched
 
-These are the only tools that read/write local files by path; paths must end in `.drawio` or `.xml`.
+These are the only tools that read/write local files by path; paths must end in `.drawio` or `.xml`. Diagrams saved to Google Drive, OneDrive, Dropbox, GitHub or GitLab are out of reach: the server can't read them, and a draw.io link only opens a new diagram, never a stored file. The tool server README documents editing them through _Edit Diagram_ in the open draw.io tab ([#94](https://github.com/jgraph/drawio-mcp/issues/94)).
 
 **Use case**: Call `list_pages` first on any large multi-page file to find the page you need by name/index/id, then `get_page`/`set_page` to work on just that page instead of the whole file.
 

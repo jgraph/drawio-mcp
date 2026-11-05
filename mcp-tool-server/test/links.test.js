@@ -24,18 +24,44 @@ const xml = '<mxGraphModel adaptiveColors="auto"><root><mxCell id="0"/><mxCell i
   '<mxCell id="a" value="R&amp;D: 100% (x+y)" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">' +
   '<mxGeometry x="40" y="40" width="140" height="60" as="geometry"/></mxCell></root></mxGraphModel>';
 
+// Starts the server with the extra environment and collects its stderr, where
+// a failed browser launch is logged.
+async function startServer(env)
+{
+  const transport = new StdioClientTransport(
+  {
+    command: process.execPath,
+    args: [server],
+    env: Object.assign({ PATH: emptyPath, HOME: process.env.HOME || tmpdir() }, env),
+    stderr: "pipe",
+  });
+  const started = { client: new Client({ name: "links-test", version: "0.0.0" }), stderr: "" };
+
+  transport.stderr.on("data", function(chunk)
+  {
+    started.stderr += chunk;
+  });
+
+  await started.client.connect(transport);
+
+  return started;
+}
+
+function delay(ms)
+{
+  return new Promise(function(resolve)
+  {
+    setTimeout(resolve, ms);
+  });
+}
+
+let started;
 let client;
 
 before(async function()
 {
-  client = new Client({ name: "links-test", version: "0.0.0" });
-  await client.connect(new StdioClientTransport(
-  {
-    command: process.execPath,
-    args: [server],
-    env: { PATH: emptyPath, HOME: process.env.HOME || tmpdir() },
-    stderr: "ignore",
-  }));
+  started = await startServer({});
+  client = started.client;
 });
 
 after(async function()
@@ -95,5 +121,44 @@ test("open_drawio_mermaid and open_drawio_csv open #create links", { skip: proce
     assert.equal(createObj.type, type);
     assert.equal(createObj.compressed, true);
     assert.equal(decompress(createObj.data), content);
+  }
+});
+
+test("the server opens the link in a browser", { skip: process.platform === "win32" }, async function()
+{
+  const result = await client.callTool({ name: "open_drawio_xml", arguments: { content: xml } });
+
+  assert.match(result.content[0].text, /has been opened in your default browser/);
+
+  for (let i = 0; i < 50 && started.stderr.indexOf("Failed to open browser") < 0; i++)
+  {
+    await delay(100);
+  }
+
+  assert.match(started.stderr, /Failed to open browser/);
+});
+
+test("DRAWIO_BROWSER=off only returns the link", { skip: process.platform === "win32" }, async function()
+{
+  const off = await startServer({ DRAWIO_BROWSER: "off" });
+
+  try
+  {
+    const result = await off.client.callTool({ name: "open_drawio_xml", arguments: { content: xml } });
+    const text = result.content[0].text;
+
+    assert.equal(result.isError, undefined, text);
+    assert.match(text, /https:\/\/app\.diagrams\.net\/\S*#R/);
+    assert.match(text, /No browser was opened/);
+    assert.doesNotMatch(text, /has been opened/);
+
+    // The other test sees the failed launch within milliseconds.
+    await delay(500);
+
+    assert.doesNotMatch(off.stderr, /Failed to open browser/);
+  }
+  finally
+  {
+    await off.client.close();
   }
 });
