@@ -159,6 +159,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         --viewer-btn-border: rgba(0, 0, 0, 0.14);
         --viewer-btn-border-hover: rgba(0, 0, 0, 0.28);
         --viewer-btn-bg-hover: rgba(0, 0, 0, 0.06);
+        --viewer-notice-fg: #b45309;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -172,6 +173,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
           --viewer-btn-border: rgba(255, 255, 255, 0.18);
           --viewer-btn-border-hover: rgba(255, 255, 255, 0.32);
           --viewer-btn-bg-hover: rgba(255, 255, 255, 0.08);
+          --viewer-notice-fg: #fbbf24;
         }
       }
       body {
@@ -379,6 +381,13 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       #toolbar.compact button {
         width: 30px;
         padding: 0;
+        flex-shrink: 0;
+      }
+      /* Narrower than the icons (about 420 px with every button shown): a
+         second row instead of cutting off the last buttons. fitToolbarLabels
+         measures without the class, so labels go before anything wraps. */
+      #toolbar.compact {
+        flex-wrap: wrap;
       }
       #toolbar button:hover {
         background: var(--color-bg-hover, var(--viewer-btn-bg-hover));
@@ -398,6 +407,24 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         stroke-linecap: round;
         stroke-linejoin: round;
         fill: none;
+        flex-shrink: 0;
+      }
+      /* Shown only when the layout check found something (updateFixLayoutChip) */
+      #toolbar #fix-layout-btn svg {
+        color: var(--viewer-notice-fg);
+      }
+      #toolbar #fix-layout-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      /* Tight toolbar: the chip's label goes first, before "Open in draw.io"
+         and "Copy" lose theirs (fitToolbarLabels) */
+      #toolbar.chip-compact #fix-layout-btn span {
+        display: none;
+      }
+      #toolbar.chip-compact #fix-layout-btn {
+        width: 30px;
+        padding: 0;
         flex-shrink: 0;
       }
 
@@ -488,6 +515,10 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
           <line x1="12" y1="7" x2="12" y2="9.5"/>
           <line x1="12" y1="14.5" x2="12" y2="17"/>
         </svg>
+      </button>
+      <button id="fix-layout-btn" style="display:none" title="Fix layout issues" aria-label="Fix layout issues">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9.5" x2="12" y2="13.5"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
+        <span id="fix-layout-label">Fix layout</span>
       </button>
       <button id="help-btn" class="icon-only" title="Viewer help" aria-label="Viewer help">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1.1-1 1.7v.5"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
@@ -1123,6 +1154,7 @@ const fullscreenBtn  = document.getElementById("fullscreen-btn");
 const copyXmlBtn     = document.getElementById("copy-xml-btn");
 const downloadBtn    = document.getElementById("download-btn");
 const layoutBtn     = document.getElementById("layout-btn");
+const fixLayoutBtn  = document.getElementById("fix-layout-btn");
 var drawioEditUrl = null;
 var currentXml = null;
 // Mermaid source backing the current diagram (null for plain-XML diagrams).
@@ -1688,6 +1720,8 @@ var MODEL_CONTEXT_MAX_CHARS = 60000;
 var modelContextSent = false;
 var routingApplied = false;
 var modelContextTimer = null;
+// The last ui/update-model-context request, settled or not
+var modelContextInFlight = Promise.resolve();
 
 /**
  * The text the model gets: what the diagram is and how to change it, then
@@ -1743,6 +1777,9 @@ function scheduleModelContext(xml)
   {
     clearTimeout(modelContextTimer);
   }
+
+  // The chip waits for the check of what is shown now
+  hideFixLayoutChip();
 
   modelContextTimer = setTimeout(function()
   {
@@ -2310,6 +2347,157 @@ function safeLayoutCheck(graph)
   }
 }
 
+// --- Layout issues: a toolbar chip that asks the model for a fix ---
+//
+// Model context reaches the model only with the user's next message. When
+// the layout check finds something, a chip in the toolbar offers to send
+// that message (ui/message, ChatGPT's sendFollowUpMessage): the click starts
+// the model's turn, with the image and the check already in its context.
+// Only a click sends it: a message of its own would start a turn the user
+// didn't ask for, and after each fix the check would send the next one.
+// The chip shows only with something to fix, and follows what is shown: a
+// layout toggle hides it until the check of the new layout, and each layout
+// of the toggle is asked about once.
+var layoutIssueCount = 0;
+var fixLayoutSending = false;
+// The layout states ('none', 'vertical', 'horizontal') already asked about
+var fixLayoutAskedFor = {};
+var FIX_LAYOUT_MESSAGE = 'Fix the layout issues the draw.io viewer found in this diagram.';
+
+function hostSendsMessages()
+{
+  var caps = app.getHostCapabilities();
+
+  return (caps != null && caps.message != null) ||
+    (window.openai != null && typeof window.openai.sendFollowUpMessage === 'function');
+}
+
+function fixLayoutIssueText(count)
+{
+  return count + ' layout ' + ((count == 1) ? 'issue' : 'issues');
+}
+
+// Short, since its label is the first to go when the toolbar is tight
+function fixLayoutLabel(count)
+{
+  return 'Fix ' + count + ((count == 1) ? ' issue' : ' issues');
+}
+
+function updateFixLayoutChip(report)
+{
+  layoutIssueCount = (report != null) ? report.count : 0;
+
+  if (fixLayoutBtn == null)
+  {
+    return;
+  }
+
+  if (layoutIssueCount > 0 && !fixLayoutAskedFor[currentLayoutState] && !fixLayoutSending &&
+      hostSendsMessages())
+  {
+    var issues = fixLayoutIssueText(layoutIssueCount);
+    document.getElementById('fix-layout-label').textContent = fixLayoutLabel(layoutIssueCount);
+    fixLayoutBtn.title = 'The viewer found ' + issues + ' in this diagram (labels that ' +
+      'overflow their shapes, overlaps, lines through shapes). Click to ask for a fix.';
+    fixLayoutBtn.setAttribute('aria-label', 'Fix ' + issues);
+    fixLayoutBtn.disabled = false;
+    fixLayoutBtn.style.display = '';
+    console.log('[fix-layout] chip shown', layoutIssueCount);
+  }
+  else
+  {
+    fixLayoutBtn.style.display = 'none';
+  }
+}
+
+function hideFixLayoutChip()
+{
+  layoutIssueCount = 0;
+
+  if (fixLayoutBtn != null)
+  {
+    fixLayoutBtn.style.display = 'none';
+  }
+}
+
+// Resolves true when the host took the message
+function sendFixLayoutMessage(text)
+{
+  var caps = app.getHostCapabilities();
+
+  if (caps != null && caps.message != null)
+  {
+    return app.sendMessage({ role: 'user', content: [{ type: 'text', text: text }] }).then(function(result)
+    {
+      return !(result != null && result.isError);
+    }, function(e)
+    {
+      console.log('[fix-layout] send failed', e && e.message);
+
+      return false;
+    });
+  }
+
+  if (window.openai != null && typeof window.openai.sendFollowUpMessage === 'function')
+  {
+    return Promise.resolve(window.openai.sendFollowUpMessage({ prompt: text })).then(function()
+    {
+      return true;
+    }, function(e)
+    {
+      console.log('[fix-layout] follow-up failed', e && e.message);
+
+      return false;
+    });
+  }
+
+  return Promise.resolve(false);
+}
+
+if (fixLayoutBtn != null)
+{
+  fixLayoutBtn.addEventListener('click', function()
+  {
+    if (fixLayoutSending || layoutIssueCount == 0)
+    {
+      return;
+    }
+
+    var count = layoutIssueCount;
+    var layoutState = currentLayoutState;
+    var label = document.getElementById('fix-layout-label');
+    fixLayoutSending = true;
+    fixLayoutBtn.disabled = true;
+    console.log('[fix-layout] clicked', count);
+
+    // The message must not overtake the update with the check and image
+    modelContextInFlight.then(function()
+    {
+      return sendFixLayoutMessage(FIX_LAYOUT_MESSAGE);
+    }).then(function(ok)
+    {
+      fixLayoutSending = false;
+      console.log('[fix-layout] message ' + (ok ? 'sent' : 'not taken'), count);
+
+      if (ok)
+      {
+        // Asked once for this layout; the other one of the toggle can still be
+        fixLayoutAskedFor[layoutState] = true;
+        hideFixLayoutChip();
+      }
+      else
+      {
+        label.textContent = 'Could not send';
+        setTimeout(function()
+        {
+          fixLayoutBtn.disabled = false;
+          label.textContent = fixLayoutLabel(count);
+        }, 2000);
+      }
+    });
+  });
+}
+
 function sendModelContext(xml, mermaidText, layoutState, routed)
 {
   var caps = app.getHostCapabilities();
@@ -2318,7 +2506,9 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
   {
     modelContextCapsLogged = true;
     console.log('[model-context] host', JSON.stringify(app.getHostVersion != null ? app.getHostVersion() : null),
-      'updateModelContext', JSON.stringify(caps != null ? caps.updateModelContext : null));
+      'updateModelContext', JSON.stringify(caps != null ? caps.updateModelContext : null),
+      'message', JSON.stringify(caps != null ? caps.message : null),
+      'followUp', window.openai != null && typeof window.openai.sendFollowUpMessage === 'function');
   }
 
   if (hostAcceptsContextImages(caps, window.openai != null))
@@ -2329,10 +2519,12 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
 
   var xmlText = modelContextText(xml, mermaidText, layoutState, routed,
     modelContextSent, MODEL_CONTEXT_MAX_CHARS);
-  var text = modelContextTextWithCheck(safeLayoutCheck(streamGraph), xmlText);
+  var report = safeLayoutCheck(streamGraph);
+  var text = modelContextTextWithCheck(report, xmlText);
 
   if (text == null)
   {
+    updateFixLayoutChip(report);
     console.log('[model-context] not sent', xml != null ? xml.length : 0);
     return;
   }
@@ -2340,7 +2532,8 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
   if (caps != null && caps.updateModelContext != null)
   {
     modelContextSent = modelContextSent || xmlText != null;
-    app.updateModelContext({ content: [{ type: 'text', text: text }] }).then(function()
+    // Set before the chip shows, so a click waits for this update
+    modelContextInFlight = app.updateModelContext({ content: [{ type: 'text', text: text }] }).then(function()
     {
       console.log('[model-context] updated', text.length);
     }, function(e)
@@ -2359,6 +2552,8 @@ function sendModelContext(xml, mermaidText, layoutState, routed)
   {
     console.log('[model-context] no channel', JSON.stringify(caps));
   }
+
+  updateFixLayoutChip(report);
 }
 
 // For a host that takes text only: the layout check before the XML; alone
@@ -2419,17 +2614,20 @@ function sendModelContextWithImage(xml, mermaidText, layoutState, routed)
       return;
     }
 
-    var content = modelContextContent(img, safeLayoutCheck(streamGraph), text);
+    var report = safeLayoutCheck(streamGraph);
+    var content = modelContextContent(img, report, text);
 
     if (content.length == 0)
     {
+      updateFixLayoutChip(report);
       console.log('[model-context] not sent', xml != null ? xml.length : 0);
       return;
     }
 
     modelContextSent = modelContextSent || text != null;
 
-    app.updateModelContext({ content: content }).then(function()
+    // Set before the chip shows, so a click waits for this update
+    modelContextInFlight = app.updateModelContext({ content: content }).then(function()
     {
       console.log('[model-context] updated with image', img != null ? (img.width + 'x' + img.height +
         ' ' + img.data.length + ' b64 chars ' + img.ms + ' ms') : 'none', 'text', text != null ? text.length : 0,
@@ -2438,6 +2636,7 @@ function sendModelContextWithImage(xml, mermaidText, layoutState, routed)
     {
       console.log('[model-context] update with image failed', e && e.message);
     });
+    updateFixLayoutChip(report);
   });
 }
 
@@ -2496,6 +2695,76 @@ function copyModelAttributes(xml, node)
   catch (e)
   {
     // keep the node as encoded
+  }
+}
+
+/**
+ * Stopgap until the next draw.io release ships the drawio-elk fix: ELK's
+ * layered pass stacks the unconnected top-level cells above the flow and,
+ * in the CDN bundle up to 32.6.10, narrows every one of them to the flow's
+ * width, so a lone Sensor → Hub pair turned all other boxes 80 wide and
+ * their labels stopped fitting. With resizeParent:false nothing else
+ * resizes a cell without children, so applyPostLayout saves those sizes
+ * before ELK applies and puts back any width it changed, keeping the box
+ * centred where ELK put it. Text cells whose label doesn't wrap (a Mermaid
+ * title) may still be narrowed, as in the fixed bridge, since their label
+ * draws the same at any width. A no-op once the bundle has the fix.
+ */
+function isUnwrappedTextCell(graph, cell)
+{
+  var tokens = (graph.getModel().getStyle(cell) || '').split(';');
+  var text = false;
+
+  for (var i = 0; i < tokens.length; i++)
+  {
+    var token = tokens[i].trim();
+
+    if (token == 'text' || token == 'shape=text')
+    {
+      text = true;
+      break;
+    }
+  }
+
+  return text && graph.getCellStyle(cell)['whiteSpace'] != 'wrap';
+}
+
+function saveLeafWidths(graph, parent)
+{
+  var model = graph.getModel();
+  var widths = [];
+  var count = model.getChildCount(parent);
+
+  for (var i = 0; i < count; i++)
+  {
+    var cell = model.getChildAt(parent, i);
+    var geo = model.getGeometry(cell);
+
+    if (model.isVertex(cell) && model.getChildCount(cell) == 0 &&
+      geo != null && geo.width > 0 && !isUnwrappedTextCell(graph, cell))
+    {
+      widths.push({ cell: cell, width: geo.width });
+    }
+  }
+
+  return widths;
+}
+
+function restoreLeafWidths(graph, widths)
+{
+  var model = graph.getModel();
+
+  for (var i = 0; i < widths.length; i++)
+  {
+    var geo = model.getGeometry(widths[i].cell);
+
+    if (geo != null && Math.abs(geo.width - widths[i].width) > 0.5)
+    {
+      geo = geo.clone();
+      geo.x -= (widths[i].width - geo.width) / 2;
+      geo.width = widths[i].width;
+      model.setGeometry(widths[i].cell, geo);
+    }
   }
 }
 
@@ -2598,7 +2867,9 @@ function applyPostLayout(graph, algorithm, onDone, onMorphStart, awaitBeforeMorp
 
     try
     {
+      var leafWidths = saveLeafWidths(graph, parent);
       apply();
+      restoreLeafWidths(graph, leafWidths);
       committed = true;
     }
     catch (e)
@@ -5859,6 +6130,8 @@ function endStreaming()
   currentLayoutState = 'none';
   routingApplied = false;
   modelContextSent = false;
+  fixLayoutAskedFor = {};
+  hideFixLayoutChip();
   if (layoutBtn != null) layoutBtn.style.display = 'none';
   dblclickZoomedIn = false;
   updateZoomFitButtonUi();
@@ -7087,6 +7360,9 @@ function applyLayoutChange(targetState)
   if (streamGraph == null) return;
   if (targetState === currentLayoutState) return;
 
+  // The chip follows what is shown: hidden until the new layout is checked
+  hideFixLayoutChip();
+
   if (targetState === 'none')
   {
     if (originalCellGeometries == null) return;
@@ -7181,6 +7457,8 @@ function applyLayoutChange(targetState)
           // Revert UI state when ELK fails.
           currentLayoutState = prevState;
           updateLayoutButtonUi();
+          // Nothing changed: the chip shows the check of the old layout again
+          updateFixLayoutChip(safeLayoutCheck(streamGraph));
           return;
         }
         try
@@ -8083,26 +8361,56 @@ window.addEventListener('resize', function()
   streamFollowNewCells(streamGraph, false);
 });
 
-// Drops the "Open in draw.io" and "Copy" labels when the toolbar is too
-// narrow to show them whole: a squeezed label ends in an ellipsis (CSS), and
-// this hides the labels instead. Measured with the labels shown each time:
+// Drops the button labels ("Open in draw.io", "Copy", the layout-issues chip)
+// when the toolbar is too narrow to show them whole: a squeezed label ends in
+// an ellipsis (CSS), and this hides the labels instead; narrower still, the
+// icons wrap to a second row. Measured with the labels shown each time:
 // when the toolbar's width changes, when a button is shown or hidden, and
 // when a label changes ("Copied!").
-function fitToolbarLabels()
+function toolbarLabelsTight()
 {
-  toolbarEl.classList.remove('compact');
+  if (toolbarEl.scrollWidth > toolbarEl.clientWidth)
+  {
+    return true;
+  }
 
-  var tight = toolbarEl.scrollWidth > toolbarEl.clientWidth;
   var labels = toolbarEl.querySelectorAll('button span');
 
-  for (var i = 0; i < labels.length && !tight; i++)
+  // A label squeezed to nothing counts too (offsetWidth 0 in a shown button);
+  // a hidden one has no scroll width
+  for (var i = 0; i < labels.length; i++)
   {
-    tight = labels[i].offsetWidth > 0 && labels[i].scrollWidth > labels[i].clientWidth;
+    if (labels[i].parentNode.offsetWidth > 0 && labels[i].scrollWidth > labels[i].clientWidth)
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function fitToolbarLabels()
+{
+  var heightBefore = toolbarEl.offsetHeight;
+  toolbarEl.classList.remove('compact', 'chip-compact');
+  var tight = toolbarLabelsTight();
+
+  // The layout-issues chip gives up its label first
+  if (tight && fixLayoutBtn != null && fixLayoutBtn.style.display != 'none')
+  {
+    toolbarEl.classList.add('chip-compact');
+    tight = toolbarLabelsTight();
   }
 
   if (tight)
   {
     toolbarEl.classList.add('compact');
+  }
+
+  // A wrapped (or unwrapped) toolbar changes the room left for the diagram
+  if (heightBefore > 0 && toolbarEl.offsetHeight != heightBefore)
+  {
+    resizeContainerToFit();
   }
 }
 
