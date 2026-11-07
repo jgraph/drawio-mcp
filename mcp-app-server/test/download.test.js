@@ -3,15 +3,29 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 // The viewer's Download button asks the host (ui/download-file) to save the
-// diagram as a .drawio file. Its code runs in the app's HTML, so it is taken
-// from the source of the template.
+// diagram as a .drawio file, its menu as a PNG or SVG; the Copy menu offers
+// Copy as PNG. Their code runs in the app's HTML, so it is taken from the
+// source of the template.
 
 const source = readFileSync(new URL("../src/shared.js", import.meta.url), "utf-8");
-const fn = source.match(/\nfunction drawioFileRequest\(xml\)\n\{\n[\s\S]*?\n\}\n/);
 
-assert.ok(fn, "drawioFileRequest not found in src/shared.js");
+function templateFunction(name)
+{
+  const fn = source.match(new RegExp("\\nfunction " + name + "\\([^)]*\\)\\n\\{\\n[\\s\\S]*?\\n\\}\\n"));
 
-const drawioFileRequest = new Function(fn[0] + "\nreturn drawioFileRequest;")();
+  assert.ok(fn, name + " not found in src/shared.js");
+
+  // As the built HTML has it: the template literal resolves its escapes
+  return new Function("return `" + fn[0] + "`;")();
+}
+
+const { drawioFileRequest, imageFileRequest, toolbarMenuFormats, diagramPage, exportTheme,
+  svgExportBackground } = new Function(
+  templateFunction("drawioFileText") + templateFunction("drawioFileRequest") +
+  templateFunction("imageFileRequest") + templateFunction("toolbarMenuFormats") +
+  templateFunction("diagramPage") + templateFunction("exportTheme") + templateFunction("svgExportBackground") +
+  "\nreturn { drawioFileRequest, imageFileRequest, toolbarMenuFormats, diagramPage, exportTheme, " +
+  "svgExportBackground };")();
 
 const model = '<mxGraphModel adaptiveColors="auto"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
   '<mxCell id="a" value="R&amp;D" style="rounded=1;html=1;" vertex="1" parent="1">' +
@@ -42,4 +56,90 @@ test("an mxfile downloads as it is", function()
     '</diagram><diagram name="B" id="b">' + model + "</diagram></mxfile>";
 
   assert.equal(fileOf(drawioFileRequest(mxfile)), mxfile);
+});
+
+test("an SVG downloads as text, a PNG as the base64 of its data URI", function()
+{
+  assert.deepEqual(imageFileRequest("svg", "<svg/>"), { contents: [{ type: "resource", resource:
+    { uri: "file:///diagram.svg", mimeType: "image/svg+xml", text: "<svg/>" } }] });
+  assert.deepEqual(imageFileRequest("png", "data:image/png;base64,iVBORw0KGgo="), { contents: [{ type: "resource", resource:
+    { uri: "file:///diagram.png", mimeType: "image/png", blob: "iVBORw0KGgo=" } }] });
+});
+
+// Each host as it declares itself; the menus follow what is declared, never
+// the host's name.
+const browser = { canvasExport: true, clipboardImage: true };
+const download = { downloadFile: {} };
+const clipboard = { sandbox: { permissions: { clipboardWrite: {} } } };
+
+test("a host with downloadFile gets PNG and SVG in the Download menu", function()
+{
+  assert.deepEqual(toolbarMenuFormats(download, browser), { download: ["png", "svg"], copy: [] });
+});
+
+test("a host without downloadFile gets no Download menu", function()
+{
+  assert.deepEqual(toolbarMenuFormats({ openLinks: {} }, browser), { download: [], copy: [] });
+  assert.deepEqual(toolbarMenuFormats(undefined, browser), { download: [], copy: [] });
+});
+
+test("Copy as PNG needs the host's clipboardWrite grant and a browser that writes images", function()
+{
+  assert.deepEqual(toolbarMenuFormats(Object.assign({}, download, clipboard), browser),
+    { download: ["png", "svg"], copy: ["png"] });
+  assert.deepEqual(toolbarMenuFormats(clipboard, browser), { download: [], copy: ["png"] });
+  assert.deepEqual(toolbarMenuFormats({ sandbox: { permissions: { camera: {} } } }, browser),
+    { download: [], copy: [] });
+  assert.deepEqual(toolbarMenuFormats(clipboard, { canvasExport: true, clipboardImage: false }),
+    { download: [], copy: [] });
+});
+
+test("without a usable canvas there is no PNG, only SVG", function()
+{
+  assert.deepEqual(toolbarMenuFormats(Object.assign({}, download, clipboard),
+    { canvasExport: false, clipboardImage: true }), { download: ["svg"], copy: [] });
+});
+
+// The mxGraphModel node of a diagram, as the DOM gives it to diagramPage
+function modelNode(attrs)
+{
+  return { getAttribute: function(name)
+  {
+    return (name in attrs) ? attrs[name] : null;
+  } };
+}
+
+test("the exports take the page color, shadow and adaptiveColors of the diagram", function()
+{
+  assert.deepEqual(diagramPage(modelNode({ background: "#0F172A", shadow: "1", adaptiveColors: "none" })),
+    { background: "#0F172A", shadow: true, adaptiveColors: "none" });
+  assert.deepEqual(diagramPage(modelNode({ adaptiveColors: "auto" })),
+    { background: null, shadow: false, adaptiveColors: "auto" });
+  assert.deepEqual(diagramPage(null), { background: null, shadow: false, adaptiveColors: null });
+
+  for (const none of ["", "none", "default"])
+  {
+    assert.equal(diagramPage(modelNode({ background: none })).background, null);
+  }
+
+  assert.equal(diagramPage(modelNode({ shadow: "0" })).shadow, false);
+});
+
+test("a dark page keeps its color and its light text in both images", function()
+{
+  const dark = diagramPage(modelNode({ background: "#1E3A5F", adaptiveColors: "none" }));
+
+  assert.equal(exportTheme(dark, "dark"), "light");
+  assert.equal(exportTheme(dark, "auto"), "light");
+  assert.equal(svgExportBackground(dark), "#1E3A5F");
+});
+
+test("adaptive colors follow the theme, and only a diagram without them gets a white page", function()
+{
+  const adaptive = diagramPage(modelNode({ adaptiveColors: "auto" }));
+
+  assert.equal(exportTheme(adaptive, "dark"), "dark");
+  assert.equal(exportTheme(diagramPage(null), "auto"), "auto");
+  assert.equal(svgExportBackground(adaptive), null);
+  assert.equal(svgExportBackground(diagramPage(modelNode({ adaptiveColors: "none" }))), "#ffffff");
 });
