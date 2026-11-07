@@ -24,6 +24,7 @@ The rendered diagram includes:
 - Interactive zoom, pan, and navigation
 - Layer toggling and lightbox mode
 - "Open in draw.io" button to edit the diagram in the full editor
+- Copy the diagram XML; download it as a `.drawio` file, PNG or SVG and copy it as a PNG where the host allows it
 - Fullscreen mode
 
 ## Tool: `get_drawio_reference`

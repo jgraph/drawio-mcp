@@ -427,6 +427,73 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         padding: 0;
         flex-shrink: 0;
       }
+      /* Download and Copy are split buttons: the button does what it did
+         alone, the arrow beside it (shown only when its menu has entries)
+         opens the image formats. Both halves share one border. */
+      #toolbar .split {
+        display: inline-flex;
+        min-width: 0;
+      }
+      #toolbar #download-split,
+      #toolbar.compact .split,
+      #toolbar.compact .split > button {
+        flex-shrink: 0;
+      }
+      /* Icons only: the narrower gaps make up for the arrows. */
+      #toolbar.compact {
+        gap: 4px;
+      }
+      #toolbar .split.has-menu > button:first-child {
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+      }
+      #toolbar button.split-arrow,
+      #toolbar.compact button.split-arrow {
+        width: 16px;
+        padding: 0;
+        flex-shrink: 0;
+        margin-left: -1px;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+      }
+      #toolbar button.split-arrow svg {
+        width: 12px;
+        height: 12px;
+      }
+      #toolbar-menu {
+        display: none;
+        position: fixed;
+        z-index: 10;
+        min-width: 140px;
+        padding: 4px;
+        font-size: 12px;
+        color: var(--color-text-primary, var(--viewer-btn-fg));
+        background: var(--viewer-card-bg);
+        border: 1px solid var(--color-border, var(--viewer-btn-border));
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+      }
+      #toolbar-menu.shown {
+        display: block;
+      }
+      #toolbar-menu button {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        white-space: nowrap;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        cursor: pointer;
+      }
+      #toolbar-menu button:hover,
+      #toolbar-menu button:focus-visible {
+        background: var(--color-bg-hover, var(--viewer-btn-bg-hover));
+        outline: none;
+      }
 
       #error {
         display: none;
@@ -479,13 +546,23 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6"/><path d="M10 14L20 4"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/></svg>
         <span>Open in draw.io</span>
       </button>
-      <button id="copy-xml-btn" title="Copy diagram XML to clipboard" aria-label="Copy XML">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        <span id="copy-xml-label">Copy</span>
-      </button>
-      <button id="download-btn" class="icon-only" style="display:none" title="Download as a draw.io file" aria-label="Download">
-        <svg viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" stroke="none" d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg>
-      </button>
+      <div id="copy-split" class="split">
+        <button id="copy-xml-btn" title="Copy diagram XML to clipboard" aria-label="Copy XML">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span id="copy-xml-label">Copy</span>
+        </button>
+        <button id="copy-menu-btn" class="split-arrow" style="display:none" title="More ways to copy" aria-label="More ways to copy" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 10 12 15 17 10"/></svg>
+        </button>
+      </div>
+      <div id="download-split" class="split" style="display:none">
+        <button id="download-btn" class="icon-only" title="Download as a draw.io file" aria-label="Download">
+          <svg viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" stroke="none" d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg>
+        </button>
+        <button id="download-menu-btn" class="split-arrow" style="display:none" title="Download as an image" aria-label="Download as an image" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 10 12 15 17 10"/></svg>
+        </button>
+      </div>
       <button id="fullscreen-btn" class="icon-only" title="Toggle fullscreen" aria-label="Toggle fullscreen">
         <svg id="fs-icon-enter" viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" stroke="none" d="M120-120v-320h80v184l504-504H520v-80h320v320h-80v-184L256-200h184v80H120Z"/></svg>
         <svg id="fs-icon-exit" viewBox="0 -960 960 960" aria-hidden="true" style="display:none"><path fill="currentColor" stroke="none" d="m136-80-56-56 264-264H160v-80h320v320h-80v-184L136-80Zm344-400v-320h80v184l264-264 56 56-264 264h184v80H480Z"/></svg>
@@ -524,6 +601,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1.1-1 1.7v.5"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
       </button>
     </div>
+    <div id="toolbar-menu" role="menu"></div>
 
     <!-- draw.io viewer -->
     <script>window.DRAWIO_BASE_URL = "https://app.diagrams.net";<\/script>
@@ -1152,7 +1230,11 @@ const mermaidPreviewEl = document.getElementById("mermaid-preview");
 const openDrawioBtn  = document.getElementById("open-drawio");
 const fullscreenBtn  = document.getElementById("fullscreen-btn");
 const copyXmlBtn     = document.getElementById("copy-xml-btn");
+const copyMenuBtn    = document.getElementById("copy-menu-btn");
+const downloadSplit  = document.getElementById("download-split");
 const downloadBtn    = document.getElementById("download-btn");
+const downloadMenuBtn = document.getElementById("download-menu-btn");
+const toolbarMenuEl  = document.getElementById("toolbar-menu");
 const layoutBtn     = document.getElementById("layout-btn");
 const fixLayoutBtn  = document.getElementById("fix-layout-btn");
 var drawioEditUrl = null;
@@ -1495,22 +1577,79 @@ function generateDrawioEditUrl(xml)
   return window.__DRAWIO_EDITOR_URL + "#create=" + encodeURIComponent(JSON.stringify(createObj));
 }
 
-// The ui/download-file request behind the Download button: the diagram the
-// viewer shows (currentXml, so a Mermaid diagram keeps its source) as an
-// uncompressed .drawio file. An <mxGraphModel> is wrapped in the
-// <mxfile><diagram> a .drawio file has; an <mxfile> the model sent is
-// already one.
-function drawioFileRequest(xml)
+// The diagram the viewer shows (currentXml, so a Mermaid diagram keeps its
+// source) as an uncompressed .drawio file. An <mxGraphModel> is wrapped in
+// the <mxfile><diagram> a .drawio file has; an <mxfile> the model sent is
+// already one. The PNG and SVG exports carry the same file, so draw.io
+// opens them for editing.
+function drawioFileText(xml)
 {
-  var file = xml;
-
   if (xml.trim().indexOf("<mxfile") !== 0)
   {
-    file = '<mxfile><diagram name="Page-1" id="page-1">' + xml + "</diagram></mxfile>";
+    return '<mxfile><diagram name="Page-1" id="page-1">' + xml + "</diagram></mxfile>";
   }
 
+  return xml;
+}
+
+// The ui/download-file request behind the Download button.
+function drawioFileRequest(xml)
+{
   return { contents: [{ type: "resource", resource:
-    { uri: "file:///diagram.drawio", mimeType: "application/vnd.jgraph.mxfile", text: file } }] };
+    { uri: "file:///diagram.drawio", mimeType: "application/vnd.jgraph.mxfile", text: drawioFileText(xml) } }] };
+}
+
+// The ui/download-file request behind the Download menu's image entries:
+// an SVG goes as text, a PNG (a data URI) as the base64 blob.
+function imageFileRequest(format, data)
+{
+  var resource = { uri: "file:///diagram." + format };
+
+  if (format === "png")
+  {
+    resource.mimeType = "image/png";
+    resource.blob = data.substring(data.indexOf(",") + 1);
+  }
+  else
+  {
+    resource.mimeType = "image/svg+xml";
+    resource.text = data;
+  }
+
+  return { contents: [{ type: "resource", resource: resource }] };
+}
+
+// The image formats the Download and Copy menus offer, from what the host
+// declares (caps, its MCP Apps capabilities) and what the browser can do. A
+// host that lacks something gets no entry for it, and an arrow without
+// entries is hidden: no host is recognized by name. Download needs the
+// host's downloadFile; Copy as PNG needs the host to grant clipboardWrite
+// and the browser to write images to the clipboard. PNG needs a canvas that
+// an SVG with HTML labels doesn't taint (Editor.useCanvasForExport).
+function toolbarMenuFormats(caps, browser)
+{
+  var download = [];
+  var copy = [];
+
+  if (caps != null && caps.downloadFile != null)
+  {
+    if (browser.canvasExport)
+    {
+      download.push("png");
+    }
+
+    download.push("svg");
+  }
+
+  var clipboardGranted = caps != null && caps.sandbox != null &&
+    caps.sandbox.permissions != null && caps.sandbox.permissions.clipboardWrite != null;
+
+  if (clipboardGranted && browser.clipboardImage && browser.canvasExport)
+  {
+    copy.push("png");
+  }
+
+  return { download: download, copy: copy };
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -1575,30 +1714,54 @@ function withElkRenderer(text)
 }
 
 /**
+ * The page settings of a diagram, from its mxGraphModel node (or null): the
+ * page color (background="#0f172a"), shadow="1" and adaptiveColors. The
+ * viewer's graph has none of them, since it merges only the cells, so the
+ * card shows the page color and the image exports take all three from here
+ * (currentPage).
+ */
+function diagramPage(node)
+{
+  var bg = (node != null) ? node.getAttribute('background') : null;
+
+  return {
+    background: (bg != null && bg != '' && bg != 'none' && bg != 'default') ? bg : null,
+    shadow: node != null && node.getAttribute('shadow') == '1',
+    adaptiveColors: (node != null) ? node.getAttribute('adaptiveColors') : null
+  };
+}
+
+// The page settings of the diagram shown (see applyDiagramBackground)
+var currentPage = diagramPage(null);
+
+/**
  * Paints the viewer's canvas with the diagram's page background
  * (mxGraphModel background="#0f172a"), as draw.io does: a dark or blueprint
  * theme puts light text on its own background, which the viewer's light
- * card would hide. Without one, the card keeps the host's theme.
+ * card would hide. Without one, the card keeps the host's theme. Keeps the
+ * diagram's page settings in currentPage for the image exports.
  *
  * @param {string} xml - mxGraphModel or mxfile XML
  */
 function applyDiagramBackground(xml)
 {
-  var bg = null;
+  var node = null;
 
   try
   {
     var models = mxUtils.parseXml(xml).getElementsByTagName('mxGraphModel');
-    bg = (models.length > 0) ? models[0].getAttribute('background') : null;
+    node = (models.length > 0) ? models[0] : null;
   }
   catch (e)
   {
-    bg = null;
+    node = null;
   }
 
-  if (bg != null && bg != '' && bg != 'none' && bg != 'default')
+  currentPage = diagramPage(node);
+
+  if (currentPage.background != null)
   {
-    containerEl.style.setProperty('--viewer-card-bg', bg);
+    containerEl.style.setProperty('--viewer-card-bg', currentPage.background);
   }
   else
   {
@@ -6241,6 +6404,7 @@ function finalizeStreamingView(xml, opts)
   document.getElementById('zoom-out-btn').style.display = '';
   document.getElementById('zoom-fit-btn').style.display = '';
   document.getElementById('expand-btn').style.display = '';
+  updateToolbarMenus();
 
   // Layout button: shown for diagrams where re-layout is meaningful —
   // explicit verticalFlow/horizontalFlow postLayout, or any mermaid
@@ -7586,6 +7750,7 @@ function showMermaidTextPreview(partialMermaid)
   mermaidPreviewEl.textContent = partialMermaid;
   containerEl.style.display = 'none';
   toolbarEl.style.display = 'none';
+  closeToolbarMenu();
   toolbarEl.classList.remove('shown');
   mermaidPreviewEl.scrollTop = mermaidPreviewEl.scrollHeight;
 
@@ -8210,29 +8375,396 @@ copyXmlBtn.addEventListener("click", function()
   ta.select();
   document.execCommand("copy");
   document.body.removeChild(ta);
+  showCopied();
+});
+
+function showCopied()
+{
   var label = document.getElementById('copy-xml-label');
   if (label != null)
   {
     label.textContent = 'Copied!';
     setTimeout(function() { label.textContent = 'Copy'; }, 2000);
   }
-});
+}
 
 // The sandbox can't download by itself (no allow-downloads), so the host
 // saves the file, usually after asking the user. Shown only by hosts that
 // declare downloadFile (see app.connect below).
-downloadBtn.addEventListener("click", function()
+function saveFile(request)
 {
-  if (!currentXml) return;
-
-  app.downloadFile(drawioFileRequest(currentXml)).then(function(result)
+  app.downloadFile(request).then(function(result)
   {
     console.log('[download] result', JSON.stringify(result));
   }, function(e)
   {
     console.log('[download] failed', e && e.message);
   });
+}
+
+downloadBtn.addEventListener("click", function()
+{
+  if (!currentXml) return;
+
+  saveFile(drawioFileRequest(currentXml));
 });
+
+// --- Image export (Download and Copy menus) ---
+
+// The exports run draw.io's own code from the viewer bundle (Graph.getSvg,
+// Editor.exportToCanvas). The Editor lends only its export methods: its
+// constructor would change the shown graph (chromeless, math rendering).
+var EXPORT_BORDER = 10;
+var PNG_EXPORT_SCALE = 2;
+var EXPORT_FETCH_ORIGIN = 'https://viewer.diagrams.net/';
+
+function exportEditor(graph)
+{
+  var editor = Object.create(Editor.prototype);
+  editor.graph = graph;
+
+  // draw.io fetches what it doesn't count as CORS-enabled through its proxy,
+  // which the sandbox can't use; viewer.diagrams.net allows any origin
+  editor.isCorsEnabledForUrl = function(url)
+  {
+    return url.substring(0, EXPORT_FETCH_ORIGIN.length) == EXPORT_FETCH_ORIGIN ||
+      Editor.prototype.isCorsEnabledForUrl.apply(this, arguments);
+  };
+
+  return editor;
+}
+
+// The entries of a lookup that draw.io has its own copy of (mapping), and
+// the others.
+function splitExportLookup(lookup, mapping)
+{
+  var own = Object.create(null);
+  var linked = Object.create(null);
+
+  for (var key in lookup)
+  {
+    if (mapping[lookup[key].url] != null)
+    {
+      own[key] = lookup[key];
+    }
+    else
+    {
+      linked[key] = lookup[key];
+    }
+  }
+
+  return { own: own, linked: linked };
+}
+
+// Images are embedded from where the viewer loads them. draw.io's own
+// converter would send every image not on the page's origin (the sandbox's)
+// through its proxy, which the sandbox can't reach, and leave the proxy URL
+// in the SVG.
+function exportImageConverter()
+{
+  var converter = new mxUrlConverter();
+  converter.baseUrl = window.DRAWIO_BASE_URL + '/';
+  converter.baseDomain = window.DRAWIO_BASE_URL;
+
+  return converter;
+}
+
+function browserExportFeatures()
+{
+  var policy = document.permissionsPolicy || document.featurePolicy;
+
+  return {
+    canvasExport: typeof Editor !== 'undefined' && Editor.useCanvasForExport === true &&
+      typeof Editor.prototype.exportToCanvas === 'function',
+    clipboardImage: navigator.clipboard != null && typeof navigator.clipboard.write === 'function' &&
+      typeof ClipboardItem !== 'undefined' &&
+      (policy == null || typeof policy.allowsFeature !== 'function' || policy.allowsFeature('clipboard-write'))
+  };
+}
+
+// A PNG looks like the diagram in the viewer: dark when the viewer is dark.
+function viewerTheme()
+{
+  return (window.matchMedia != null && window.matchMedia('(prefers-color-scheme: dark)').matches) ?
+    'dark' : 'light';
+}
+
+// A diagram whose colors don't adapt (adaptiveColors="none", such as a dark
+// or blueprint theme on its own page color) is exported in its light colors,
+// as draw.io does; else in the given theme.
+function exportTheme(page, theme)
+{
+  return (page.adaptiveColors == 'none') ? 'light' : theme;
+}
+
+// The page of the SVG: the diagram's page color, else white for a diagram
+// whose colors don't adapt, so its dark text stays readable on a dark page,
+// else none, so the SVG takes the page it is shown on.
+function svgExportBackground(page)
+{
+  return (page.background == null && page.adaptiveColors == 'none') ? '#ffffff' : page.background;
+}
+
+// The page settings (page, see diagramPage) are passed in: the viewer's
+// graph has none of them.
+function exportPngCanvas(graph, page, callback, error)
+{
+  whenFontsReady(function()
+  {
+    exportEditor(graph).exportToCanvas(callback, null, null, page.background, error, null, true,
+      PNG_EXPORT_SCALE, false, page.shadow, exportImageConverter(), graph, EXPORT_BORDER,
+      null, false, exportTheme(page, viewerTheme()), 'diagram');
+  }, 2000);
+}
+
+// The PNG carries the .drawio file in a tEXt chunk, as draw.io writes it.
+function exportPng(graph, page, xml, callback, error)
+{
+  exportPngCanvas(graph, page, function(canvas)
+  {
+    try
+    {
+      callback(Editor.writeGraphModelToPng(canvas.toDataURL('image/png'), 'tEXt', 'mxfile',
+        encodeURIComponent(drawioFileText(xml))));
+    }
+    catch (e)
+    {
+      error(e);
+    }
+  }, error);
+}
+
+// The SVG carries the .drawio file in its content attribute and, unless its
+// colors don't adapt, follows the light or dark mode of wherever it is
+// shown, as draw.io's SVG export does. What draw.io has its own copy of is
+// embedded, the rest is linked as the viewer links it.
+function exportSvg(graph, page, xml, callback, error)
+{
+  try
+  {
+    var editor = exportEditor(graph);
+    var svgRoot = graph.getSvg(svgExportBackground(page), 1, EXPORT_BORDER, null, null, true,
+      null, null, null, page.shadow, null, exportTheme(page, 'auto'), 'diagram');
+
+    if (page.shadow)
+    {
+      graph.addSvgShadow(svgRoot, null, null, false);
+    }
+
+    svgRoot.setAttribute('content', drawioFileText(xml));
+
+    var refs = splitExportLookup(Graph.customFontElements, Graph.fontMapping);
+    var links = graph.getExtFontCss(refs.linked);
+
+    editor.embedExtFonts(function(css)
+    {
+      try
+      {
+        if (css != null)
+        {
+          editor.addFontCss(svgRoot, css);
+        }
+
+        if (links.length > 0)
+        {
+          editor.addFontCss(svgRoot, links);
+        }
+
+        editor.convertImages(svgRoot, function(svgRoot)
+        {
+          callback(Graph.xmlDeclaration + '\\n' + Graph.svgDoctype + '\\n' + mxUtils.getXml(svgRoot));
+        }, null, exportImageConverter());
+      }
+      catch (e)
+      {
+        error(e);
+      }
+    }, refs.own);
+  }
+  catch (e)
+  {
+    error(e);
+  }
+}
+
+function downloadImage(format)
+{
+  if (streamGraph == null || !currentXml) return;
+
+  var save = function(data)
+  {
+    saveFile(imageFileRequest(format, data));
+  };
+
+  var fail = function(e)
+  {
+    console.log('[download] ' + format + ' export failed', e && e.message);
+  };
+
+  if (format === 'png')
+  {
+    exportPng(streamGraph, currentPage, currentXml, save, fail);
+  }
+  else
+  {
+    exportSvg(streamGraph, currentPage, currentXml, save, fail);
+  }
+}
+
+// Runs in the click on the menu entry: the clipboard needs that user
+// gesture, so the PNG is handed over as a promise while it renders.
+function copyPng()
+{
+  if (streamGraph == null) return;
+
+  var graph = streamGraph;
+  var page = currentPage;
+  var png = new Promise(function(resolve, reject)
+  {
+    exportPngCanvas(graph, page, function(canvas)
+    {
+      canvas.toBlob(function(blob)
+      {
+        if (blob != null)
+        {
+          resolve(blob);
+        }
+        else
+        {
+          reject(new Error('Empty PNG'));
+        }
+      }, 'image/png');
+    }, reject);
+  });
+
+  navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]).then(function()
+  {
+    showCopied();
+  }, function(e)
+  {
+    console.log('[copy-png] failed', e && e.message);
+  });
+}
+
+var FORMAT_LABELS = { png: 'PNG', svg: 'SVG' };
+var openMenuBtn = null;
+
+function menuFormats()
+{
+  return toolbarMenuFormats(app.getHostCapabilities(), browserExportFeatures());
+}
+
+// Shows each arrow only when its menu has entries. Run on connect and when
+// the toolbar appears, since the canvas check of the viewer bundle finishes
+// after it loads.
+function updateToolbarMenus()
+{
+  var formats = menuFormats();
+  var arrows = [[copyMenuBtn, formats.copy], [downloadMenuBtn, formats.download]];
+
+  for (var i = 0; i < arrows.length; i++)
+  {
+    var shown = arrows[i][1].length > 0;
+    arrows[i][0].style.display = shown ? '' : 'none';
+    arrows[i][0].parentNode.classList.toggle('has-menu', shown);
+  }
+}
+
+function closeToolbarMenu()
+{
+  if (openMenuBtn != null)
+  {
+    openMenuBtn.setAttribute('aria-expanded', 'false');
+    openMenuBtn = null;
+  }
+
+  toolbarMenuEl.classList.remove('shown');
+  toolbarMenuEl.innerHTML = '';
+}
+
+// The menu opens above its arrow: the iframe ends below the toolbar.
+function openToolbarMenu(btn, entries)
+{
+  closeToolbarMenu();
+
+  for (var i = 0; i < entries.length; i++)
+  {
+    (function(entry)
+    {
+      var item = document.createElement('button');
+      item.setAttribute('role', 'menuitem');
+      item.textContent = entry.label;
+      item.addEventListener('click', function()
+      {
+        closeToolbarMenu();
+        entry.run();
+      });
+      toolbarMenuEl.appendChild(item);
+    })(entries[i]);
+  }
+
+  toolbarMenuEl.classList.add('shown');
+  openMenuBtn = btn;
+  btn.setAttribute('aria-expanded', 'true');
+
+  var rect = btn.getBoundingClientRect();
+  var left = Math.min(rect.right - toolbarMenuEl.offsetWidth,
+    window.innerWidth - toolbarMenuEl.offsetWidth - 4);
+  toolbarMenuEl.style.left = Math.max(4, left) + 'px';
+  toolbarMenuEl.style.top = Math.max(4, rect.top - toolbarMenuEl.offsetHeight - 4) + 'px';
+  toolbarMenuEl.firstChild.focus();
+}
+
+function toggleToolbarMenu(btn, entries)
+{
+  if (openMenuBtn === btn)
+  {
+    closeToolbarMenu();
+  }
+  else if (entries.length > 0)
+  {
+    openToolbarMenu(btn, entries);
+  }
+}
+
+downloadMenuBtn.addEventListener('click', function(e)
+{
+  e.stopPropagation();
+  toggleToolbarMenu(downloadMenuBtn, menuFormats().download.map(function(format)
+  {
+    return { label: 'Download ' + FORMAT_LABELS[format],
+      run: function() { downloadImage(format); } };
+  }));
+});
+
+copyMenuBtn.addEventListener('click', function(e)
+{
+  e.stopPropagation();
+  toggleToolbarMenu(copyMenuBtn, menuFormats().copy.map(function(format)
+  {
+    return { label: 'Copy as ' + FORMAT_LABELS[format], run: copyPng };
+  }));
+});
+
+document.addEventListener('click', function(e)
+{
+  if (openMenuBtn != null && !toolbarMenuEl.contains(e.target))
+  {
+    closeToolbarMenu();
+  }
+});
+
+document.addEventListener('keydown', function(e)
+{
+  if (e.key === 'Escape' && openMenuBtn != null)
+  {
+    var btn = openMenuBtn;
+    closeToolbarMenu();
+    btn.focus();
+  }
+});
+
+window.addEventListener('resize', closeToolbarMenu);
 
 fullscreenBtn.addEventListener("click", function()
 {
@@ -8433,8 +8965,10 @@ app.connect().then(function()
 
   if (caps != null && caps.downloadFile != null)
   {
-    downloadBtn.style.display = '';
+    downloadSplit.style.display = '';
   }
+
+  updateToolbarMenus();
 });
     </script>
   </body>
@@ -8941,7 +9475,8 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout, l
 // loads its images from app.diagrams.net.
 var RESOURCE_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net", "https://icons.diagrams.net",
   "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
-var CONNECT_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net"];
+var CONNECT_DOMAINS = ["https://viewer.diagrams.net", "https://app.diagrams.net",
+  "https://fonts.googleapis.com", "https://fonts.gstatic.com"];
 var REDIRECT_DOMAINS = ["https://app.diagrams.net", "https://www.drawio.com"];
 
 /** A list of CSP domains with the origin of the editor link added. */
@@ -9461,6 +9996,9 @@ export function createServer(html, options = {})
                   resourceDomains: RESOURCE_DOMAINS,
                   connectDomains: withEditorOrigin(CONNECT_DOMAINS, linkBase),
                 },
+                // Copy as PNG: shown only when the host grants it
+                // (hostCapabilities.sandbox.permissions)
+                permissions: { clipboardWrite: {} },
               },
               // ChatGPT reads redirect_domains, the targets its
               // window.openai.openExternal trusts (the viewer's Open in
