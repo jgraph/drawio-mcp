@@ -10,3 +10,4 @@ src/mx-xml.js
 src/normalize-model.js
 src/repair-xml.js
 src/label-perimeter.js
+src/edge-waypoints.js

@@ -24,8 +24,9 @@ function extract(name)
 
 const names = ["var LAYOUT_CHECK_MAX_ITEMS", "var LAYOUT_CHECK_MAX_CELLS", "var GENERIC_FONT_FAMILIES",
   "var FONT_FALLBACK", "edgesCrossShapes", "plainLabel", "reportCellName", "reportShortName",
-  "reportEdgeName", "layoutCheck", "withGenericFontFallback", "modelContextTextWithCheck",
-  "modelContextContent", "hostAcceptsContextImages"];
+  "reportEdgeName", "reportOtherEdgeName", "layoutCheckedConnector", "layoutCheckAnchor", "edgeLayoutIssues",
+  "layoutCheck", "withGenericFontFallback", "modelContextTextWithCheck", "modelContextContent",
+  "hostAcceptsContextImages"];
 const body = names.map(extract).join("\n").replace(/\\\\/g, "\\");
 const mxUtils =
 {
@@ -273,6 +274,154 @@ test("the list stops after 20 problems", function()
   assert.match(r.text, /\(25 problems, sizes in diagram units\)/);
   assert.equal(lines(r).length, 21);
   assert.equal(lines(r)[20], "and 5 more.");
+});
+
+// The edge rules: what goes wrong with a connector itself, reported in one
+// line per edge with its crossings
+
+function edge(id, source, target, points, style, label, text)
+{
+  return { id: id, e: true, source: source, target: target, points: points, style: style || {}, label: label, text: text };
+}
+
+// A frame: a container drawn with an outline, with its children
+function frame(id, x, y, w, h, label)
+{
+  return { id: id, v: true, x: x, y: y, w: w, h: h, label: label, style: { fillColor: "#eeeeee", strokeColor: "#666666" },
+    text: [x + 4, y + 4, 60, 16] };
+}
+
+function child(b, parent)
+{
+  return Object.assign(b, { parent: parent });
+}
+
+test("a clean diagram in containers, with arrowheads, gives no edge findings", function()
+{
+  const r = fns.layoutCheck(graphOf([frame("g", 0, 0, 400, 300, "Zone"),
+    child(box("a", 40, 40, 100, 40, "Web"), "g"), child(box("b", 240, 40, 100, 40, "API"), "g"),
+    child(box("c", 240, 200, 100, 40, "DB"), "g"),
+    edge("e1", "a", "b", [[140, 60], [240, 60]], { endArrow: "classic" }, "calls", [170, 44, 40, 14]),
+    edge("e2", "b", "c", [[290, 80], [290, 200]], { endArrow: "classic" }),
+    edge("e3", "a", "c", [[90, 80], [90, 220], [240, 220]], { endArrow: "classic", rounded: 1 })]));
+
+  assert.equal(r.count, 0, r.text);
+});
+
+test("an arrowhead without room is reported, with the length of the last piece of line", function()
+{
+  // A waypoint 1.2 off the connection point: the line ends in a 1.2 step up
+  // the side of the shape, and the arrowhead points along it
+  const r = fns.layoutCheck(graphOf([box("x", 45, 402, 520, 178, "X10"), box("sky", 635, 517, 520, 120, "sky"),
+    edge("tm", "sky", "x", [[635, 560.2], [600, 560.2], [600, 510], [565, 510], [565, 508.8]], { endArrow: "block" })]));
+
+  assert.deepEqual(lines(r), ["The edge (id tm) from \"sky\" to \"X10\" ends with only 1.2 of straight line at \"X10\", " +
+    "too short for its arrowhead."]);
+});
+
+test("a step of a unit or two in a line is reported, rounded lines from 1, square ones from 1.5", function()
+{
+  function check(dy, style)
+  {
+    return lines(fns.layoutCheck(graphOf([box("a", 0, 0, 100, 40, "A"), box("b", 200, 0, 100, 44, "B"),
+      edge("e", "a", "b", [[100, 20], [150, 20], [150, 20 + dy], [200, 20 + dy]], style)])));
+  }
+
+  assert.deepEqual(check(2, {}), ["The edge (id e) from \"A\" to \"B\" has a step of 2 in its line between two bends."]);
+  assert.deepEqual(check(1.2, {}), []);
+  assert.equal(check(1.2, { rounded: 1 }).length, 1);
+  assert.deepEqual(check(3, {}), []);
+});
+
+test("a line along a container's border is reported, and one on it", function()
+{
+  function check(x)
+  {
+    return lines(fns.layoutCheck(graphOf([frame("g", 0, 0, 400, 300, "Zone"),
+      child(box("a", 40, 40, 100, 40, "A"), "g"), child(box("b", 40, 200, 100, 40, "B"), "g"),
+      edge("e", "a", "b", [[40, 60], [x, 60], [x, 220], [40, 220]])])));
+  }
+
+  assert.deepEqual(check(2), ["The edge (id e) from \"A\" to \"B\" runs along the border of \"Zone\" (id g), 2 away."]);
+  assert.deepEqual(check(0), ["The edge (id e) from \"A\" to \"B\" runs on the border of \"Zone\" (id g)."]);
+  assert.deepEqual(check(10), []);
+});
+
+test("a line in a narrow gap between two containers is reported", function()
+{
+  function check(gap)
+  {
+    return lines(fns.layoutCheck(graphOf([frame("g1", 0, 0, 200, 300, "Left"), frame("g2", 200 + gap, 0, 200, 300, "Right"),
+      child(box("a", 40, 40, 100, 40, "A"), "g1"), child(box("b", 240 + gap, 230, 100, 40, "B"), "g2"),
+      edge("e", "a", "b", [[140, 60], [200 + gap / 2, 60], [200 + gap / 2, 250], [240 + gap, 250]])])));
+  }
+
+  assert.deepEqual(check(20), ["The edge (id e) from \"A\" to \"B\" runs in the gap of 20 between the borders of " +
+    "\"Left\" (id g1) and \"Right\" (id g2)."]);
+  assert.deepEqual(check(40), []);
+});
+
+test("lines on top of each other are reported when one hides the other or both join the same shapes", function()
+{
+  // e2 runs on e1 for 100 on its way to C, or all the way to B
+  function check(style1, style2, target2)
+  {
+    const points2 = (target2 == "b") ? [[100, 20], [300, 20]] : [[100, 20], [200, 20], [200, 120], [300, 120]];
+
+    return lines(fns.layoutCheck(graphOf([box("a", 0, 0, 100, 40, "A"), box("b", 300, 0, 100, 40, "B"),
+      box("c", 300, 100, 100, 40, "C"), edge("e1", "a", "b", [[100, 20], [300, 20]], style1),
+      edge("e2", "a", target2, points2, style2)])));
+  }
+
+  assert.deepEqual(check({ strokeColor: "#ff0000" }, { strokeColor: "#0000ff" }, "c"),
+    ["The edge (id e1) from \"A\" to \"B\" runs on top of the edge (id e2) for 100."]);
+  // Lines of one look meeting on their way are a bus or a merge, also with
+  // other arrowheads
+  assert.deepEqual(check({ strokeColor: "#ff0000" }, { strokeColor: "#ff0000", endArrow: "block" }, "c"), []);
+  assert.deepEqual(check({ strokeColor: "#ff0000" }, { strokeColor: "#ff0000" }, "b"),
+    ["The edge (id e1) from \"A\" to \"B\" runs on top of the edge (id e2) for 200."]);
+});
+
+test("an edge label on a container's border or on another edge's line is reported, and a turned one", function()
+{
+  assert.deepEqual(lines(fns.layoutCheck(graphOf([frame("g", 0, 0, 300, 200, "Zone"),
+    child(box("a", 40, 60, 100, 40, "Web"), "g"), box("b", 400, 60, 100, 40, "CDN"),
+    edge("e", "a", "b", [[140, 80], [400, 80]], {}, "HTTPS", [280, 62, 40, 16])]))),
+  ["The edge \"HTTPS\" (id e) from \"Web\" to \"CDN\" has its label on the border of \"Zone\" (id g)."]);
+
+  assert.deepEqual(lines(fns.layoutCheck(graphOf([box("a", 0, 40, 100, 40, "A"), box("b", 300, 40, 100, 40, "B"),
+    box("c", 150, -100, 100, 40, "C"), box("d", 150, 200, 100, 40, "D"),
+    edge("e1", "a", "b", [[100, 60], [300, 60]], {}, "reads", [180, 52, 40, 16]),
+    edge("e2", "c", "d", [[200, -60], [200, 200]])]))),
+  ["The edge \"reads\" (id e1) from \"A\" to \"B\" has its label on the line of the edge (id e2)."]);
+
+  assert.deepEqual(lines(fns.layoutCheck(graphOf([box("a", 0, 0, 100, 40, "A"), box("b", 0, 300, 100, 40, "B"),
+    edge("e", "a", "b", [[50, 40], [50, 300]], { horizontal: 0 }, "weekly", [42, 140, 16, 60])]))),
+  ["The edge \"weekly\" (id e) from \"A\" to \"B\" has a turned label (horizontal=0) that covers 60 of its line."]);
+});
+
+test("everything found on one edge is one line, its crossings first", function()
+{
+  const r = fns.layoutCheck(graphOf([box("a", 0, 200, 80, 40, "Web"), box("g", 200, 200, 80, 40, "Cache"),
+    box("h", 400, 200, 80, 40, "Queue"), box("i", 600, 200, 80, 40, "Log"), box("f", 800, 190, 80, 40, "DB"),
+    edge("e1", "a", "f", [[80, 220], [790, 220], [790, 210], [800, 210], [800, 209]], { endArrow: "block" })]));
+
+  assert.equal(r.count, 1);
+  assert.deepEqual(lines(r), ["The edge (id e1) from \"Web\" to \"DB\" runs through \"Cache\" (id g), \"Queue\" (id h) " +
+    "and \"Log\" (id i); ends with only 1 of straight line at \"DB\", too short for its arrowhead."]);
+});
+
+test("shapes whose text is in boxes of their own count as labelled ends", function()
+{
+  // A card without a label, with its name in a child box: an edge between
+  // two such cards is checked like one between labelled shapes
+  const spec = [{ id: "c1", v: true, x: 0, y: 200, w: 80, h: 60 }, child(box("t1", 5, 205, 70, 20, "X10"), "c1"),
+    { id: "c2", v: true, x: 400, y: 200, w: 80, h: 60 }, child(box("t2", 405, 205, 70, 20, "WD"), "c2"),
+    box("g", 200, 210, 80, 40, "Cache"),
+    edge("e", "c1", "c2", [[80, 230], [400, 230]])];
+
+  assert.deepEqual(lines(fns.layoutCheck(graphOf(spec))),
+    ["The edge (id e) from id c1 to id c2 runs through \"Cache\" (id g)."]);
 });
 
 test("web fonts get a generic fallback in the image, other families stay", function()

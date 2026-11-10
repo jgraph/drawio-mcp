@@ -13,6 +13,7 @@ import { searchShapesAndIcons, DEFAULT_ICON_SERVICE_URL } from "../../shared/ico
 import { withElkLayout, isFlowchartSource, mermaidDiagramType } from "../../shared/mermaid-elk.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
 import { addLabelPerimeters, fitEdgeLabels } from "../../shared/label-perimeter.js";
+import { snapWaypoints } from "../../shared/edge-waypoints.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import pkg from "../package.json" with { type: "json" };
 
@@ -2180,10 +2181,11 @@ function renderModelContextImage(graph, callback)
 // in the viewer, as text for the model (every host that takes model context
 // gets it, the image only some): labels that don't fit their shapes, labelled
 // shapes on each other, labels on labels or shapes, connectors through
-// shapes. Sizes in diagram units. It leaves out what overlaps by design
-// (unlabelled shapes, frames, sequence messages across lifelines, lines that
-// aren't connected at both ends); the rules were tuned on ~600 generated
-// diagrams, where what was left were real defects.
+// shapes, and what goes wrong with a connector itself (edgeLayoutIssues), in
+// one line per edge. Sizes in diagram units. It leaves out what overlaps by
+// design (unlabelled shapes, frames, sequence messages across lifelines,
+// lines that aren't connected at both ends); the rules were tuned on ~600
+// generated and hand-made diagrams, where what was left were real defects.
 var LAYOUT_CHECK_MAX_ITEMS = 20;
 var LAYOUT_CHECK_MAX_CELLS = 400;
 
@@ -2237,6 +2239,464 @@ function reportEdgeName(graph, edge)
   return 'The edge ' + ((text != '') ? '"' + text + '" ' : '') + '(id ' + edge.id + ') from ' +
     reportShortName(graph, model.getTerminal(edge, true)) + ' to ' +
     reportShortName(graph, model.getTerminal(edge, false));
+}
+
+// The connectors the layout check follows: connected at both ends, not a
+// sequence message (they cross the lifelines between their ends), not
+// curved (its points are control points, not the line), and not a line
+// between unlabelled anchors (sankey flows, git branches, chart axes)
+function layoutCheckedConnector(graph, edge, style)
+{
+  var model = graph.getModel();
+  var src = model.getTerminal(edge, true);
+  var tgt = model.getTerminal(edge, false);
+
+  return src != null && tgt != null && style.edgeStyle != 'sequenceEdgeStyle' &&
+    mxUtils.getValue(style, 'curved', 0) != 1 && (layoutCheckAnchor(graph, src) || layoutCheckAnchor(graph, tgt));
+}
+
+// A shape with a label, or one that holds a labelled shape (a card whose
+// text is in boxes of its own), as opposed to a dot or a bar
+function layoutCheckAnchor(graph, cell)
+{
+  var model = graph.getModel();
+  var st = graph.view.getState(cell);
+
+  if (graph.getLabel(cell) != '')
+  {
+    return true;
+  }
+
+  if (st == null || !model.isVertex(cell))
+  {
+    return false;
+  }
+
+  for (var id in model.cells)
+  {
+    var c = model.cells[id];
+    var cs = (c != cell && model.isVertex(c) && !model.isEdge(model.getParent(c))) ? graph.view.getState(c) : null;
+
+    if (cs != null && graph.getLabel(c) != '' && (model.isAncestor(cell, c) || (cs.x >= st.x && cs.y >= st.y &&
+      cs.x + cs.width <= st.x + st.width && cs.y + cs.height <= st.y + st.height)))
+    {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function reportOtherEdgeName(graph, edge)
+{
+  var text = plainLabel(graph, edge);
+
+  return 'the edge ' + ((text != '') ? '"' + text + '" ' : '') + '(id ' + edge.id + ')';
+}
+
+// What the layout check finds on edges, besides crossings: an arrowhead
+// without room (its last piece of line too short), small steps in a line,
+// lines along the border of a container or in a narrow gap between two,
+// lines on top of each other, and edge labels on a container's border, on
+// another edge's line or turned. Returns [{ edge, kind, text }], in the
+// order of the edges.
+function edgeLayoutIssues(graph)
+{
+  var model = graph.getModel();
+  var view = graph.view;
+  var s = view.scale || 1;
+  var edges = [];
+  var vertices = [];
+  var frames = [];
+  var found = [];
+  var seen = 0;
+
+  function u(px)
+  {
+    return Math.round(px / s);
+  }
+
+  function len(g)
+  {
+    return Math.abs(g.q.x - g.p.x) + Math.abs(g.q.y - g.p.y);
+  }
+
+  // The pieces of line as drawn: points less than half a unit apart are one
+  // point (draw.io skips them for the direction of an arrowhead), and
+  // pieces in one direction are one piece
+  function segments(state)
+  {
+    var pts = [];
+    var result = [];
+
+    for (var k = 0; k < state.absolutePoints.length; k++)
+    {
+      var p = state.absolutePoints[k];
+      var prev = pts[pts.length - 1];
+
+      if (p != null && (prev == null || Math.abs(p.x - prev.x) >= 0.5 * s || Math.abs(p.y - prev.y) >= 0.5 * s))
+      {
+        pts.push(p);
+      }
+    }
+
+    for (var k = 1; k < pts.length; k++)
+    {
+      var g = { p: pts[k - 1], q: pts[k] };
+      var last = result[result.length - 1];
+
+      g.vert = Math.abs(g.p.x - g.q.x) < 0.5;
+      g.hor = Math.abs(g.p.y - g.q.y) < 0.5;
+
+      if (last != null && ((g.vert && last.vert && (g.q.y - g.p.y) * (last.q.y - last.p.y) > 0) ||
+        (g.hor && last.hor && (g.q.x - g.p.x) * (last.q.x - last.p.x) > 0)))
+      {
+        last.q = g.q;
+        g = last;
+      }
+      else
+      {
+        result.push(g);
+      }
+
+      g.len = len(g);
+    }
+
+    return result;
+  }
+
+  // Does the segment touch the box (Liang-Barsky)?
+  function hits(p, q, r)
+  {
+    var dx = q.x - p.x, dy = q.y - p.y, t0 = 0, t1 = 1;
+    var P = [-dx, dx, -dy, dy];
+    var Q = [p.x - r.x, r.x + r.w - p.x, p.y - r.y, r.y + r.h - p.y];
+
+    if (r.w <= 0 || r.h <= 0) return false;
+
+    for (var i = 0; i < 4; i++)
+    {
+      if (P[i] == 0)
+      {
+        if (Q[i] < 0) return false;
+      }
+      else
+      {
+        var t = Q[i] / P[i];
+
+        if (P[i] < 0)
+        {
+          if (t > t1) return false;
+          if (t > t0) t0 = t;
+        }
+        else
+        {
+          if (t < t0) return false;
+          if (t < t1) t1 = t;
+        }
+      }
+    }
+
+    return t0 <= t1;
+  }
+
+  // How far two axis-parallel segments run on top of each other
+  function shared(a, b)
+  {
+    if (a.vert && b.vert && Math.abs(a.p.x - b.p.x) < 1.5 * s)
+    {
+      return Math.min(Math.max(a.p.y, a.q.y), Math.max(b.p.y, b.q.y)) -
+        Math.max(Math.min(a.p.y, a.q.y), Math.min(b.p.y, b.q.y));
+    }
+
+    if (a.hor && b.hor && Math.abs(a.p.y - b.p.y) < 1.5 * s)
+    {
+      return Math.min(Math.max(a.p.x, a.q.x), Math.max(b.p.x, b.q.x)) -
+        Math.max(Math.min(a.p.x, a.q.x), Math.min(b.p.x, b.q.x));
+    }
+
+    return 0;
+  }
+
+  // Lines of one look: color, width and dash (arrowheads are only at the
+  // ends, so lines that differ in them still read as one where they meet)
+  function looksSame(a, b)
+  {
+    return String(a.strokeColor) == String(b.strokeColor) &&
+      (parseFloat(a.strokeWidth) || 1) == (parseFloat(b.strokeWidth) || 1) && (a.dashed == 1) == (b.dashed == 1);
+  }
+
+  function report(e, kind, text)
+  {
+    found.push({ edge: e.cell, kind: kind, text: text });
+  }
+
+  for (var id in model.cells)
+  {
+    var cell = model.cells[id];
+    var state = view.getState(cell);
+
+    if (state == null || cell == model.getRoot() || model.getParent(cell) == model.getRoot() ||
+      !graph.isCellVisible(cell))
+    {
+      continue;
+    }
+
+    if (++seen > LAYOUT_CHECK_MAX_CELLS)
+    {
+      break;
+    }
+
+    if (model.isEdge(cell))
+    {
+      if (state.absolutePoints != null && state.absolutePoints.length > 1 &&
+        layoutCheckedConnector(graph, cell, state.style))
+      {
+        edges.push({ cell: cell, style: state.style, pts: state.absolutePoints, segs: segments(state),
+          text: state.text });
+      }
+    }
+    else if (model.isVertex(cell) && !model.isEdge(model.getParent(cell)))
+    {
+      vertices.push(state);
+    }
+  }
+
+  // Frames: containers and shapes drawn around smaller shapes, with an
+  // outline whose sides are the bounds
+  for (var i = 0; i < vertices.length; i++)
+  {
+    var a = vertices[i];
+    var perimeter = a.style.perimeter;
+    var square = perimeter == null || perimeter == 'rectanglePerimeter' ||
+      (typeof mxPerimeter !== 'undefined' && perimeter == mxPerimeter.RectanglePerimeter);
+
+    if (!square || mxUtils.getValue(a.style, 'strokeColor', 'none') == 'none' || a.style.shape == 'image' ||
+      a.style.shape == 'text')
+    {
+      continue;
+    }
+
+    for (var j = 0; j < vertices.length; j++)
+    {
+      var b = vertices[j];
+
+      if (b != a && (model.getParent(b.cell) == a.cell || (b.x >= a.x && b.y >= a.y &&
+        b.x + b.width <= a.x + a.width && b.y + b.height <= a.y + a.height &&
+        4 * b.width * b.height < a.width * a.height)))
+      {
+        frames.push({ cell: a.cell, x: a.x, y: a.y, w: a.width, h: a.height });
+        break;
+      }
+    }
+  }
+
+  function inside(f, g)
+  {
+    return g.x >= f.x && g.y >= f.y && g.x + g.w <= f.x + f.w && g.y + g.h <= f.y + f.h;
+  }
+
+  for (var i = 0; i < edges.length; i++)
+  {
+    var e = edges[i];
+    var sg = e.segs;
+    var tgt = model.getTerminal(e.cell, false);
+
+    if (sg.length == 0)
+    {
+      continue;
+    }
+
+    // An arrowhead takes its direction from the piece of line it sits on:
+    // shorter than the arrowhead, it points along the side or over the bend
+    var sw = parseFloat(mxUtils.getValue(e.style, 'strokeWidth', 1)) || 1;
+    var ends = [{ key: 'endArrow', size: 'endSize', g: sg[sg.length - 1], k: sg.length - 1,
+      term: model.getTerminal(e.cell, false), text: 'ends with only ' },
+      { key: 'startArrow', size: 'startSize', g: sg[0], k: 0, term: model.getTerminal(e.cell, true),
+      text: 'starts with only ' }];
+    var short = {};
+
+    for (var k = 0; k < ends.length && sg.length > 1; k++)
+    {
+      // (from half its length on, it reads)
+      var need = (parseFloat(mxUtils.getValue(e.style, ends[k].size, 6)) + sw) * s / 2;
+
+      if (mxUtils.getValue(e.style, ends[k].key, 'none') != 'none' && ends[k].g.len < need && short[ends[k].k] == null)
+      {
+        short[ends[k].k] = 1;
+        report(e, 'arrow', ends[k].text + (Math.round(ends[k].g.len / s * 10) / 10) + ' of straight line at ' +
+          reportShortName(graph, ends[k].term) + ', too short for its arrowhead');
+      }
+    }
+
+    // A step of a unit or two: on a rounded line its two corners make an S,
+    // on a square one it shows from 1.5
+    var minStep = ((mxUtils.getValue(e.style, 'rounded', 0) == 1) ? 1 : 1.5) * s;
+
+    for (var k = 0; k < sg.length; k++)
+    {
+      if (sg.length > 1 && sg[k].len >= minStep && sg[k].len < 3 * s && short[k] == null)
+      {
+        report(e, 'step', 'has a step of ' + (Math.round(sg[k].len / s * 10) / 10) + ' in its line ' +
+          ((k == 0) ? 'at its start' : ((k == sg.length - 1) ? 'at its end' : 'between two bends')));
+        break;
+      }
+    }
+
+    // Along a frame's border, or in a narrow gap between two frames side by side
+    var along = {};
+    var gaps = {};
+
+    for (var k = 0; k < sg.length; k++)
+    {
+      var g = sg[k];
+
+      if ((!g.vert && !g.hor) || g.len < 20 * s)
+      {
+        continue;
+      }
+
+      var at = g.vert ? g.p.x : g.p.y;
+      var lo = g.vert ? Math.min(g.p.y, g.q.y) : Math.min(g.p.x, g.q.x);
+      var hi = g.vert ? Math.max(g.p.y, g.q.y) : Math.max(g.p.x, g.q.x);
+      var beside = [];
+
+      for (var f = 0; f < frames.length; f++)
+      {
+        var fr = frames[f];
+        var from = g.vert ? fr.x : fr.y;
+        var to = from + (g.vert ? fr.w : fr.h);
+        var flo = g.vert ? fr.y : fr.x;
+        var fhi = flo + (g.vert ? fr.h : fr.w);
+
+        if (Math.min(hi, fhi) - Math.max(lo, flo) < 20 * s)
+        {
+          continue;
+        }
+
+        var d = Math.min(Math.abs(at - from), Math.abs(at - to));
+
+        if (d <= 4 * s && along[fr.cell.id] == null)
+        {
+          along[fr.cell.id] = 1;
+          report(e, 'border', ((d < 1 * s) ? 'runs on the border of ' : 'runs along the border of ') +
+            reportCellName(graph, fr.cell) + ((d < 1 * s) ? '' : ', ' + u(d) + ' away'));
+        }
+
+        if (at > to || at < from)
+        {
+          beside.push({ fr: fr, side: (at > to) ? to : from, left: at > to });
+        }
+      }
+
+      for (var m = 0; m < beside.length; m++)
+      {
+        for (var n = 0; n < beside.length; n++)
+        {
+          var A = beside[m], B = beside[n];
+          var gap = B.side - A.side;
+
+          if (A.left && !B.left && gap < 30 * s && !inside(A.fr, B.fr) && !inside(B.fr, A.fr) &&
+            gaps[A.fr.cell.id + ' ' + B.fr.cell.id] == null)
+          {
+            gaps[A.fr.cell.id + ' ' + B.fr.cell.id] = 1;
+            report(e, 'gap', 'runs in the gap of ' + u(gap) + ' between the borders of ' +
+              reportCellName(graph, A.fr.cell) + ' and ' + reportCellName(graph, B.fr.cell));
+          }
+        }
+      }
+    }
+
+    // On top of another edge: one hides the other, or both join the same two
+    // shapes. Lines of one look that meet on their way (a bus, a merge into
+    // one point, the trunk of a tree) are drawn so on purpose.
+    for (var j = i + 1; j < edges.length; j++)
+    {
+      var o = edges[j];
+      var run = 0;
+
+      for (var k = 0; k < sg.length; k++)
+      {
+        for (var m = 0; m < o.segs.length; m++)
+        {
+          run += Math.max(0, shared(sg[k], o.segs[m]));
+        }
+      }
+
+      if (run <= 10 * s)
+      {
+        continue;
+      }
+
+      var es = model.getTerminal(e.cell, true), et = model.getTerminal(e.cell, false);
+      var os = model.getTerminal(o.cell, true), ot = model.getTerminal(o.cell, false);
+      var merge = looksSame(e.style, o.style) && !((es == os && et == ot) || (es == ot && et == os));
+
+      if (!merge)
+      {
+        report(e, 'overlap', 'runs on top of ' + reportOtherEdgeName(graph, o.cell) + ' for ' + u(run));
+      }
+    }
+
+    // The label: turned, on a frame's border or on another edge's line
+    var bb = (e.text != null && plainLabel(graph, e.cell) != '') ? e.text.boundingBox : null;
+
+    if (bb == null || bb.width <= 4 * s || bb.height <= 4 * s)
+    {
+      continue;
+    }
+
+    if (mxUtils.getValue(e.style, 'horizontal', 1) == 0)
+    {
+      report(e, 'turned', 'has a turned label (horizontal=0) that covers ' + u(Math.max(bb.width, bb.height)) +
+        ' of its line');
+    }
+
+    // (the box has the spacing around the text)
+    var r = { x: bb.x + 2 * s, y: bb.y + 2 * s, w: bb.width - 4 * s, h: bb.height - 4 * s };
+
+    for (var f = 0; f < frames.length; f++)
+    {
+      var fr = frames[f];
+
+      if (hits({ x: fr.x, y: fr.y }, { x: fr.x, y: fr.y + fr.h }, r) ||
+        hits({ x: fr.x + fr.w, y: fr.y }, { x: fr.x + fr.w, y: fr.y + fr.h }, r) ||
+        hits({ x: fr.x, y: fr.y }, { x: fr.x + fr.w, y: fr.y }, r) ||
+        hits({ x: fr.x, y: fr.y + fr.h }, { x: fr.x + fr.w, y: fr.y + fr.h }, r))
+      {
+        report(e, 'labelBorder', 'has its label on the border of ' + reportCellName(graph, fr.cell));
+        break;
+      }
+    }
+
+    for (var j = 0; j < edges.length; j++)
+    {
+      var o = edges[j];
+      var hit = false;
+
+      for (var m = 0; m < o.segs.length && o != e && !hit; m++)
+      {
+        var q = o.segs[m];
+        var own = false;
+
+        // (where the other edge runs on this one, it is this line)
+        for (var k = 0; k < sg.length && !own; k++)
+        {
+          own = shared(sg[k], q) > 0;
+        }
+
+        hit = !own && hits(q.p, q.q, r);
+      }
+
+      if (hit)
+      {
+        report(e, 'labelLine', 'has its label on the line of ' + reportOtherEdgeName(graph, o.cell));
+        break;
+      }
+    }
+  }
+
+  return found;
 }
 
 // Returns { text, count } or null.
@@ -2368,6 +2828,7 @@ function layoutCheck(graph)
   }
 
   var crossings = [];
+  var edgeIssues = [];
 
   try
   {
@@ -2378,10 +2839,50 @@ function layoutCheck(graph)
     console.log('[layout-check] crossings failed', e && e.message);
   }
 
+  try
+  {
+    edgeIssues = edgeLayoutIssues(graph);
+  }
+  catch (e)
+  {
+    console.log('[layout-check] edge rules failed', e && e.message);
+  }
+
+  // One line per edge, with everything found on it: a single misplaced line
+  // gave up to ten (a crossing per shape, its arrowhead, its label), and the
+  // count on the chip is the number of lines
+  var byEdge = [];
+  var edgeIndex = {};
+
+  function edgeEntry(edge)
+  {
+    if (edgeIndex[edge.id] == null)
+    {
+      edgeIndex[edge.id] = byEdge.length;
+      byEdge.push({ edge: edge, through: [], issues: [] });
+    }
+
+    return byEdge[edgeIndex[edge.id]];
+  }
+
   for (var c = 0; c < crossings.length; c++)
   {
-    items.push(reportEdgeName(graph, crossings[c].edge) + ' runs through ' +
-      (crossings[c].label ? 'the label of ' : '') + reportCellName(graph, crossings[c].cell) + '.');
+    edgeEntry(crossings[c].edge).through.push((crossings[c].label ? 'the label of ' : '') +
+      reportCellName(graph, crossings[c].cell));
+  }
+
+  for (var c = 0; c < edgeIssues.length; c++)
+  {
+    edgeEntry(edgeIssues[c].edge).issues.push(edgeIssues[c].text);
+  }
+
+  for (var c = 0; c < byEdge.length; c++)
+  {
+    var through = byEdge[c].through;
+    var parts = (through.length == 0) ? [] : ['runs through ' + ((through.length == 1) ? through[0] :
+      through.slice(0, through.length - 1).join(', ') + ' and ' + through[through.length - 1])];
+
+    items.push(reportEdgeName(graph, byEdge[c].edge) + ' ' + parts.concat(byEdge[c].issues).join('; ') + '.');
   }
 
   for (var i = 0; i < leaves.length; i++)
@@ -2475,7 +2976,8 @@ function layoutCheck(graph)
   if (items.length == 0)
   {
     return { count: 0, text: 'Layout check of the diagram as rendered: no problems found. Labels fit ' +
-      'their shapes, no shapes or labels overlap and no edge runs through a shape.' };
+      'their shapes, no shapes or labels overlap, and no edge runs through a shape, along a border or on ' +
+      'another edge.' };
   }
 
   var more = items.length - LAYOUT_CHECK_MAX_ITEMS;
@@ -3655,7 +4157,7 @@ function routeWithLibavoid(graph, Avoid)
  * @param {Graph} graph
  * @param {Array} [found] - for the layout check: every crossing is collected
  *   as { edge, cell, label } instead of stopping at the first, and the edges
- *   are the connectors it follows (see checksConnector), not the ones the
+ *   are the connectors it follows (see layoutCheckedConnector), not the ones the
  *   routing pass would reroute.
  * @returns {boolean}
  */
@@ -3743,19 +4245,6 @@ function edgesCrossShapes(graph, found)
     return st != null && r.x <= st.x && r.y <= st.y && r.x + r.w >= st.x + st.width && r.y + r.h >= st.y + st.height;
   }
 
-  // The connectors the layout check follows: connected at both ends, not a
-  // sequence message (they cross the lifelines between their ends), not
-  // curved (its points are control points, not the line), and not a line
-  // between unlabelled anchors (sankey flows, git branches, chart axes)
-  function checksConnector(edge, style)
-  {
-    var src = model.getTerminal(edge, true);
-    var tgt = model.getTerminal(edge, false);
-
-    return src != null && tgt != null && style.edgeStyle != 'sequenceEdgeStyle' &&
-      mxUtils.getValue(style, 'curved', 0) != 1 && (graph.getLabel(src) != '' || graph.getLabel(tgt) != '');
-  }
-
   for (var id in model.cells)
   {
     var cell = model.cells[id];
@@ -3774,7 +4263,8 @@ function edgesCrossShapes(graph, found)
     if (model.isEdge(cell))
     {
       if (state.absolutePoints != null && state.absolutePoints.length > 1 &&
-        ((found == null && libavoidRoutesEdge(state.style)) || (found != null && checksConnector(cell, state.style))))
+        ((found == null && libavoidRoutesEdge(state.style)) ||
+        (found != null && layoutCheckedConnector(graph, cell, state.style))))
       {
         edges.push(state);
       }
@@ -9751,6 +10241,10 @@ export function createServer(html, options = {})
       // of hierarchy side effects, and the open-in-draw.io URL carries the
       // corrected diagram too.
       normalizedXml = normalizeDiagram(normalizedXml).xml;
+      // A waypoint less than 3 px off a fixed connection point's line is
+      // moved onto it: off by a pixel, the router adds a jog of that size at
+      // the shape, and an arrowhead on it points along the side.
+      normalizedXml = snapWaypoints(normalizedXml).xml;
 
       // Edges end at labels outside the shape (labelPerimeter=1, as on
       // icons from draw.io's sidebar): a connection from below ends under
