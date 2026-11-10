@@ -121,7 +121,7 @@ Styles users ask for, and the keys that draw them. Apply a requested look to eve
 
 ### Color themes
 
-The role colors (blue steps, yellow decisions, green start and end, red errors) are the **calm** theme and the default. Calm also has orange `#FFF0E5` / `#F0B48A` for retries and waiting, purple `#F3EEFF` / `#B9A6F0` for data and storage, gray `#F2F4F7` / `#B8C0CC` for external systems, `#FFF9DB` / `#E9D58A` for notes, `#F7F8FA` / `#D5DAE1` for containers, and `fontColor=#1E7F3E` / `#C9302C` for yes / no edge labels. When the user asks for a look, apply one of these themes to every cell: steps, decisions, start/end, errors, connectors, the title. Containers and lanes take a pale tint of the theme's step color.
+The role colors (blue steps, yellow decisions, green start and end, red errors) are the **calm** theme and the default. Calm also has orange `#FFF0E5` / `#F0B48A` for retries and waiting, purple `#F3EEFF` / `#B9A6F0` for data and storage, gray `#F2F4F7` / `#B8C0CC` for external systems, `#FFF9DB` / `#E9D58A` for notes, `#F7F8FA` / `#D5DAE1` for containers (white inside another one), and `fontColor=#1E7F3E` / `#C9302C` for yes / no edge labels. When the user asks for a look, apply one of these themes to every cell: steps, decisions, start/end, errors, connectors, the title. In other themes, containers and lanes take a tint of the step color paler than their nodes.
 
 | Theme (the user says…) | Page and font | Steps | Decisions | Start / end | Errors | Connectors |
 |---|---|---|---|---|---|---|
@@ -275,7 +275,7 @@ Use **flat swimlanes** at `parent="1"`, stacked vertically. One row of nodes per
 - Child nodes inside a lane: `parent="<lane_id>"`, `x = 120 + col*180`, `y = 45` (always 45), size 140×60 (or 140×80 for diamonds)
 - Cross-lane edges: `parent="1"` (not inside a lane)
 
-Pick `CANVAS_W = max_col * 180 + 300`. Choose lane colors from `#F7F8FA, #EEF4FF, #FFF0E5, #E7F6EC, #FFF6E0, #FDECEC` in that order.
+Pick `CANVAS_W = max_col * 180 + 300`. Choose lane colors from `#F7F8FA, #F6F9FF, #FFF7F2, #F3FAF5, #FFFAF0, #FEF6F6` in that order.
 
 ```xml
 <mxCell id="lane1" value="Customer" style="swimlane;horizontal=0;startSize=110;fillColor=#F7F8FA;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
@@ -284,7 +284,7 @@ Pick `CANVAS_W = max_col * 180 + 300`. Choose lane colors from `#F7F8FA, #EEF4FF
 <mxCell id="n1" value="Place Order" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="lane1">
   <mxGeometry x="120" y="45" width="140" height="60" as="geometry"/>
 </mxCell>
-<mxCell id="lane2" value="System" style="swimlane;horizontal=0;startSize=110;fillColor=#EEF4FF;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
+<mxCell id="lane2" value="System" style="swimlane;horizontal=0;startSize=110;fillColor=#F6F9FF;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
   <mxGeometry x="0" y="150" width="1800" height="150" as="geometry"/>
 </mxCell>
 <mxCell id="n2" value="Validate" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="lane2">
@@ -311,7 +311,7 @@ For diagrams with **nested groupings** — VPC → Availability Zone → EC2 ins
 <mxCell id="vpc" value="VPC" style="swimlane;startSize=24;fillColor=#F7F8FA;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
   <mxGeometry x="0" y="0" width="720" height="360" as="geometry"/>
 </mxCell>
-<mxCell id="az1" value="AZ us-east-1a" style="swimlane;startSize=24;fillColor=#EEF4FF;strokeColor=#9DB8F2;html=1;" vertex="1" parent="vpc">
+<mxCell id="az1" value="AZ us-east-1a" style="swimlane;startSize=24;fillColor=#FFFFFF;strokeColor=#D5DAE1;html=1;" vertex="1" parent="vpc">
   <mxGeometry x="20" y="36" width="320" height="300" as="geometry"/>
 </mxCell>
 <mxCell id="web1" value="web-1" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="az1">
@@ -320,7 +320,7 @@ For diagrams with **nested groupings** — VPC → Availability Zone → EC2 ins
 <mxCell id="db1" value="db-1" style="shape=cylinder3;whiteSpace=wrap;html=1;" vertex="1" parent="az1">
   <mxGeometry x="180" y="40" width="100" height="70" as="geometry"/>
 </mxCell>
-<mxCell id="az2" value="AZ us-east-1b" style="swimlane;startSize=24;fillColor=#EEF4FF;strokeColor=#9DB8F2;html=1;" vertex="1" parent="vpc">
+<mxCell id="az2" value="AZ us-east-1b" style="swimlane;startSize=24;fillColor=#FFFFFF;strokeColor=#D5DAE1;html=1;" vertex="1" parent="vpc">
   <mxGeometry x="360" y="36" width="340" height="300" as="geometry"/>
 </mxCell>
 <mxCell id="web2" value="web-2" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="az2">
