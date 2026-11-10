@@ -216,6 +216,22 @@ function loadLabelPerimeter()
   return labelPerimeterPromise;
 }
 
+// shared/edge-waypoints.js (a waypoint less than 3 px off a fixed
+// connection point's line is moved onto it, so the router adds no jog at the
+// shape), copied into src/ by copy-shared - same import. Memoized.
+let edgeWaypointsPromise = null;
+
+function loadEdgeWaypoints()
+{
+  if (!edgeWaypointsPromise)
+  {
+    edgeWaypointsPromise = import("./edge-waypoints.js")
+      .catch(function() { return import("../../shared/edge-waypoints.js"); });
+  }
+
+  return edgeWaypointsPromise;
+}
+
 // shared/repair-xml.js (the mechanical slips LLMs make in XML: text around the
 // diagram, `<` or a stray `&` in attribute values, a layer that is its own
 // parent), copied into src/ by copy-shared — same import. Memoized; pure
@@ -1003,6 +1019,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
         const mod = await loadNormalize();
 
         content = mod.normalizeDiagram(content).xml;
+        const waypoints = await loadEdgeWaypoints();
+
+        content = waypoints.snapWaypoints(content).xml;
         const labels = await loadLabelPerimeter();
 
         content = labels.fitEdgeLabels(labels.addLabelPerimeters(content).xml).xml;
