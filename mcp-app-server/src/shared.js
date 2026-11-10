@@ -1634,9 +1634,9 @@ function imageFileRequest(format, data)
 // declares (caps, its MCP Apps capabilities) and what the browser can do. A
 // host that lacks something gets no entry for it, and an arrow without
 // entries is hidden: no host is recognized by name. Download needs the
-// host's downloadFile; Copy as Image needs the host to grant clipboardWrite
-// and the browser to write images to the clipboard. PNG needs a canvas that
-// an SVG with HTML labels doesn't taint (Editor.useCanvasForExport).
+// host's downloadFile; Copy as Image and Copy as SVG need the host to grant
+// clipboardWrite and the browser to write a ClipboardItem. PNG needs a canvas
+// that an SVG with HTML labels doesn't taint (Editor.useCanvasForExport).
 function toolbarMenuFormats(caps, browser)
 {
   var download = [];
@@ -1655,20 +1655,25 @@ function toolbarMenuFormats(caps, browser)
   var clipboardGranted = caps != null && caps.sandbox != null &&
     caps.sandbox.permissions != null && caps.sandbox.permissions.clipboardWrite != null;
 
-  if (clipboardGranted && browser.clipboardImage && browser.canvasExport)
+  if (clipboardGranted && browser.clipboardItems)
   {
-    copy.push("png");
+    if (browser.canvasExport)
+    {
+      copy.push("png");
+    }
+
+    copy.push("svg");
   }
 
   return { download: download, copy: copy };
 }
 
 // The entries of the Download and Copy menus, in draw.io's words (its Edit
-// menu has Copy, Copy as Image; its files are .drawio, PNG, SVG). The first
-// entry does what a click on the button does and is marked as the default;
-// the image formats (formats, from toolbarMenuFormats) follow. A menu
-// without an image format gets no entries, so its arrow stays hidden: the
-// default alone would only repeat the button.
+// menu has Copy, Copy as Image, Copy as SVG; its files are .drawio, PNG,
+// SVG). The first entry does what a click on the button does and is marked
+// as the default; the image formats (formats, from toolbarMenuFormats)
+// follow. A menu without an image format gets no entries, so its arrow stays
+// hidden: the default alone would only repeat the button.
 function toolbarMenuEntries(formats)
 {
   function entries(defaultEntry, imageFormats, labels)
@@ -1688,8 +1693,35 @@ function toolbarMenuEntries(formats)
     download: entries({ action: "drawio", label: "Download .drawio", isDefault: true },
       formats.download, { png: "Download PNG", svg: "Download SVG" }),
     copy: entries({ action: "xml", label: "Copy as XML", isDefault: true },
-      formats.copy, { png: "Copy as Image" })
+      formats.copy, { png: "Copy as Image", svg: "Copy as SVG" })
   };
+}
+
+// What Copy as SVG puts on the clipboard for an SVG (svg, its markup;
+// dataUri, the same as a data URI), by MIME type. As draw.io's Copy as SVG
+// does, an <img> as HTML, and image/svg+xml only where the browser writes it
+// (svgType, ClipboardItem.supports: Chrome from 124, not Firefox or Safari),
+// since a ClipboardItem with a type the browser doesn't write fails as a
+// whole. The markup also goes as text, for editors and a browser without
+// the SVG type.
+function svgClipboardTexts(svg, dataUri, svgType)
+{
+  var tag = svg.match(/<svg[^>]*>/);
+  var size = function(name)
+  {
+    var value = (tag != null) ? tag[0].match(new RegExp(' ' + name + '="([0-9.]+)')) : null;
+
+    return (value != null) ? ' ' + name + '="' + Math.round(parseFloat(value[1])) + '"' : '';
+  };
+  var texts = { 'text/html': '<img src="' + dataUri + '"' + size('width') + size('height') + '>',
+    'text/plain': svg };
+
+  if (svgType)
+  {
+    texts['image/svg+xml'] = svg;
+  }
+
+  return texts;
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -9011,7 +9043,7 @@ function browserExportFeatures()
   return {
     canvasExport: typeof Editor !== 'undefined' && Editor.useCanvasForExport === true &&
       typeof Editor.prototype.exportToCanvas === 'function',
-    clipboardImage: navigator.clipboard != null && typeof navigator.clipboard.write === 'function' &&
+    clipboardItems: navigator.clipboard != null && typeof navigator.clipboard.write === 'function' &&
       typeof ClipboardItem !== 'undefined' &&
       (policy == null || typeof policy.allowsFeature !== 'function' || policy.allowsFeature('clipboard-write'))
   };
@@ -9181,6 +9213,40 @@ function copyPng()
   });
 }
 
+// Runs in the click on the menu entry, as copyPng. The SVG is the one
+// Download SVG saves: it carries the .drawio file and follows light or dark
+// mode wherever it is pasted.
+function copySvg()
+{
+  if (streamGraph == null || !currentXml) return;
+
+  var svgType = typeof ClipboardItem.supports === 'function' && ClipboardItem.supports('image/svg+xml');
+  var svg = new Promise(function(resolve, reject)
+  {
+    exportSvg(streamGraph, currentPage, currentXml, function(markup)
+    {
+      resolve(svgClipboardTexts(markup, Editor.createSvgDataUri(markup), svgType));
+    }, reject);
+  });
+  var data = {};
+
+  ['text/html', 'text/plain'].concat(svgType ? ['image/svg+xml'] : []).forEach(function(type)
+  {
+    data[type] = svg.then(function(texts)
+    {
+      return new Blob([texts[type]], { type: type });
+    });
+  });
+
+  navigator.clipboard.write([new ClipboardItem(data)]).then(function()
+  {
+    showCopied();
+  }, function(e)
+  {
+    console.log('[copy-svg] failed', e && e.message);
+  });
+}
+
 var openMenuBtn = null;
 
 // What each menu entry (toolbarMenuEntries) runs
@@ -9192,7 +9258,8 @@ var MENU_ACTIONS = {
   },
   copy: {
     xml: copyXml,
-    png: copyPng
+    png: copyPng,
+    svg: copySvg
   }
 };
 
@@ -10551,7 +10618,7 @@ export function createServer(html, options = {})
                   resourceDomains: RESOURCE_DOMAINS,
                   connectDomains: withEditorOrigin(CONNECT_DOMAINS, linkBase),
                 },
-                // Copy as Image: shown only when the host grants it
+                // Copy as Image and Copy as SVG: shown only when the host grants it
                 // (hostCapabilities.sandbox.permissions)
                 permissions: { clipboardWrite: {} },
               },

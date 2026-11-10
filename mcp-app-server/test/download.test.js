@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 
 // The viewer's Download button asks the host (ui/download-file) to save the
 // diagram as a .drawio file, its menu as a .drawio file, PNG or SVG; the Copy
-// menu offers Copy as XML (what the button does) and Copy as Image. Their
-// code runs in the app's HTML, so it is taken from the source of the
-// template.
+// menu offers Copy as XML (what the button does), Copy as Image and Copy as
+// SVG. Their code runs in the app's HTML, so it is taken from the source of
+// the template.
 
 const source = readFileSync(new URL("../src/shared.js", import.meta.url), "utf-8");
 
@@ -20,14 +20,14 @@ function templateFunction(name)
   return new Function("return `" + fn[0] + "`;")();
 }
 
-const { drawioFileRequest, imageFileRequest, toolbarMenuFormats, toolbarMenuEntries, diagramPage,
-  exportTheme, svgExportBackground } = new Function(
+const { drawioFileRequest, imageFileRequest, toolbarMenuFormats, toolbarMenuEntries, svgClipboardTexts,
+  diagramPage, exportTheme, svgExportBackground } = new Function(
   templateFunction("drawioFileText") + templateFunction("drawioFileRequest") +
   templateFunction("imageFileRequest") + templateFunction("toolbarMenuFormats") +
-  templateFunction("toolbarMenuEntries") + templateFunction("diagramPage") + templateFunction("exportTheme") +
-  templateFunction("svgExportBackground") +
-  "\nreturn { drawioFileRequest, imageFileRequest, toolbarMenuFormats, toolbarMenuEntries, diagramPage, " +
-  "exportTheme, svgExportBackground };")();
+  templateFunction("toolbarMenuEntries") + templateFunction("svgClipboardTexts") +
+  templateFunction("diagramPage") + templateFunction("exportTheme") + templateFunction("svgExportBackground") +
+  "\nreturn { drawioFileRequest, imageFileRequest, toolbarMenuFormats, toolbarMenuEntries, svgClipboardTexts, " +
+  "diagramPage, exportTheme, svgExportBackground };")();
 
 const model = '<mxGraphModel adaptiveColors="auto"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
   '<mxCell id="a" value="R&amp;D" style="rounded=1;html=1;" vertex="1" parent="1">' +
@@ -70,7 +70,7 @@ test("an SVG downloads as text, a PNG as the base64 of its data URI", function()
 
 // Each host as it declares itself; the menus follow what is declared, never
 // the host's name.
-const browser = { canvasExport: true, clipboardImage: true };
+const browser = { canvasExport: true, clipboardItems: true };
 const download = { downloadFile: {} };
 const clipboard = { sandbox: { permissions: { clipboardWrite: {} } } };
 
@@ -85,21 +85,21 @@ test("a host without downloadFile gets no Download menu", function()
   assert.deepEqual(toolbarMenuFormats(undefined, browser), { download: [], copy: [] });
 });
 
-test("Copy as Image needs the host's clipboardWrite grant and a browser that writes images", function()
+test("Copy as Image and Copy as SVG need the host's clipboardWrite grant and a browser that writes ClipboardItems", function()
 {
   assert.deepEqual(toolbarMenuFormats(Object.assign({}, download, clipboard), browser),
-    { download: ["png", "svg"], copy: ["png"] });
-  assert.deepEqual(toolbarMenuFormats(clipboard, browser), { download: [], copy: ["png"] });
+    { download: ["png", "svg"], copy: ["png", "svg"] });
+  assert.deepEqual(toolbarMenuFormats(clipboard, browser), { download: [], copy: ["png", "svg"] });
   assert.deepEqual(toolbarMenuFormats({ sandbox: { permissions: { camera: {} } } }, browser),
     { download: [], copy: [] });
-  assert.deepEqual(toolbarMenuFormats(clipboard, { canvasExport: true, clipboardImage: false }),
+  assert.deepEqual(toolbarMenuFormats(clipboard, { canvasExport: true, clipboardItems: false }),
     { download: [], copy: [] });
 });
 
 test("without a usable canvas there is no PNG, only SVG", function()
 {
   assert.deepEqual(toolbarMenuFormats(Object.assign({}, download, clipboard),
-    { canvasExport: false, clipboardImage: true }), { download: ["svg"], copy: [] });
+    { canvasExport: false, clipboardItems: true }), { download: ["svg"], copy: ["svg"] });
 });
 
 // What the menus list, in draw.io's words: first the button's own action,
@@ -117,9 +117,9 @@ test("each menu starts with what its button does, marked as the default", functi
   const entries = toolbarMenuEntries(toolbarMenuFormats(Object.assign({}, download, clipboard), browser));
 
   assert.deepEqual(labelsOf(entries.download), ["* Download .drawio", "Download PNG", "Download SVG"]);
-  assert.deepEqual(labelsOf(entries.copy), ["* Copy as XML", "Copy as Image"]);
+  assert.deepEqual(labelsOf(entries.copy), ["* Copy as XML", "Copy as Image", "Copy as SVG"]);
   assert.deepEqual(entries.download.map(function(entry) { return entry.action; }), ["drawio", "png", "svg"]);
-  assert.deepEqual(entries.copy.map(function(entry) { return entry.action; }), ["xml", "png"]);
+  assert.deepEqual(entries.copy.map(function(entry) { return entry.action; }), ["xml", "png", "svg"]);
 });
 
 test("a menu without an image format stays empty, so its arrow is hidden", function()
@@ -130,13 +130,41 @@ test("a menu without an image format stays empty, so its arrow is hidden", funct
     { download: [], copy: [] });
 });
 
-test("without a usable canvas the Download menu keeps .drawio and SVG", function()
+test("without a usable canvas both menus keep their default and SVG", function()
 {
   const entries = toolbarMenuEntries(toolbarMenuFormats(Object.assign({}, download, clipboard),
-    { canvasExport: false, clipboardImage: true }));
+    { canvasExport: false, clipboardItems: true }));
 
   assert.deepEqual(labelsOf(entries.download), ["* Download .drawio", "Download SVG"]);
-  assert.deepEqual(entries.copy, []);
+  assert.deepEqual(labelsOf(entries.copy), ["* Copy as XML", "Copy as SVG"]);
+});
+
+// Copy as SVG writes what draw.io's Copy as SVG writes, plus the markup as text
+const svg = '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" ' +
+  '"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n<svg xmlns="http://www.w3.org/2000/svg" ' +
+  'style="background: transparent;" width="161px" height="81.5px" viewBox="-0.5 -0.5 161 81.5" ' +
+  'content="&lt;mxfile&gt;&lt;mxGeometry width=&quot;140&quot;/&gt;&lt;/mxfile&gt;"><g/></svg>';
+
+test("Copy as SVG writes an image where the browser takes image/svg+xml", function()
+{
+  assert.deepEqual(svgClipboardTexts(svg, "data:image/svg+xml;base64,PHN2Zy8+", true), {
+    "text/html": '<img src="data:image/svg+xml;base64,PHN2Zy8+" width="161" height="82">',
+    "text/plain": svg,
+    "image/svg+xml": svg
+  });
+});
+
+test("elsewhere Copy as SVG writes only types every ClipboardItem takes", function()
+{
+  const texts = svgClipboardTexts(svg, "data:image/svg+xml;base64,PHN2Zy8+", false);
+
+  assert.deepEqual(Object.keys(texts).sort(), ["text/html", "text/plain"]);
+  assert.equal(texts["text/plain"], svg);
+});
+
+test("an SVG without a size is pasted at its own size", function()
+{
+  assert.equal(svgClipboardTexts("<svg><g/></svg>", "data:x", false)["text/html"], '<img src="data:x">');
 });
 
 // Each entry has something to run in the viewer
