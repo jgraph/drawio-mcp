@@ -80,9 +80,9 @@ Pick a `(col, row)` for each node. Don't think about centers or exact gaps — t
 |----------|--------|---------|
 | `rounded=1` | 0 or 1 | Rounded corners |
 | `whiteSpace=wrap` | wrap | Text wrapping |
-| `fillColor=#dae8fc` | Hex color | Background color |
-| `strokeColor=#6c8ebf` | Hex color | Border color |
-| `fontColor=#333333` | Hex color | Text color |
+| `fillColor=#EEF4FF` | Hex color | Background color |
+| `strokeColor=#9DB8F2` | Hex color | Border color |
+| `fontColor=#1B1F24` | Hex color | Text color |
 | `shape=cylinder3` | shape name | Database cylinders |
 | `shape=mxgraph.flowchart.document` | shape name | Document shapes |
 | `ellipse` | style keyword | Circles/ovals |
@@ -121,17 +121,18 @@ Styles users ask for, and the keys that draw them. Apply a requested look to eve
 
 ### Color themes
 
-The role colors (blue steps, yellow decisions, green start and end, red errors) are the **classic** theme and the default. When the user asks for a look, apply one of these themes to every cell: steps, decisions, start/end, errors, connectors, the title. Containers and lanes take a pale tint of the theme's step color.
+The role colors (blue steps, yellow decisions, green start and end, red errors) are the **calm** theme and the default. Calm also has orange `#FFF0E5` / `#F0B48A` for retries and waiting, purple `#F3EEFF` / `#B9A6F0` for data and storage, gray `#F2F4F7` / `#B8C0CC` for external systems, `#FFF9DB` / `#E9D58A` for notes, `#F7F8FA` / `#D5DAE1` for containers, and `fontColor=#1E7F3E` / `#C9302C` for yes / no edge labels. When the user asks for a look, apply one of these themes to every cell: steps, decisions, start/end, errors, connectors, the title. Containers and lanes take a pale tint of the theme's step color.
 
 | Theme (the user says…) | Page and font | Steps | Decisions | Start / end | Errors | Connectors |
 |---|---|---|---|---|---|---|
-| **Classic** (default) | — | `fillColor=#dae8fc;strokeColor=#6c8ebf` | `#fff2cc` / `#d6b656` | `#d5e8d4` / `#82b366` | `#f8cecc` / `#b85450` | default |
+| **Calm** (default) | `fontColor=#1B1F24` | `fillColor=#EEF4FF;strokeColor=#9DB8F2` | `#FFF6E0` / `#E8C36A` | `#E7F6EC` / `#8BCB9F` | `#FDECEC` / `#EBA3A3` | `strokeColor=#8A94A6;fontColor=#5A626E` |
+| **Classic** (draw.io's classic colors) | — | `#dae8fc` / `#6c8ebf` | `#fff2cc` / `#d6b656` | `#d5e8d4` / `#82b366` | `#f8cecc` / `#b85450` | default |
 | **Professional** (corporate, clean, business) | `fontFamily=Inter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DInter;fontColor=#0F172A`, `rounded=1;arcSize=12` | `#EFF6FF` / `#2563EB` | `#FFFFFF` / `#2563EB` | `fillColor=#1E3A8A;strokeColor=none;fontColor=#FFFFFF` | `#FEF2F2` / `#DC2626` | `strokeColor=#475569;strokeWidth=1.5;fontColor=#334155` |
 | **Minimal** (black and white, monochrome, print) | `fontFamily=Helvetica;fontColor=#111827`, square corners | `#FFFFFF` / `#111827` | `#F3F4F6` / `#111827` | `fillColor=#111827;fontColor=#FFFFFF` | `#FFFFFF` / `#111827`, `dashed=1` | `strokeColor=#111827` |
 | **Vivid** (colorful, bold, modern) | `fontFamily=Inter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DInter;fontStyle=1`, `rounded=1;arcSize=20` | `fillColor=#2563EB;strokeColor=none;fontColor=#FFFFFF` | `#F59E0B`, `fontColor=#1F2937` | `#16A34A`, white text | `#DC2626`, white text | `strokeColor=#334155;strokeWidth=2` |
 | **Dark** (dark mode, night) | `background="#0F172A"` and `adaptiveColors="none"` on `mxGraphModel`, `fontColor=#F1F5F9` everywhere | `#1E293B` / `#60A5FA` | `#1E293B` / `#FBBF24` | `#064E3B` / `#34D399` | `#450A0A` / `#F87171` | `strokeColor=#94A3B8;fontColor=#E2E8F0;labelBackgroundColor=#0F172A` |
 | **Blueprint** (technical, engineering) | `background="#1E3A5F"` and `adaptiveColors="none"`, `fontFamily=Courier New;fontColor=#E0F2FE`, square corners | `fillColor=none;strokeColor=#E0F2FE` | same as steps | same, `strokeWidth=2` | `strokeColor=#FCA5A5;fontColor=#FCA5A5` | `strokeColor=#E0F2FE;labelBackgroundColor=#1E3A5F` |
-| **Hand-drawn** (sketch, napkin, whiteboard) | `sketch=1;curveFitting=1;jiggle=2;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter` on every cell | classic colors | classic | classic | classic | the same sketch keys |
+| **Hand-drawn** (sketch, napkin, whiteboard) | `sketch=1;curveFitting=1;jiggle=2;fontFamily=Architects Daughter;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DArchitects%2BDaughter` on every cell | calm colors | calm | calm | calm | the same sketch keys |
 | **Brand** (the user gives a color, e.g. #0055A4) | `fontColor=#1F2937` | a 10 % tint of the color (`#E6F0F8`) / the color | `#FFFFFF` / the color | the color, white text, no outline | `#FDECEC` / `#C62828` | `strokeColor=#4B5563` |
 
 Fill / stroke pairs are written `fill / stroke`. Keep one theme per diagram, and keep the theme when the user asks for other changes later.
@@ -242,7 +243,7 @@ Set `parent="containerId"` on child cells. Children use **relative coordinates**
 ### Example: Architecture container with swimlane
 
 ```xml
-<mxCell id="svc1" value="User Service" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;html=1;" vertex="1" parent="1">
+<mxCell id="svc1" value="User Service" style="swimlane;startSize=30;fillColor=#F7F8FA;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
   <mxGeometry x="100" y="100" width="300" height="200" as="geometry"/>
 </mxCell>
 <mxCell id="api1" value="REST API" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="svc1">
@@ -270,20 +271,20 @@ Use **flat swimlanes** at `parent="1"`, stacked vertically. One row of nodes per
 
 **Fixed values — do not compute or debate:**
 - Lane size: `x=0, y=lane_index*150, width=CANVAS_W, height=150`
-- Lane style: `swimlane;horizontal=0;startSize=110;fillColor=<pastel>;html=1;`
+- Lane style: `swimlane;horizontal=0;startSize=110;fillColor=<pastel>;strokeColor=#D5DAE1;html=1;`
 - Child nodes inside a lane: `parent="<lane_id>"`, `x = 120 + col*180`, `y = 45` (always 45), size 140×60 (or 140×80 for diamonds)
 - Cross-lane edges: `parent="1"` (not inside a lane)
 
-Pick `CANVAS_W = max_col * 180 + 300`. Choose lane colors from `#f5f5f5, #e8f4f8, #fff0e6, #e8f5e9, #fff9e6, #fce4ec` in that order.
+Pick `CANVAS_W = max_col * 180 + 300`. Choose lane colors from `#F7F8FA, #EEF4FF, #FFF0E5, #E7F6EC, #FFF6E0, #FDECEC` in that order.
 
 ```xml
-<mxCell id="lane1" value="Customer" style="swimlane;horizontal=0;startSize=110;fillColor=#f5f5f5;html=1;" vertex="1" parent="1">
+<mxCell id="lane1" value="Customer" style="swimlane;horizontal=0;startSize=110;fillColor=#F7F8FA;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
   <mxGeometry x="0" y="0" width="1800" height="150" as="geometry"/>
 </mxCell>
 <mxCell id="n1" value="Place Order" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="lane1">
   <mxGeometry x="120" y="45" width="140" height="60" as="geometry"/>
 </mxCell>
-<mxCell id="lane2" value="System" style="swimlane;horizontal=0;startSize=110;fillColor=#e8f4f8;html=1;" vertex="1" parent="1">
+<mxCell id="lane2" value="System" style="swimlane;horizontal=0;startSize=110;fillColor=#EEF4FF;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
   <mxGeometry x="0" y="150" width="1800" height="150" as="geometry"/>
 </mxCell>
 <mxCell id="n2" value="Validate" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="lane2">
@@ -307,10 +308,10 @@ For diagrams with **nested groupings** — VPC → Availability Zone → EC2 ins
 - For industry-specific icons (AWS/Azure/GCP logos, Cisco equipment, etc.), call `search_shapes` to get the exact `style` string and substitute it into a regular vertex — the container structure stays the same.
 
 ```xml
-<mxCell id="vpc" value="VPC" style="swimlane;startSize=24;fillColor=#dae8fc;strokeColor=#6c8ebf;html=1;" vertex="1" parent="1">
+<mxCell id="vpc" value="VPC" style="swimlane;startSize=24;fillColor=#F7F8FA;strokeColor=#D5DAE1;html=1;" vertex="1" parent="1">
   <mxGeometry x="0" y="0" width="720" height="360" as="geometry"/>
 </mxCell>
-<mxCell id="az1" value="AZ us-east-1a" style="swimlane;startSize=24;fillColor=#fff2cc;strokeColor=#d6b656;html=1;" vertex="1" parent="vpc">
+<mxCell id="az1" value="AZ us-east-1a" style="swimlane;startSize=24;fillColor=#EEF4FF;strokeColor=#9DB8F2;html=1;" vertex="1" parent="vpc">
   <mxGeometry x="20" y="36" width="320" height="300" as="geometry"/>
 </mxCell>
 <mxCell id="web1" value="web-1" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="az1">
@@ -319,7 +320,7 @@ For diagrams with **nested groupings** — VPC → Availability Zone → EC2 ins
 <mxCell id="db1" value="db-1" style="shape=cylinder3;whiteSpace=wrap;html=1;" vertex="1" parent="az1">
   <mxGeometry x="180" y="40" width="100" height="70" as="geometry"/>
 </mxCell>
-<mxCell id="az2" value="AZ us-east-1b" style="swimlane;startSize=24;fillColor=#fff2cc;strokeColor=#d6b656;html=1;" vertex="1" parent="vpc">
+<mxCell id="az2" value="AZ us-east-1b" style="swimlane;startSize=24;fillColor=#EEF4FF;strokeColor=#9DB8F2;html=1;" vertex="1" parent="vpc">
   <mxGeometry x="360" y="36" width="340" height="300" as="geometry"/>
 </mxCell>
 <mxCell id="web2" value="web-2" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="az2">
@@ -353,16 +354,16 @@ Cross-functional flowcharts show a process across **two axes at once** — actor
 <mxCell id="h0" style="text;html=1;" vertex="1" parent="r0">
   <mxGeometry width="140" height="40" as="geometry"/>
 </mxCell>
-<mxCell id="h1" value="Order" style="text;align=center;fontStyle=1;fillColor=#e8e8e8;" vertex="1" parent="r0">
+<mxCell id="h1" value="Order" style="text;align=center;fontStyle=1;fillColor=#F2F4F7;" vertex="1" parent="r0">
   <mxGeometry x="140" width="380" height="40" as="geometry"/>
 </mxCell>
-<mxCell id="h2" value="Fulfill" style="text;align=center;fontStyle=1;fillColor=#e8e8e8;" vertex="1" parent="r0">
+<mxCell id="h2" value="Fulfill" style="text;align=center;fontStyle=1;fillColor=#F2F4F7;" vertex="1" parent="r0">
   <mxGeometry x="520" width="380" height="40" as="geometry"/>
 </mxCell>
 <mxCell id="r1" style="shape=tableRow;horizontal=0;startSize=0;collapsible=0;" vertex="1" parent="tbl">
   <mxGeometry y="40" width="900" height="140" as="geometry"/>
 </mxCell>
-<mxCell id="a1" value="Customer" style="fillColor=#dae8fc;fontStyle=1;" vertex="1" parent="r1">
+<mxCell id="a1" value="Customer" style="fillColor=#EEF4FF;fontStyle=1;" vertex="1" parent="r1">
   <mxGeometry width="140" height="140" as="geometry"/>
 </mxCell>
 <mxCell id="c_cust_order" style="fillColor=none;" vertex="1" parent="r1">
@@ -377,7 +378,7 @@ Cross-functional flowcharts show a process across **two axes at once** — actor
 <mxCell id="r2" style="shape=tableRow;horizontal=0;startSize=0;collapsible=0;" vertex="1" parent="tbl">
   <mxGeometry y="180" width="900" height="140" as="geometry"/>
 </mxCell>
-<mxCell id="a2" value="System" style="fillColor=#d5e8d4;fontStyle=1;" vertex="1" parent="r2">
+<mxCell id="a2" value="System" style="fillColor=#E7F6EC;fontStyle=1;" vertex="1" parent="r2">
   <mxGeometry width="140" height="140" as="geometry"/>
 </mxCell>
 <mxCell id="c_sys_order" style="fillColor=none;" vertex="1" parent="r2">
@@ -500,7 +501,7 @@ Set `placeholders="1"` on the `<object>` to enable `%propertyName%` substitution
 draw.io supports automatic dark mode rendering. How colors behave depends on the property:
 
 - **`strokeColor`, `fillColor`, `fontColor`** default to `"default"`, which renders as black in light theme and white in dark theme. When no explicit color is set, colors adapt automatically.
-- **Explicit colors** (e.g. `fillColor=#DAE8FC`) specify the light-mode color. The dark-mode color is computed automatically by inverting the RGB values (blending toward the inverse at 93%) and rotating the hue by 180° (via `mxUtils.getInverseColor`).
+- **Explicit colors** (e.g. `fillColor=#EEF4FF`) specify the light-mode color. The dark-mode color is computed automatically by inverting the RGB values (blending toward the inverse at 93%) and rotating the hue by 180° (via `mxUtils.getInverseColor`).
 - **`light-dark()` function** — To specify both colors explicitly, use `light-dark(lightColor,darkColor)` in the style string, e.g. `fontColor=light-dark(#7EA6E0,#FF0000)`. The first argument is used in light mode, the second in dark mode.
 
 To enable dark mode color adaptation, the `mxGraphModel` element must include `adaptiveColors="auto"`.
