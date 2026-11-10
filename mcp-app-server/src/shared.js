@@ -429,8 +429,9 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         flex-shrink: 0;
       }
       /* Download and Copy are split buttons: the button does what it did
-         alone, the arrow beside it (shown only when its menu has entries)
-         opens the image formats. Both halves share one border. */
+         alone, the arrow beside it (shown only when there is an image
+         format) opens a menu of that default and the image formats. Both
+         halves share one border. */
       #toolbar .split {
         display: inline-flex;
         min-width: 0;
@@ -494,6 +495,15 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
       #toolbar-menu button:focus-visible {
         background: var(--color-bg-hover, var(--viewer-btn-bg-hover));
         outline: none;
+      }
+      /* The default entry: what a click on the button does */
+      #toolbar-menu button.default {
+        font-weight: 600;
+      }
+      #toolbar-menu .separator {
+        height: 1px;
+        margin: 4px 6px;
+        background: var(--color-border, var(--viewer-btn-border));
       }
 
       #error {
@@ -560,7 +570,7 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         <button id="download-btn" class="icon-only" title="Download as a draw.io file" aria-label="Download">
           <svg viewBox="0 -960 960 960" aria-hidden="true"><path fill="currentColor" stroke="none" d="M480-320 280-520l56-58 104 104v-326h80v326l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg>
         </button>
-        <button id="download-menu-btn" class="split-arrow" style="display:none" title="Download as an image" aria-label="Download as an image" aria-haspopup="menu" aria-expanded="false">
+        <button id="download-menu-btn" class="split-arrow" style="display:none" title="More ways to download" aria-label="More ways to download" aria-haspopup="menu" aria-expanded="false">
           <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="7 10 12 15 17 10"/></svg>
         </button>
       </div>
@@ -1624,7 +1634,7 @@ function imageFileRequest(format, data)
 // declares (caps, its MCP Apps capabilities) and what the browser can do. A
 // host that lacks something gets no entry for it, and an arrow without
 // entries is hidden: no host is recognized by name. Download needs the
-// host's downloadFile; Copy as PNG needs the host to grant clipboardWrite
+// host's downloadFile; Copy as Image needs the host to grant clipboardWrite
 // and the browser to write images to the clipboard. PNG needs a canvas that
 // an SVG with HTML labels doesn't taint (Editor.useCanvasForExport).
 function toolbarMenuFormats(caps, browser)
@@ -1651,6 +1661,35 @@ function toolbarMenuFormats(caps, browser)
   }
 
   return { download: download, copy: copy };
+}
+
+// The entries of the Download and Copy menus, in draw.io's words (its Edit
+// menu has Copy, Copy as Image; its files are .drawio, PNG, SVG). The first
+// entry does what a click on the button does and is marked as the default;
+// the image formats (formats, from toolbarMenuFormats) follow. A menu
+// without an image format gets no entries, so its arrow stays hidden: the
+// default alone would only repeat the button.
+function toolbarMenuEntries(formats)
+{
+  function entries(defaultEntry, imageFormats, labels)
+  {
+    if (imageFormats.length == 0)
+    {
+      return [];
+    }
+
+    return [defaultEntry].concat(imageFormats.map(function(format)
+    {
+      return { action: format, label: labels[format] };
+    }));
+  }
+
+  return {
+    download: entries({ action: "drawio", label: "Download .drawio", isDefault: true },
+      formats.download, { png: "Download PNG", svg: "Download SVG" }),
+    copy: entries({ action: "xml", label: "Copy as XML", isDefault: true },
+      formats.copy, { png: "Copy as Image" })
+  };
 }
 
 // Injects the ELK layout selector into the round-tripped Mermaid source so a
@@ -8853,7 +8892,8 @@ openDrawioBtn.addEventListener("click", function()
   }
 });
 
-copyXmlBtn.addEventListener("click", function()
+// The Copy button, and the default entry of its menu
+function copyXml()
 {
   if (!currentXml) return;
 
@@ -8866,7 +8906,9 @@ copyXmlBtn.addEventListener("click", function()
   document.execCommand("copy");
   document.body.removeChild(ta);
   showCopied();
-});
+}
+
+copyXmlBtn.addEventListener("click", copyXml);
 
 function showCopied()
 {
@@ -8892,12 +8934,15 @@ function saveFile(request)
   });
 }
 
-downloadBtn.addEventListener("click", function()
+// The Download button, and the default entry of its menu
+function downloadDrawio()
 {
   if (!currentXml) return;
 
   saveFile(drawioFileRequest(currentXml));
-});
+}
+
+downloadBtn.addEventListener("click", downloadDrawio);
 
 // --- Image export (Download and Copy menus) ---
 
@@ -9136,12 +9181,24 @@ function copyPng()
   });
 }
 
-var FORMAT_LABELS = { png: 'PNG', svg: 'SVG' };
 var openMenuBtn = null;
 
-function menuFormats()
+// What each menu entry (toolbarMenuEntries) runs
+var MENU_ACTIONS = {
+  download: {
+    drawio: downloadDrawio,
+    png: function() { downloadImage('png'); },
+    svg: function() { downloadImage('svg'); }
+  },
+  copy: {
+    xml: copyXml,
+    png: copyPng
+  }
+};
+
+function menuEntries()
 {
-  return toolbarMenuFormats(app.getHostCapabilities(), browserExportFeatures());
+  return toolbarMenuEntries(toolbarMenuFormats(app.getHostCapabilities(), browserExportFeatures()));
 }
 
 // Shows each arrow only when its menu has entries. Run on connect and when
@@ -9149,8 +9206,8 @@ function menuFormats()
 // after it loads.
 function updateToolbarMenus()
 {
-  var formats = menuFormats();
-  var arrows = [[copyMenuBtn, formats.copy], [downloadMenuBtn, formats.download]];
+  var entries = menuEntries();
+  var arrows = [[copyMenuBtn, entries.copy], [downloadMenuBtn, entries.download]];
 
   for (var i = 0; i < arrows.length; i++)
   {
@@ -9172,8 +9229,10 @@ function closeToolbarMenu()
   toolbarMenuEl.innerHTML = '';
 }
 
-// The menu opens above its arrow: the iframe ends below the toolbar.
-function openToolbarMenu(btn, entries)
+// The menu opens above its arrow: the iframe ends below the toolbar. The
+// default entry, what a click on the button does, comes first in bold, set
+// off from the others by a line.
+function openToolbarMenu(btn, entries, actions)
 {
   closeToolbarMenu();
 
@@ -9187,9 +9246,18 @@ function openToolbarMenu(btn, entries)
       item.addEventListener('click', function()
       {
         closeToolbarMenu();
-        entry.run();
+        actions[entry.action]();
       });
       toolbarMenuEl.appendChild(item);
+
+      if (entry.isDefault)
+      {
+        item.className = 'default';
+        var line = document.createElement('div');
+        line.className = 'separator';
+        line.setAttribute('role', 'separator');
+        toolbarMenuEl.appendChild(line);
+      }
     })(entries[i]);
   }
 
@@ -9205,7 +9273,7 @@ function openToolbarMenu(btn, entries)
   toolbarMenuEl.firstChild.focus();
 }
 
-function toggleToolbarMenu(btn, entries)
+function toggleToolbarMenu(btn, entries, actions)
 {
   if (openMenuBtn === btn)
   {
@@ -9213,27 +9281,20 @@ function toggleToolbarMenu(btn, entries)
   }
   else if (entries.length > 0)
   {
-    openToolbarMenu(btn, entries);
+    openToolbarMenu(btn, entries, actions);
   }
 }
 
 downloadMenuBtn.addEventListener('click', function(e)
 {
   e.stopPropagation();
-  toggleToolbarMenu(downloadMenuBtn, menuFormats().download.map(function(format)
-  {
-    return { label: 'Download ' + FORMAT_LABELS[format],
-      run: function() { downloadImage(format); } };
-  }));
+  toggleToolbarMenu(downloadMenuBtn, menuEntries().download, MENU_ACTIONS.download);
 });
 
 copyMenuBtn.addEventListener('click', function(e)
 {
   e.stopPropagation();
-  toggleToolbarMenu(copyMenuBtn, menuFormats().copy.map(function(format)
-  {
-    return { label: 'Copy as ' + FORMAT_LABELS[format], run: copyPng };
-  }));
+  toggleToolbarMenu(copyMenuBtn, menuEntries().copy, MENU_ACTIONS.copy);
 });
 
 document.addEventListener('click', function(e)
@@ -10490,7 +10551,7 @@ export function createServer(html, options = {})
                   resourceDomains: RESOURCE_DOMAINS,
                   connectDomains: withEditorOrigin(CONNECT_DOMAINS, linkBase),
                 },
-                // Copy as PNG: shown only when the host grants it
+                // Copy as Image: shown only when the host grants it
                 // (hostCapabilities.sandbox.permissions)
                 permissions: { clipboardWrite: {} },
               },

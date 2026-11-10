@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 // The viewer's Download button asks the host (ui/download-file) to save the
-// diagram as a .drawio file, its menu as a PNG or SVG; the Copy menu offers
-// Copy as PNG. Their code runs in the app's HTML, so it is taken from the
-// source of the template.
+// diagram as a .drawio file, its menu as a .drawio file, PNG or SVG; the Copy
+// menu offers Copy as XML (what the button does) and Copy as Image. Their
+// code runs in the app's HTML, so it is taken from the source of the
+// template.
 
 const source = readFileSync(new URL("../src/shared.js", import.meta.url), "utf-8");
 
@@ -19,13 +20,14 @@ function templateFunction(name)
   return new Function("return `" + fn[0] + "`;")();
 }
 
-const { drawioFileRequest, imageFileRequest, toolbarMenuFormats, diagramPage, exportTheme,
-  svgExportBackground } = new Function(
+const { drawioFileRequest, imageFileRequest, toolbarMenuFormats, toolbarMenuEntries, diagramPage,
+  exportTheme, svgExportBackground } = new Function(
   templateFunction("drawioFileText") + templateFunction("drawioFileRequest") +
   templateFunction("imageFileRequest") + templateFunction("toolbarMenuFormats") +
-  templateFunction("diagramPage") + templateFunction("exportTheme") + templateFunction("svgExportBackground") +
-  "\nreturn { drawioFileRequest, imageFileRequest, toolbarMenuFormats, diagramPage, exportTheme, " +
-  "svgExportBackground };")();
+  templateFunction("toolbarMenuEntries") + templateFunction("diagramPage") + templateFunction("exportTheme") +
+  templateFunction("svgExportBackground") +
+  "\nreturn { drawioFileRequest, imageFileRequest, toolbarMenuFormats, toolbarMenuEntries, diagramPage, " +
+  "exportTheme, svgExportBackground };")();
 
 const model = '<mxGraphModel adaptiveColors="auto"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
   '<mxCell id="a" value="R&amp;D" style="rounded=1;html=1;" vertex="1" parent="1">' +
@@ -83,7 +85,7 @@ test("a host without downloadFile gets no Download menu", function()
   assert.deepEqual(toolbarMenuFormats(undefined, browser), { download: [], copy: [] });
 });
 
-test("Copy as PNG needs the host's clipboardWrite grant and a browser that writes images", function()
+test("Copy as Image needs the host's clipboardWrite grant and a browser that writes images", function()
 {
   assert.deepEqual(toolbarMenuFormats(Object.assign({}, download, clipboard), browser),
     { download: ["png", "svg"], copy: ["png"] });
@@ -98,6 +100,65 @@ test("without a usable canvas there is no PNG, only SVG", function()
 {
   assert.deepEqual(toolbarMenuFormats(Object.assign({}, download, clipboard),
     { canvasExport: false, clipboardImage: true }), { download: ["svg"], copy: [] });
+});
+
+// What the menus list, in draw.io's words: first the button's own action,
+// marked as the default, then the image formats.
+function labelsOf(entries)
+{
+  return entries.map(function(entry)
+  {
+    return (entry.isDefault ? "* " : "") + entry.label;
+  });
+}
+
+test("each menu starts with what its button does, marked as the default", function()
+{
+  const entries = toolbarMenuEntries(toolbarMenuFormats(Object.assign({}, download, clipboard), browser));
+
+  assert.deepEqual(labelsOf(entries.download), ["* Download .drawio", "Download PNG", "Download SVG"]);
+  assert.deepEqual(labelsOf(entries.copy), ["* Copy as XML", "Copy as Image"]);
+  assert.deepEqual(entries.download.map(function(entry) { return entry.action; }), ["drawio", "png", "svg"]);
+  assert.deepEqual(entries.copy.map(function(entry) { return entry.action; }), ["xml", "png"]);
+});
+
+test("a menu without an image format stays empty, so its arrow is hidden", function()
+{
+  assert.deepEqual(toolbarMenuEntries(toolbarMenuFormats(download, browser)).copy, []);
+  assert.deepEqual(toolbarMenuEntries(toolbarMenuFormats(clipboard, browser)).download, []);
+  assert.deepEqual(toolbarMenuEntries(toolbarMenuFormats({ openLinks: {} }, browser)),
+    { download: [], copy: [] });
+});
+
+test("without a usable canvas the Download menu keeps .drawio and SVG", function()
+{
+  const entries = toolbarMenuEntries(toolbarMenuFormats(Object.assign({}, download, clipboard),
+    { canvasExport: false, clipboardImage: true }));
+
+  assert.deepEqual(labelsOf(entries.download), ["* Download .drawio", "Download SVG"]);
+  assert.deepEqual(entries.copy, []);
+});
+
+// Each entry has something to run in the viewer
+test("every menu entry has an action in the viewer", function()
+{
+  const actions = source.match(/\nvar MENU_ACTIONS = \{[\s\S]*?\n\};\n/);
+
+  assert.ok(actions, "MENU_ACTIONS not found in src/shared.js");
+
+  const entries = toolbarMenuEntries(toolbarMenuFormats(Object.assign({}, download, clipboard), browser));
+
+  for (const menu of ["download", "copy"])
+  {
+    const block = actions[0].match(new RegExp("\\n  " + menu + ": \\{([\\s\\S]*?)\\n  \\}"));
+
+    assert.ok(block, menu + " actions not found");
+
+    for (const entry of entries[menu])
+    {
+      assert.match(block[1], new RegExp("\\n    " + entry.action + ": "), menu + " has no " + entry.action);
+    }
+  }
 });
 
 // The mxGraphModel node of a diagram, as the DOM gives it to diagramPage
