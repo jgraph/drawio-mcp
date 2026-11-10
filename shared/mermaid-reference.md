@@ -68,7 +68,7 @@ The flow direction always follows the flowchart code (`TD`/`TB` vs `LR`/`RL`). *
 
 ### Styling & colors
 
-**Color by role.** Unstyled flowcharts and state diagrams come out in Mermaid's default lavender. Give each kind of node one color with `classDef`, from draw.io's palette (fill/stroke): blue `#dae8fc`/`#6c8ebf` for main steps, green `#d5e8d4`/`#82b366` for success and outputs, yellow `#fff2cc`/`#d6b656` for decisions, orange `#ffe6cc`/`#d79b00` for external systems and waiting, red `#f8cecc`/`#b85450` for errors and cancellation, purple `#e1d5e7`/`#9673a6` for special steps. The same color for the same kind of node, and few colors: two to four roles read better than a rainbow.
+**Color by role.** Unstyled flowcharts and state diagrams come out in Mermaid's default lavender. Give each kind of node one color with `classDef`, from draw.io's calm palette (fill/stroke, with `color:#1B1F24` for the text): blue `#EEF4FF`/`#9DB8F2` for main steps, green `#E7F6EC`/`#8BCB9F` for start, end and success, yellow `#FFF6E0`/`#E8C36A` for decisions, orange `#FFF0E5`/`#F0B48A` for retries and waiting, red `#FDECEC`/`#EBA3A3` for errors and cancellation, purple `#F3EEFF`/`#B9A6F0` for data and storage, gray `#F2F4F7`/`#B8C0CC` for external systems; edges `linkStyle default stroke:#8A94A6`. For draw.io's classic colors, when asked: blue `#dae8fc`/`#6c8ebf`, green `#d5e8d4`/`#82b366`, yellow `#fff2cc`/`#d6b656`, orange `#ffe6cc`/`#d79b00`, red `#f8cecc`/`#b85450`, purple `#e1d5e7`/`#9673a6`. The same color for the same kind of node, and few colors: two to four roles read better than a rainbow.
 
 Three ways — pick one, don't mix for the same node:
 
@@ -76,23 +76,23 @@ Three ways — pick one, don't mix for the same node:
 ```
 flowchart LR
   A[Start] --> B[End]
-  style A fill:#d5e8d4,stroke:#82b366,stroke-width:2px
-  style B fill:#f8cecc,stroke:#b85450,stroke-dasharray:5 5
+  style A fill:#E7F6EC,stroke:#8BCB9F,stroke-width:2px
+  style B fill:#FDECEC,stroke:#EBA3A3,stroke-dasharray:5 5
 ```
 
 **2. Reusable classes (`classDef` + `:::`):**
 ```
 flowchart LR
   A:::step --> B{OK?}:::decision
-  classDef step fill:#dae8fc,stroke:#6c8ebf
-  classDef decision fill:#fff2cc,stroke:#d6b656
+  classDef step fill:#EEF4FF,stroke:#9DB8F2,color:#1B1F24
+  classDef decision fill:#FFF6E0,stroke:#E8C36A,color:#1B1F24
 ```
 Or apply to many: `class A,B,C step`.
 
 **3. Link styling (edges):**
 ```
-linkStyle 0 stroke:#b85450,stroke-width:2px
-linkStyle default stroke:#666
+linkStyle 0 stroke:#C9302C,stroke-width:2px
+linkStyle default stroke:#8A94A6
 ```
 `0` = first edge in order defined; `default` targets unstyled edges.
 
