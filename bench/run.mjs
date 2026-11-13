@@ -5,42 +5,114 @@
 // time, tokens and tool calls. The diagram's arguments go to
 // <tag>-diagram.json for render.mjs.
 //
-// usage: node run.mjs --variants today,semantic --prompts er,er-clinic
-//          --models sonnet --repeats 3 [--parallel 4] [--out DIR]
+// With --edits, the prompt's follow-up request ("edit" in prompts.json) is
+// sent as a second user turn in the same session once the first answer is
+// complete. The summary has that turn under "edit", measured from the moment
+// the request was sent, and its diagram goes to <tag>-edit-diagram.json.
+//
+// usage: node run.mjs --variants today,semantic [--prompts er,er-clinic]
+//          [--type architecture] [--split dev] [--size large]
+//          [--models sonnet] [--repeats 3] [--first-repeat 1] [--parallel 4]
+//          [--edits | --edits dev | --edits held-out] [--timeout 900]
+//          [--out DIR]
 //
 // Variants:
-//   today     the app server as it is (the model picks XML or Mermaid from
-//             the tool description, fetches the reference, places shapes)
-//   mermaid   the app server, with "Use Mermaid." after the prompt
-//   semantic  semantic-server.mjs: the model describes the diagram, the
-//             engine in shared/semantic lays it out
+//   today          the app server as it is (the model picks XML or Mermaid
+//                  from the tool description, fetches the reference, places
+//                  the shapes)
+//   mermaid        the app server, with "Use Mermaid." after the prompt
+//   semantic       semantic-server.mjs: the model describes the diagram, the
+//                  engine in shared/semantic lays it out
+//   semantic-auto  the same without placement hints (SEMANTIC_HINTS=off):
+//                  neither offered in the description nor used by the engine
+//   semantic-rows  the same with the hints asked for (SEMANTIC_HINTS=ask):
+//                  the model gives every node and group a row and a column
+//   both           one server with the app server's three tools and
+//                  create_semantic_diagram, to see which one the model picks
+//   both-rule      the same, with a sentence in the create_diagram
+//                  description that sends architecture, cloud, network and
+//                  swimlane-flowchart diagrams to the semantic tool
+//                  (BENCH_FORMAT_RULE=1, which `both` also passes on when set)
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { BENCH, APP_SERVER, parseArgs, outDir } from "./lib/common.mjs";
+import { BENCH, APP_SERVER, parseArgs, outDir, loadPrompts, selectKeys, runTag, pool, round } from "./lib/common.mjs";
+
+const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule"];
+const SEMANTIC_TOOL = "create_semantic_diagram";
 
 const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
-const prompts = JSON.parse(fs.readFileSync(path.join(BENCH, "prompts.json"), "utf8"));
+const prompts = loadPrompts();
 const variants = String(args.variants || "today,semantic").split(",");
-const keys = String(args.prompts || Object.keys(prompts).join(",")).split(",");
+const keys = selectKeys(prompts, args);
 const models = String(args.models || "sonnet").split(",");
 const repeats = Number(args.repeats || 1);
 const parallel = Number(args.parallel || 4);
 const first = Number(args["first-repeat"] || 1);
+const timeout = Number(args.timeout || 900) * 1000;
+// --edits: every prompt; --edits dev / held-out: the prompts of that split
+const edits = args.edits === true ? "all" : (args.edits || null);
+
+for (const v of variants)
+{
+  if (!VARIANTS.includes(v))
+  {
+    console.error("Unknown variant: " + v + " (" + VARIANTS.join(", ") + ")");
+    process.exit(1);
+  }
+}
 
 fs.mkdirSync(out, { recursive: true });
+
+function usesSemanticServer(variant)
+{
+  return variant !== "today" && variant !== "mermaid";
+}
+
+function offersBoth(variant)
+{
+  return variant === "both" || variant === "both-rule";
+}
+
+function formatRule(variant)
+{
+  return variant === "both-rule" || (variant === "both" && process.env.BENCH_FORMAT_RULE === "1");
+}
 
 function mcpConfig(variant, tag)
 {
   let server;
 
-  if (variant === "semantic")
+  if (usesSemanticServer(variant))
   {
-    server = { type: "stdio", command: process.execPath, args: [path.join(BENCH, "semantic-server.mjs")],
-      env: Object.assign({ BENCH_RUN_DIR: out, BENCH_TAG: tag, NODE_PATH: process.env.NODE_PATH || "" },
-        process.env.SEMANTIC_TYPES ? { SEMANTIC_TYPES: process.env.SEMANTIC_TYPES } : {}) };
+    const env = { BENCH_RUN_DIR: out, BENCH_TAG: tag, NODE_PATH: process.env.NODE_PATH || "" };
+
+    for (const name of ["SEMANTIC_TYPES", "SEMANTIC_RESULT", "SEMANTIC_HINTS"])
+    {
+      if (process.env[name])
+      {
+        env[name] = process.env[name];
+      }
+    }
+
+    if (variant === "semantic-auto")
+    {
+      env.SEMANTIC_HINTS = "off";
+    }
+    else if (variant === "semantic-rows")
+    {
+      env.SEMANTIC_HINTS = "ask";
+    }
+
+    if (offersBoth(variant))
+    {
+      env.BENCH_WITH_APP = "1";
+      env.BENCH_FORMAT_RULE = formatRule(variant) ? "1" : "0";
+    }
+
+    server = { type: "stdio", command: process.execPath, args: [path.join(BENCH, "semantic-server.mjs")], env: env };
   }
   else
   {
@@ -55,21 +127,41 @@ function mcpConfig(variant, tag)
 
 function allowedTools(variant)
 {
-  return (variant === "semantic") ? ["mcp__drawio__create_semantic_diagram"] :
-    ["mcp__drawio__create_diagram", "mcp__drawio__get_drawio_reference", "mcp__drawio__search_shapes"];
+  const app = ["mcp__drawio__create_diagram", "mcp__drawio__get_drawio_reference", "mcp__drawio__search_shapes"];
+  const semantic = ["mcp__drawio__" + SEMANTIC_TOOL];
+
+  return offersBoth(variant) ? app.concat(semantic) : usesSemanticServer(variant) ? semantic : app;
 }
 
 function promptFor(variant, key)
 {
-  return prompts[key] + (variant === "mermaid" ? " Use Mermaid." : "");
+  return prompts[key].prompt + (variant === "mermaid" ? " Use Mermaid." : "");
 }
 
-function summarize(tag, meta, events, wall)
+function userMessage(text)
+{
+  return JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: text }] } }) + "\n";
+}
+
+function shortName(name)
+{
+  return name.replace(/^mcp__\w+?__/, "");
+}
+
+/**
+ * One turn of a session: the events from `start` ms (when its request was
+ * sent) up to its `result` event. Times are seconds from the turn's start.
+ */
+function summarizeTurn(events, start)
 {
   const blocks = [];
   const open = {};
   const calls = [];
   let result = null;
+  let resultT = null;
+  let outputTokens = 0;
+  let inputTokens = 0;
+  let streamed = false;
 
   for (const { t, e } of events)
   {
@@ -88,6 +180,17 @@ function summarize(tag, meta, events, wall)
         blocks.push(b);
         delete open[ev.index];
       }
+      else if (ev.type === "message_start" && ev.message && ev.message.usage)
+      {
+        const u = ev.message.usage;
+        streamed = true;
+        inputTokens += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+      }
+      else if (ev.type === "message_delta" && ev.usage)
+      {
+        // one per request to the model, with that message's output tokens
+        outputTokens += ev.usage.output_tokens || 0;
+      }
     }
     else if (e.type === "assistant")
     {
@@ -95,13 +198,13 @@ function summarize(tag, meta, events, wall)
       {
         if (c.type === "tool_use")
         {
-          calls.push({ id: c.id, name: c.name, input: c.input, callT: t });
+          calls.push({ id: c.id, name: c.name, input: c.input || {}, callT: t });
         }
       }
     }
     else if (e.type === "user")
     {
-      for (const c of (e.message && e.message.content) || [])
+      for (const c of (e.message && Array.isArray(e.message.content) ? e.message.content : []))
       {
         if (c.type === "tool_result")
         {
@@ -120,59 +223,119 @@ function summarize(tag, meta, events, wall)
     else if (e.type === "result")
     {
       result = e;
+      resultT = t;
     }
   }
 
-  const diagramCalls = calls.filter(function(c) { return /create_/.test(c.name) && !c.isError; });
-  const last = diagramCalls[diagramCalls.length - 1];
-
-  if (last)
-  {
-    fs.writeFileSync(path.join(out, tag + "-diagram.json"), JSON.stringify({ tool: last.name.replace(/^mcp__\w+__/, ""),
-      arguments: last.input }, null, 1));
-  }
-
+  const secs = function(t) { return t == null ? null : round((t - start) / 1000, 2); };
+  const diagramCalls = calls.filter(function(c) { return /create_/.test(c.name); });
+  const good = diagramCalls.filter(function(c) { return !c.isError; });
+  const last = good[good.length - 1];
   const usage = (result && result.usage) || {};
   const sum = function(kind) { return blocks.filter(function(b) { return b.kind === kind; }).reduce(function(a, b) { return a + b.secs; }, 0); };
+  const called = function(name) { return calls.some(function(c) { return shortName(c.name) === name; }); };
 
-  return Object.assign({}, meta, {
-    tag: tag,
-    ok: last != null,
-    wallSecs: wall / 1000,
-    diagramSecs: last ? (last.resultT || last.callT) / 1000 : null,
-    turns: result && result.num_turns,
-    outputTokens: usage.output_tokens,
-    totalTokens: (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) +
-      (usage.cache_read_input_tokens || 0) + (usage.output_tokens || 0),
-    thinkSecs: Math.round(sum("thinking") * 10) / 10,
-    textSecs: Math.round(sum("text") * 10) / 10,
-    diagramWriteSecs: Math.round(blocks.filter(function(b) { return b.kind === "tool_use" && /create_/.test(b.name); })
-      .reduce(function(a, b) { return a + b.secs; }, 0) * 10) / 10,
-    diagramChars: last ? JSON.stringify(last.input).length : null,
-    format: last ? (last.input.xml ? "xml" : last.input.mermaid ? "mermaid" : "semantic") : null,
-    calls: calls.map(function(c)
+  if (!streamed)
+  {
+    outputTokens = usage.output_tokens;
+    inputTokens = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
+  }
+
+  return {
+    last: last,
+    summary:
     {
-      return { name: c.name.replace(/^mcp__\w+__/, ""), t: c.callT / 1000, inputChars: JSON.stringify(c.input).length,
-        resultChars: c.resultChars, isError: c.isError, query: c.input && (c.input.query || c.input.format) };
-    }),
-    finalText: result && typeof result.result === "string" ? result.result.slice(0, 600) : null
-  });
+      ok: last != null,
+      endSecs: secs(resultT),
+      diagramSecs: last ? secs(last.resultT || last.callT) : null,
+      turns: result && result.num_turns,
+      outputTokens: outputTokens,
+      totalTokens: (inputTokens || 0) + (outputTokens || 0),
+      // what the session's result event reports, for a cross-check (it may count the whole session)
+      resultOutputTokens: usage.output_tokens,
+      thinkSecs: round(sum("thinking"), 1),
+      textSecs: round(sum("text"), 1),
+      diagramWriteSecs: round(blocks.filter(function(b) { return b.kind === "tool_use" && /create_/.test(b.name); })
+        .reduce(function(a, b) { return a + b.secs; }, 0), 1),
+      diagramChars: last ? JSON.stringify(last.input).length : null,
+      format: last ? (shortName(last.name) === SEMANTIC_TOOL ? "semantic" : last.input.mermaid ? "mermaid" : "xml") : null,
+      // which diagram tool the model reached for first, whether or not the call succeeded
+      firstDiagramTool: diagramCalls.length > 0 ? shortName(diagramCalls[0].name) : null,
+      diagramTool: last ? shortName(last.name) : null,
+      diagramCalls: diagramCalls.length,
+      usedReference: called("get_drawio_reference"),
+      usedSearch: called("search_shapes"),
+      calls: calls.map(function(c)
+      {
+        return { name: shortName(c.name), t: secs(c.callT), inputChars: JSON.stringify(c.input).length,
+          resultChars: c.resultChars, isError: c.isError, query: c.input.query || c.input.format };
+      }),
+      finalText: result && typeof result.result === "string" ? result.result.slice(0, 600) : null
+    }
+  };
+}
+
+function saveDiagram(file, variant, call)
+{
+  if (call)
+  {
+    fs.writeFileSync(path.join(out, file), JSON.stringify({ tool: shortName(call.name), arguments: call.input,
+      hints: variant !== "semantic-auto" && process.env.SEMANTIC_HINTS !== "off" }, null, 1));
+  }
 }
 
 function runCase(variant, key, model, rep)
 {
-  const tag = [variant, key, model, rep].join("-");
-  const cli = ["-p", promptFor(variant, key), "--model", model, "--tools", "", "--strict-mcp-config",
+  const tag = runTag(variant, key, model, rep);
+  const p = prompts[key];
+  const withEdit = edits != null && (edits === "all" || edits === p.split) && typeof p.edit === "string";
+  const cli = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+    "--include-partial-messages", "--model", model, "--tools", "", "--strict-mcp-config",
     "--mcp-config", mcpConfig(variant, tag), "--allowedTools", allowedTools(variant).join(","),
-    "--no-session-persistence", "--output-format", "stream-json", "--verbose", "--include-partial-messages"];
+    "--no-session-persistence"];
+
+  for (const suffix of [".stderr", "-diagram.json", "-edit-diagram.json"])
+  {
+    fs.rmSync(path.join(out, tag + suffix), { force: true });
+  }
 
   return new Promise(function(resolve)
   {
     const t0 = Date.now();
     const log = fs.createWriteStream(path.join(out, tag + ".jsonl"));
-    const child = spawn("claude", cli, { cwd: out, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("claude", cli, { cwd: out, stdio: ["pipe", "pipe", "pipe"] });
     const events = [];
     let buf = "";
+    let editStart = null;
+    let editIndex = null;
+    let timedOut = false;
+
+    const timer = setTimeout(function()
+    {
+      timedOut = true;
+      child.kill();
+    }, timeout);
+
+    function onEvent(ev)
+    {
+      events.push(ev);
+      log.write(JSON.stringify(ev) + "\n");
+
+      if (ev.e.type === "result")
+      {
+        // the first answer is complete: ask for the change, or end the session
+        if (withEdit && editStart == null && summarizeTurn(events, 0).last != null)
+        {
+          editIndex = events.length;
+          editStart = Date.now() - t0;
+          child.stdin.write(userMessage(p.edit));
+        }
+        else
+        {
+          child.stdin.end();
+        }
+      }
+    }
 
     child.stdout.on("data", function(d)
     {
@@ -186,9 +349,18 @@ function runCase(variant, key, model, rep)
 
         if (line.trim() !== "")
         {
-          const ev = { t: Date.now() - t0, e: JSON.parse(line) };
-          events.push(ev);
-          log.write(JSON.stringify(ev) + "\n");
+          let e;
+
+          try
+          {
+            e = JSON.parse(line);
+          }
+          catch (err)
+          {
+            continue;
+          }
+
+          onEvent({ t: Date.now() - t0, e: e });
         }
       }
     });
@@ -198,15 +370,39 @@ function runCase(variant, key, model, rep)
       fs.appendFileSync(path.join(out, tag + ".stderr"), d);
     });
 
+    child.stdin.on("error", function() {});
+
     child.on("close", function()
     {
+      clearTimeout(timer);
       log.end();
-      const s = summarize(tag, { variant: variant, key: key, model: model, repeat: rep }, events, Date.now() - t0);
+
+      const firstTurn = summarizeTurn(editIndex != null ? events.slice(0, editIndex) : events, 0);
+      const editTurn = editIndex != null ? summarizeTurn(events.slice(editIndex), editStart) : null;
+      const f = firstTurn.summary;
+      saveDiagram(tag + "-diagram.json", variant, firstTurn.last);
+
+      if (editTurn)
+      {
+        saveDiagram(tag + "-edit-diagram.json", variant, editTurn.last);
+      }
+
+      const s = Object.assign({ variant: variant, key: key, type: p.type, split: p.split, size: p.size, model: model,
+        repeat: rep, tag: tag, formatRule: offersBoth(variant) ? formatRule(variant) : undefined, timedOut: timedOut || undefined,
+        // seconds until the first answer was complete (as before: "wall"), and of the whole session
+        wallSecs: f.endSecs != null ? f.endSecs : round((Date.now() - t0) / 1000, 2),
+        sessionSecs: round((Date.now() - t0) / 1000, 2) }, f,
+        { edit: editTurn ? Object.assign({ request: p.edit }, editTurn.summary) : null });
+      delete s.endSecs;
       fs.writeFileSync(path.join(out, tag + "-summary.json"), JSON.stringify(s, null, 1));
       console.log(tag, s.ok ? "diagram " + s.diagramSecs + " s, end " + s.wallSecs + " s, " + s.outputTokens +
-        " output tokens, " + s.format : "NO DIAGRAM");
+        " output tokens, " + s.format : (timedOut ? "TIMED OUT" : "NO DIAGRAM"),
+        s.edit ? (s.edit.ok ? "| edit: diagram " + s.edit.diagramSecs + " s, end " + s.edit.endSecs + " s, " +
+          s.edit.outputTokens + " output tokens" : "| edit: NO DIAGRAM") : "");
       resolve(s);
     });
+
+    child.stdin.write(userMessage(promptFor(variant, key)));
   });
 }
 
@@ -226,15 +422,9 @@ for (let r = first; r < first + repeats; r++)
   }
 }
 
-let next = 0;
+console.log(jobs.length + " runs" + (edits ? ", with the edit turn (" + edits + ")" : "") + ", output in " + out);
 
-async function worker()
+await pool(jobs, parallel, function(job)
 {
-  while (next < jobs.length)
-  {
-    const job = jobs[next++];
-    await runCase.apply(null, job);
-  }
-}
-
-await Promise.all(Array.from({ length: Math.min(parallel, jobs.length) }, worker));
+  return runCase.apply(null, job);
+});

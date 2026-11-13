@@ -3,6 +3,7 @@
 // bench/node_modules, or from NODE_PATH when they are installed elsewhere).
 
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -51,6 +52,80 @@ export function parseArgs(argv)
 export function outDir(args)
 {
   return path.resolve(args.out || process.env.BENCH_OUT || path.join(BENCH, "out"));
+}
+
+/**
+ * The prompts of prompts.json by key: { type, split ("dev" | "held-out"),
+ * size ("normal" | "large"), prompt, edit }.
+ */
+export function loadPrompts()
+{
+  return JSON.parse(fs.readFileSync(path.join(BENCH, "prompts.json"), "utf8"));
+}
+
+/**
+ * The prompt keys a script works on: --prompts (keys, comma-separated;
+ * default all), narrowed by --type, --split and --size (each one value or
+ * several, comma-separated).
+ */
+export function selectKeys(prompts, args)
+{
+  const list = function(v) { return (v == null || v === true) ? null : String(v).split(","); };
+  const keys = list(args.prompts) || Object.keys(prompts);
+  const unknown = keys.filter(function(k) { return prompts[k] == null; });
+
+  if (unknown.length > 0)
+  {
+    console.error("Unknown prompt" + (unknown.length > 1 ? "s" : "") + ": " + unknown.join(", "));
+    process.exit(1);
+  }
+
+  const types = list(args.type);
+  const splits = list(args.split);
+  const sizes = list(args.size);
+
+  return keys.filter(function(k)
+  {
+    const p = prompts[k];
+
+    return (types == null || types.includes(p.type)) && (splits == null || splits.includes(p.split)) &&
+      (sizes == null || sizes.includes(p.size));
+  });
+}
+
+/** The tag of one run's files: <variant>-<key>-<model>-<repeat>. */
+export function runTag(variant, key, model, repeat)
+{
+  return [variant, key, model, repeat].join("-");
+}
+
+/** Runs fn over the items, at most `parallel` at a time. */
+export async function pool(items, parallel, fn)
+{
+  let next = 0;
+
+  async function worker()
+  {
+    while (next < items.length)
+    {
+      const i = next++;
+      await fn(items[i], i);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(parallel, items.length)) }, worker));
+}
+
+export function round(x, digits)
+{
+  const f = Math.pow(10, digits || 0);
+
+  return (x == null || isNaN(x)) ? null : Math.round(x * f) / f;
+}
+
+export function readJson(file)
+{
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
 }
 
 export function median(values)

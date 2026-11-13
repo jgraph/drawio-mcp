@@ -6,14 +6,21 @@
 //
 // Per diagram: <tag>-inline.png (what the chat shows), <tag>-full.png (the
 // whole diagram, the PNG the viewer sends to the model), <tag>-check.txt (the
-// viewer's layout check) and <tag>-render.json (issues, sizes).
+// viewer's layout check), <tag>-rendered.xml (the XML as drawn: what the
+// viewer reports after converting Mermaid or running a layout, else what the
+// server returned) and <tag>-render.json (issues, sizes, the number of
+// vertices and the median font size of their styles, read from that XML).
+// The diagrams of edit turns (<tag>-edit-diagram.json, run.mjs --edits) are
+// rendered the same way, as <tag>-edit-inline.png and so on.
 //
 // usage: node render.mjs --chrome /path/to/chrome [--out DIR] [--match er]
+//          [--force]
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { APP_SERVER, require, parseArgs, outDir, connectStdio, newElk } from "./lib/common.mjs";
+import { fontStats } from "./lib/diagram-xml.mjs";
 import { semanticToXml } from "../shared/semantic/index.js";
 
 const args = parseArgs(process.argv.slice(2));
@@ -86,7 +93,15 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bench-chrome-"));
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
   args: ["--no-sandbox", "--disable-gpu", "--window-size=1280,1000"], userDataDir: profile });
 
-for (const f of files)
+/** The XML in a text, when it holds a whole mxGraphModel. */
+function modelXml(text)
+{
+  const m = /<mxGraphModel[\s\S]*<\/mxGraphModel>/.exec(text || "");
+
+  return m ? m[0] : null;
+}
+
+async function render(f)
 {
   const tag = f.replace("-diagram.json", "");
   const d = JSON.parse(fs.readFileSync(path.join(out, f), "utf8"));
@@ -95,12 +110,13 @@ for (const f of files)
 
   if (d.tool === "create_semantic_diagram")
   {
-    const r = await semanticToXml(d.arguments, { elk: elk });
+    // as in the run: without the placement hints when the variant had none
+    const r = await semanticToXml(d.arguments, { elk: elk, hints: d.hints !== false });
 
     if (r.xml == null)
     {
       console.log(tag, "engine error:", r.error);
-      continue;
+      return;
     }
 
     input = { xml: r.xml };
@@ -109,54 +125,108 @@ for (const f of files)
 
   const res = await server.call("tools/call", { name: "create_diagram", arguments: input });
   const page = await browser.newPage();
-  await page.setViewport({ width: 800, height: 1000 });
-  await page.setContent(hostHtml);
-  await page.evaluate(function(p, html)
+
+  try
   {
-    window.__payload = p;
-    document.getElementById("f").srcdoc = html;
-  }, { arguments: input, result: res.result }, appHtml);
-
-  const t0 = Date.now();
-  let ctx = [];
-
-  while (Date.now() - t0 < 30000)
-  {
-    await new Promise(function(r) { setTimeout(r, 500); });
-    ctx = await page.evaluate(function() { return window.__ctx; });
-
-    if (ctx.length > 0)
+    await page.setViewport({ width: 800, height: 1000 });
+    await page.setContent(hostHtml);
+    await page.evaluate(function(p, html)
     {
-      // a layout or routing pass sends a second update
-      await new Promise(function(r) { setTimeout(r, 2500); });
+      window.__payload = p;
+      document.getElementById("f").srcdoc = html;
+    }, { arguments: input, result: res.result }, appHtml);
+
+    const t0 = Date.now();
+    let ctx = [];
+
+    while (Date.now() - t0 < 30000)
+    {
+      await new Promise(function(r) { setTimeout(r, 500); });
       ctx = await page.evaluate(function() { return window.__ctx; });
-      break;
+
+      if (ctx.length > 0)
+      {
+        // a layout or routing pass sends a second update
+        await new Promise(function(r) { setTimeout(r, 2500); });
+        ctx = await page.evaluate(function() { return window.__ctx; });
+        break;
+      }
     }
+
+    const last = ctx.length ? ctx[ctx.length - 1] : { content: [] };
+    const text = (last.content || []).filter(function(b) { return b.type === "text"; }).map(function(b) { return b.text; }).join("\n");
+    const image = (last.content || []).find(function(b) { return b.type === "image"; });
+    const m = /Layout check of the diagram as rendered \((\d+) problem/.exec(text);
+    const issues = m ? +m[1] : (/no problems found/.test(text) ? 0 : null);
+    const frame = await page.$("#f");
+    await frame.screenshot({ path: path.join(out, tag + "-inline.png") });
+    let full = null;
+
+    if (image)
+    {
+      const buf = Buffer.from(image.data, "base64");
+      fs.writeFileSync(path.join(out, tag + "-full.png"), buf);
+      full = pngSize(buf);
+    }
+
+    // The XML as drawn: the viewer's, when it sent one (Mermaid converted, a
+    // layout or routing pass), else the server's result, else the arguments.
+    let returned = null;
+
+    try
+    {
+      returned = JSON.parse(res.result.content[0].text).xml;
+    }
+    catch (e)
+    {
+      returned = null;
+    }
+
+    const viewerXml = ctx.map(function(c)
+    {
+      return modelXml((c.content || []).filter(function(b) { return b.type === "text"; }).map(function(b) { return b.text; }).join("\n"));
+    }).filter(Boolean).pop();
+    const xml = viewerXml || returned || input.xml || null;
+    const font = xml != null ? fontStats(xml) : { vertices: null, labeled: null, fontSize: null };
+
+    if (xml != null)
+    {
+      fs.writeFileSync(path.join(out, tag + "-rendered.xml"), xml);
+    }
+
+    fs.writeFileSync(path.join(out, tag + "-check.txt"),
+      text.replace(/<mxGraphModel[\s\S]*<\/mxGraphModel>/, "").split("\n")
+        .filter(function(l) { return !/^<mxGraphModel|^\s*</.test(l); }).join("\n").slice(0, 8000));
+    const info = { tag: tag, issues: issues, contextUpdates: ctx.length, full: full, inline: pngSize(fs.readFileSync(path.join(out, tag + "-inline.png"))),
+      format: input.mermaid != null ? "mermaid" : (engine ? "semantic" : "xml"),
+      xmlFrom: viewerXml ? "viewer" : returned ? "server" : xml ? "arguments" : null,
+      vertices: font.vertices, labeled: font.labeled, fontSize: font.fontSize, engine: engine };
+    fs.writeFileSync(path.join(out, tag + "-render.json"), JSON.stringify(info, null, 1));
+    console.log(tag, "issues", issues, "png", full ? full.width + "x" + full.height : "none", "vertices", font.vertices,
+      "font", font.fontSize);
   }
-
-  const last = ctx.length ? ctx[ctx.length - 1] : { content: [] };
-  const text = (last.content || []).filter(function(b) { return b.type === "text"; }).map(function(b) { return b.text; }).join("\n");
-  const image = (last.content || []).find(function(b) { return b.type === "image"; });
-  const m = /Layout check of the diagram as rendered \((\d+) problem/.exec(text);
-  const issues = m ? +m[1] : (/no problems found/.test(text) ? 0 : null);
-  const frame = await page.$("#f");
-  await frame.screenshot({ path: path.join(out, tag + "-inline.png") });
-  let full = null;
-
-  if (image)
+  finally
   {
-    const buf = Buffer.from(image.data, "base64");
-    fs.writeFileSync(path.join(out, tag + "-full.png"), buf);
-    full = pngSize(buf);
+    await page.close();
   }
-
-  fs.writeFileSync(path.join(out, tag + "-check.txt"),
-    text.split("\n").filter(function(l) { return !/^<mxGraphModel|^\s*</.test(l); }).join("\n").slice(0, 8000));
-  const info = { tag: tag, issues: issues, contextUpdates: ctx.length, full: full, engine: engine };
-  fs.writeFileSync(path.join(out, tag + "-render.json"), JSON.stringify(info, null, 1));
-  console.log(tag, "issues", issues, "png", full ? full.width + "x" + full.height : "none");
-  await page.close();
 }
+
+let failed = 0;
+
+for (const f of files)
+{
+  try
+  {
+    await render(f);
+  }
+  catch (e)
+  {
+    failed++;
+    console.log(f.replace("-diagram.json", ""), "render failed:", e.message);
+  }
+}
+
+console.log(files.length - failed + " of " + files.length + " diagrams rendered");
 
 await browser.close();
 server.close();
