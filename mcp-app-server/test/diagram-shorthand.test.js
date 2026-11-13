@@ -241,6 +241,21 @@ test("a table without a geometry gets one", function()
   assert.ok(cell(xml, "t.name"));
 });
 
+test("while a diagram streams in, a table waits for its geometry", function()
+{
+  // healPartialXml closes a cell cut off before its <mxGeometry>; a made-up
+  // geometry would show the table at the top left until its position arrives.
+  const cut = model('<mxCell id="t" value="T" rows="id|name" style="role=data;" vertex="1" parent="1"></mxCell>');
+  const complete = model(vertex("t", 'value="T" rows="id|name"', 'x="400" y="40"'));
+  const closed = model('<mxCell id="t" value="T" rows="id|name" vertex="1" parent="1"/>');
+
+  assert.equal(expandDiagramShorthand(cut, { partial: true }).xml, cut);
+  assert.deepEqual(geometry(cell(expandDiagramShorthand(complete, { partial: true }).xml, "t")),
+    { x: 400, y: 40, width: 200, height: 78 });
+  assert.equal(expandDiagramShorthand(closed, { partial: true }).xml, expandDiagramShorthand(closed).xml);
+  assert.ok(cell(expandDiagramShorthand(cut).xml, "t.name"));
+});
+
 // ─── Roles ──────────────────────────────────────────────────────
 
 test("every role expands to a calm-theme style with fontSize, html and whiteSpace", function()
@@ -328,6 +343,29 @@ test("unknown roles and roles on edges are left as written", function()
   assert.equal(expandDiagramShorthand(xml).xml, xml);
 });
 
+test("a raw > in an attribute value doesn't end the tag", function()
+{
+  // XML allows a raw > in attribute values, and the repair escapes only <.
+  const xml = expandDiagramShorthand(model(
+    '<mxCell id="ord" value="Order<br>x > 0" rows="- items: List&lt;Item>|+ add(i: Item): void" vertex="1" parent="1">' +
+      '<mxGeometry x="40" y="40" as="geometry"/></mxCell>' +
+    '<mxCell id="d" value="Retries > 3?" style="role=decision;" vertex="1" parent="1"><mxGeometry x="400" y="40" as="geometry"/></mxCell>' +
+    '<object label="a > b" id="t.o"><mxCell style="role=step;" vertex="1" parent="1"><mxGeometry x="400" y="200" as="geometry"/></mxCell></object>' +
+    vertex("t", 'value="T" rows="o|id"', 'x="40" y="300"') +
+    '<mxCell id="e" value="x > y" edge="1" parent="1" source="d" target="ord.2"><mxGeometry relative="1" as="geometry"/></mxCell>')).xml;
+  const order = xml.match(/<mxCell id="ord" [^]*?<\/mxCell>/)[0];
+
+  assert.doesNotMatch(xml, /\srows="/);
+  assert.doesNotMatch(xml, /role=/);
+  assert.match(order, /value="Order<br>x > 0"/);
+  assert.match(order, /style="swimlane;/);
+  assert.match(xml, /<mxCell id="ord\.items" value="- items: List&lt;Item>"/);
+  assert.match(xml, /<mxCell id="d" value="Retries > 3\?" style="rhombus;[^"]*" vertex="1" parent="1"><mxGeometry x="400" y="40" width="160" height="90" as="geometry"\/>/);
+  assert.match(xml, /<mxCell style="rounded=1;[^"]*" vertex="1" parent="1"><mxGeometry x="400" y="200" width="140" height="60" as="geometry"\/>/);
+  assert.match(xml, /<mxCell id="t\.o\.2" value="o"/, "the id of the <object> is taken");
+  assert.match(xml, /<mxCell id="e" value="x > y" edge="1" parent="1" source="d" target="ord\.add"/);
+});
+
 test("entities in a style survive the rewrite", function()
 {
   const xml = expandDiagramShorthand(model(vertex("a", 'value="A" style="role=step;image=https://x.test/a?b=1&amp;c=2;"'))).xml;
@@ -400,14 +438,33 @@ test("create_diagram sends the expanded diagram, without warnings", async functi
     JSON.stringify(result.content.slice(1)));
 });
 
+test("create_diagram expands a class whose rows hold generics", async function()
+{
+  const classes = model(vertex("Order", 'value="Order" rows="- items: List<Item>|---|+ total(): Decimal"') +
+    vertex("q", 'value="Retries > 3?" style="role=decision;"', 'x="400" y="40"'));
+  const result = await client.callTool({ name: "create_diagram", arguments: { xml: classes } });
+  const sent = JSON.parse(result.content[0].text).xml;
+
+  assert.equal(result.isError, undefined);
+  assert.doesNotMatch(sent, /\srows="/);
+  assert.doesNotMatch(sent, /role=/);
+  assert.match(sent, /<mxCell id="Order\.items" value="- items: List&lt;Item>"[^>]*parent="Order"/);
+  assert.match(sent, /<mxCell id="q" value="Retries > 3\?" style="rhombus;/);
+});
+
 test("the viewer's copy expands the raw tool input as the server does", function()
 {
   const html = buildHtml("var App = function() {};", "", null, {});
   const script = html.match(/<script>([\s\S]*?var expandDiagramShorthand = createDiagramShorthand\(\)\.expand;)/)[1];
   const start = script.indexOf("function createDiagramShorthand");
   const context = {};
+  const cut = model('<mxCell id="t" value="T > U" rows="id|name" vertex="1" parent="1"></mxCell>');
 
   assert.ok(start >= 0, "createDiagramShorthand is not inlined in the viewer");
   vm.runInNewContext(script.substring(start) + "\nthis.expand = expandDiagramShorthand;", context);
   assert.equal(context.expand(erDiagram).xml, expandDiagramShorthand(erDiagram).xml);
+  assert.equal(context.expand(cut).xml, expandDiagramShorthand(cut).xml);
+  assert.equal(context.expand(cut, { partial: true }).xml, cut);
+  assert.match(html, /expandDiagramShorthand\(absolutizeImageUrls\(healedXml\), \{ partial: true \}\)/,
+    "the streaming path expands partial XML as partial");
 });
