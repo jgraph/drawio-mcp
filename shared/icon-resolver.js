@@ -1,0 +1,667 @@
+// ── Icons by name ───────────────────────────────────────────────────────────
+//
+// `icon=aws lambda` in a vertex style stands for the official icon of that
+// service: the resolver finds it in the icon table (shared/icon-table.js,
+// generated from the shape index by shape-search/generate-icon-table.js) and
+// writes its style in place of the key. The table holds the current icon sets
+// of AWS, Azure, Google Cloud and Kubernetes only, so a name never lands on
+// an AWS 3 or other outdated icon the way a keyword search can.
+//
+// A model writes `icon=<provider> <service>` and the label keys it wants
+// (`fontSize`, …); everything else comes from the icon. That keeps the
+// diagram short (an AWS icon's style is 300 to 500 characters) and saves the
+// search round trip before the diagram.
+//
+// Headless and self-contained: everything lives inside createIconResolver,
+// so the viewer inlines it with Function.prototype.toString(), as it does
+// normalizeDiagramXml, and resolves names while the XML streams in. Both
+// servers and the viewer therefore pick the same icon for a name.
+
+/**
+ * @param {{templates: string[], icons: Array}} table - ICON_TABLE
+ * @param {string[]} [data] - ICON_DATA, the data URIs of the icons that are
+ *   images. Without it (the viewer) those icons resolve to a placeholder
+ *   that the server's result replaces.
+ * @returns {{resolve: Function, rank: Function, applyToStyle: Function,
+ *   applyToXml: Function, size: number, cacheSize: Function}}
+ */
+export function createIconResolver(table, data)
+{
+  // Provider words. They select the icon set and are not part of the name;
+  // "kubernetes" stays a name word for the Azure and Google Cloud services.
+  var PROVIDER_WORDS = { aws: "aws", amazon: "aws", azure: "azure", microsoft: "azure",
+    gcp: "gcp", google: "gcp", k8s: "k8s", kubernetes: "k8s" };
+  var PROVIDER_ORDER = ["aws", "azure", "gcp", "k8s"];
+  var STOP_WORDS = ["the", "a", "an", "of", "for", "and", "on", "to", "with", "in", "icon", "logo", "symbol"];
+  // Words of many names. A partial match on these alone ("aws payment
+  // service" → Simple Email Service) is no match.
+  var GENERIC_WORDS = ["service", "server", "instance", "cloud", "api", "app", "application", "data",
+    "database", "db", "storage", "network", "networking", "gateway", "manager", "management", "engine",
+    "function", "platform", "system", "web", "compute", "container", "cluster", "node", "group",
+    "center", "hub", "studio", "analytic", "monitor", "monitoring", "security", "identity", "user",
+    "client", "store", "file", "private", "public", "managed", "elastic", "simple", "virtual",
+    "endpoint", "policy", "role", "resource", "account", "machine", "learning", "ai", "ml",
+    "workflow", "event", "message", "queue", "stream", "streaming"];
+  var GROUP_WORDS = ["group", "container", "boundary"];
+  var KIND_RANK = { s: 0, r: -0.3, c: -1, g: 0 };
+  // Keys that make the icon what it is. The icon's values win over the
+  // cell's: a fill color from a theme would repaint an AWS service tile.
+  var ICON_KEYS = ["shape", "resIcon", "prIcon", "grIcon", "image", "fillColor", "strokeColor",
+    "gradientColor", "gradientDirection", "grStroke", "aspect", "imageAspect", "editableCssRules"];
+  // An icon whose image the viewer doesn't have, while the XML streams in.
+  var PLACEHOLDER_STYLE = "rounded=1;arcSize=16;fillColor=#F1F3F4;strokeColor=#DADCE0;" +
+    "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;";
+  // No icon name is longer (the longest in the table has 59 characters), so
+  // a longer one matches nothing and isn't ranked or kept.
+  var MAX_NAME_LENGTH = 100;
+  // The names resolved last. The servers keep one resolver for every caller,
+  // so the cache must not grow with what callers send.
+  var CACHE_SIZE = 500;
+  // A cell larger than 100 × 100 without children (a VPC drawn before its
+  // subnets, or whose subnets haven't streamed in yet) takes a group that
+  // fits as well as an icon; a smaller one takes a group only as a last
+  // resort.
+  var LARGE_GROUP_BONUS = 2;
+  var SMALL_GROUP_PENALTY = 6;
+
+  function stem(token)
+  {
+    if (token.length > 4 && /ies$/.test(token))
+    {
+      return token.substring(0, token.length - 3) + "y";
+    }
+
+    if (token.length > 3 && /s$/.test(token) && !/(ss|us|is|os)$/.test(token))
+    {
+      return token.substring(0, token.length - 1);
+    }
+
+    return token;
+  }
+
+  /** The words of a name, lowercase, without stop words, not stemmed. */
+  function words(text)
+  {
+    return String(text).toLowerCase().replace(/&/g, " ").split(/[^a-z0-9]+/).filter(function(w)
+    {
+      return w.length > 0 && STOP_WORDS.indexOf(w) < 0;
+    });
+  }
+
+  /** Words other than the provider words of the other sets (see parseQuery). */
+  function nameWords(text)
+  {
+    return words(text).filter(function(w)
+    {
+      return PROVIDER_WORDS[w] == null || PROVIDER_WORDS[w] === "k8s";
+    });
+  }
+
+  var GENERIC = GENERIC_WORDS.map(stem);
+  var entries = table.icons.map(function(icon)
+  {
+    var names = icon[2].split("|");
+
+    return {
+      provider: icon[0],
+      kind: icon[1],
+      title: names[0],
+      variants: names.map(function(name)
+      {
+        return nameWords(name).map(stem);
+      }).filter(function(v) { return v.length > 0; }),
+      // The names as written, to prefer "Users" over "User" for "users".
+      squashed: names.map(function(name)
+      {
+        return nameWords(name).join("");
+      }),
+      template: table.templates[icon[3]],
+      n: icon[4],
+      c: icon[5],
+      w: icon[6],
+      h: icon[7]
+    };
+  });
+
+  /**
+   * Which query words a name covers, and how many of its own words are
+   * left over. A run of words on one side may equal one word on the other:
+   * "cloud front" and "CloudFront", "postgresql" and "Postgre SQL".
+   */
+  function matchWords(query, name)
+  {
+    var coveredQuery = query.map(function() { return false; });
+    var coveredName = name.map(function() { return false; });
+    var i, j, len, joined;
+
+    for (i = 0; i < query.length; i++)
+    {
+      for (len = 1; len <= 3 && i + len <= query.length; len++)
+      {
+        joined = query.slice(i, i + len).join("");
+
+        for (j = 0; j < name.length; j++)
+        {
+          if (!coveredName[j] && name[j] === joined)
+          {
+            coveredName[j] = true;
+
+            for (var k = i; k < i + len; k++)
+            {
+              coveredQuery[k] = true;
+            }
+
+            break;
+          }
+        }
+      }
+    }
+
+    for (j = 0; j < name.length; j++)
+    {
+      for (len = 2; len <= 3 && j + len <= name.length; len++)
+      {
+        joined = name.slice(j, j + len).join("");
+
+        for (i = 0; i < query.length; i++)
+        {
+          if (!coveredQuery[i] && query[i] === joined)
+          {
+            coveredQuery[i] = true;
+
+            for (var m = j; m < j + len; m++)
+            {
+              coveredName[m] = true;
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      query: coveredQuery,
+      extra: coveredName.filter(function(c) { return !c; }).length
+    };
+  }
+
+  /**
+   * Scores an entry for the query words: covered words count, words left
+   * over on either side cost, an exact name gets a bonus, and the kind of
+   * icon breaks ties (a service tile before a resource glyph).
+   */
+  function scoreEntry(entry, query, squashed, container, large)
+  {
+    // A container takes only a group shape (VPC, subnet, …); any other cell
+    // takes a group if it is large, otherwise only as a last resort (below).
+    if (container && entry.kind !== "g")
+    {
+      return null;
+    }
+
+    var q = query;
+    var groupWords = 0;
+
+    if (entry.kind === "g")
+    {
+      q = query.filter(function(w) { return GROUP_WORDS.indexOf(w) < 0; });
+      groupWords = query.length - q.length;
+    }
+
+    if (q.length === 0)
+    {
+      return null;
+    }
+
+    var covered = q.map(function() { return false; });
+    var leastExtra = Infinity;
+    var exact = false;
+
+    entry.variants.forEach(function(variant)
+    {
+      var m = matchWords(q, variant);
+      var count = 0;
+
+      m.query.forEach(function(c, i)
+      {
+        if (c)
+        {
+          covered[i] = true;
+          count++;
+        }
+      });
+
+      if (count > 0)
+      {
+        leastExtra = Math.min(leastExtra, m.extra);
+        exact = exact || (count === q.length && m.extra === 0);
+      }
+    });
+
+    var coveredWords = q.filter(function(_w, i) { return covered[i]; });
+
+    if (coveredWords.length === 0)
+    {
+      return null;
+    }
+
+    var missing = q.length - coveredWords.length;
+    var specific = coveredWords.some(function(w) { return GENERIC.indexOf(w) < 0; });
+
+    // A partial match covers at least half of the words, not only generic
+    // ones, and one of the icon's names exactly ("aws ecs fargate" →
+    // Fargate, not "aws payment service" → Payment Cryptography).
+    if (missing > 0 && (coveredWords.length < q.length / 2 || !specific || leastExtra > 0))
+    {
+      return null;
+    }
+
+    var chars = coveredWords.join("").length;
+    var score = 10 * (coveredWords.length + groupWords) - 6 * missing - 1.5 * leastExtra +
+      (exact ? 4 : 0) + (KIND_RANK[entry.kind] || 0) + 0.01 * chars +
+      (entry.squashed.indexOf(squashed) >= 0 ? 0.5 : 0);
+
+    if (entry.kind === "g" && !container)
+    {
+      score += large ? LARGE_GROUP_BONUS : -SMALL_GROUP_PENALTY;
+    }
+
+    return score;
+  }
+
+  /** The query words and the provider they name, if any. */
+  function parseQuery(name)
+  {
+    var all = words(name);
+    var provider = null;
+
+    for (var i = 0; i < all.length && provider == null; i++)
+    {
+      if (PROVIDER_WORDS[all[i]] != null && PROVIDER_WORDS[all[i]] !== "k8s")
+      {
+        provider = PROVIDER_WORDS[all[i]];
+      }
+    }
+
+    if (provider == null && (all.indexOf("kubernetes") >= 0 || all.indexOf("k8s") >= 0))
+    {
+      provider = "k8s";
+    }
+
+    var query = all.filter(function(w)
+    {
+      var p = PROVIDER_WORDS[w];
+
+      return p == null || (p === "k8s" && provider !== "k8s");
+    });
+
+    // A bare provider word ("aws") names no icon of that provider.
+    if (query.length === 0)
+    {
+      provider = null;
+      query = all;
+    }
+
+    return { provider: provider, words: query.map(stem), squashed: query.join("") };
+  }
+
+  function styleOf(entry)
+  {
+    var n = entry.n;
+
+    if (typeof n === "number")
+    {
+      if (data == null || data[n] == null)
+      {
+        return { style: PLACEHOLDER_STYLE, placeholder: true };
+      }
+
+      n = data[n];
+    }
+
+    return { style: entry.template.replace("{n}", n).replace("{c}", entry.c), placeholder: false };
+  }
+
+  /**
+   * The best icons for a name, best first, with their scores.
+   * @param {string} name - e.g. "aws lambda", "Azure Functions", "gcp pub/sub"
+   * @param {{container?: boolean, large?: boolean}} [options] - container:
+   *   the cell holds other cells, so only group shapes (AWS VPC, subnet, …)
+   *   qualify; large: the cell is larger than 100 × 100, so a group shape
+   *   wins over an icon that fits as well
+   * @param {number} [limit]
+   */
+  function rank(name, options, limit)
+  {
+    var container = options != null && options.container === true;
+    var large = options != null && options.large === true;
+    var results = [];
+
+    if (String(name).length > MAX_NAME_LENGTH)
+    {
+      return results;
+    }
+
+    var parsed = parseQuery(name);
+
+    if (parsed.words.length === 0)
+    {
+      return results;
+    }
+
+    entries.forEach(function(entry)
+    {
+      if (parsed.provider != null && entry.provider !== parsed.provider)
+      {
+        return;
+      }
+
+      var score = scoreEntry(entry, parsed.words, parsed.squashed, container, large);
+
+      if (score != null)
+      {
+        if (parsed.provider == null)
+        {
+          score -= 0.05 * PROVIDER_ORDER.indexOf(entry.provider);
+        }
+
+        results.push({ entry: entry, score: score });
+      }
+    });
+
+    results.sort(function(a, b)
+    {
+      return (b.score - a.score) || (a.entry.title.length - b.entry.title.length);
+    });
+
+    return results.slice(0, limit || 5).map(function(r)
+    {
+      var s = styleOf(r.entry);
+
+      return { title: r.entry.title, provider: r.entry.provider, kind: r.entry.kind, style: s.style,
+        placeholder: s.placeholder, w: r.entry.w, h: r.entry.h, score: Math.round(r.score * 100) / 100 };
+    });
+  }
+
+  // Least recently used first (a Map iterates in insertion order).
+  var cache = new Map();
+
+  /**
+   * The icon for a name, or null when none fits.
+   * @param {string} name
+   * @param {{container?: boolean, large?: boolean}} [options] - see rank
+   * @returns {{title: string, provider: string, kind: string, style: string,
+   *   placeholder: boolean, w: number, h: number}|null}
+   */
+  function resolve(name, options)
+  {
+    var text = String(name);
+
+    if (text.length > MAX_NAME_LENGTH)
+    {
+      return null;
+    }
+
+    var key = text.toLowerCase().trim() + "|" + (options != null && options.container === true) +
+      "|" + (options != null && options.large === true);
+    var icon = cache.get(key);
+
+    if (icon !== undefined)
+    {
+      cache.delete(key);
+    }
+    else
+    {
+      icon = rank(name, options, 1)[0] || null;
+
+      if (cache.size >= CACHE_SIZE)
+      {
+        cache.delete(cache.keys().next().value);
+      }
+    }
+
+    cache.set(key, icon);
+
+    return icon;
+  }
+
+  function parseStyle(style)
+  {
+    var names = [];
+    var keys = [];
+    var values = {};
+
+    String(style).split(";").forEach(function(part)
+    {
+      var eq = part.indexOf("=");
+
+      if (eq < 0)
+      {
+        if (part.trim() !== "")
+        {
+          names.push(part.trim());
+        }
+      }
+      else
+      {
+        var k = part.substring(0, eq).trim();
+
+        if (values[k] == null)
+        {
+          keys.push(k);
+        }
+
+        values[k] = part.substring(eq + 1);
+      }
+    });
+
+    return { names: names, keys: keys, values: values };
+  }
+
+  function decodeXml(text)
+  {
+    return text.replace(/&(amp|lt|gt|quot|apos|#(\d+)|#x([0-9a-fA-F]+));/g, function(m, name, dec, hex)
+    {
+      return dec != null ? String.fromCharCode(parseInt(dec, 10)) :
+        hex != null ? String.fromCharCode(parseInt(hex, 16)) :
+        { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'" }[name];
+    });
+  }
+
+  /**
+   * Replaces `icon=<name>` in a style with the icon's style. The cell's
+   * other keys stay and win, except the keys that make the icon
+   * (ICON_KEYS) and `whiteSpace` on an icon whose label sits outside it (the
+   * name below an icon doesn't wrap at the icon's width). Style names
+   * without a value (`rounded`, `ellipse`) are dropped.
+   * @param {string} style - as written, XML-escaped if it comes from XML
+   * @returns {{style: string, name: string, icon: Object|null}|null} null
+   *   when the style has no icon key; `icon` null when no icon fits.
+   */
+  function applyToStyle(style, options)
+  {
+    var cell = parseStyle(style);
+    var key = null;
+
+    for (var i = 0; i < cell.keys.length && key == null; i++)
+    {
+      if (cell.keys[i].toLowerCase() === "icon")
+      {
+        key = cell.keys[i];
+      }
+    }
+
+    if (key == null)
+    {
+      return null;
+    }
+
+    var name = decodeXml(cell.values[key]).trim();
+    var icon = resolve(name, options);
+
+    if (icon == null)
+    {
+      return { style: style, name: name, icon: null };
+    }
+
+    var base = parseStyle(icon.style);
+    var outside = /^(top|bottom)$/.test(base.values.verticalLabelPosition || "") ||
+      /^(left|right)$/.test(base.values.labelPosition || "") ||
+      (base.names.indexOf("image") >= 0 && base.values.verticalLabelPosition == null);
+
+    cell.keys.forEach(function(k)
+    {
+      if (k === key || ICON_KEYS.indexOf(k) >= 0 || (k === "whiteSpace" && outside))
+      {
+        return;
+      }
+
+      if (base.values[k] == null)
+      {
+        base.keys.push(k);
+      }
+
+      base.values[k] = cell.values[k];
+    });
+
+    var parts = base.names.slice();
+
+    base.keys.forEach(function(k)
+    {
+      parts.push(k + "=" + base.values[k]);
+    });
+
+    return { style: parts.join(";") + ";", name: name, icon: icon };
+  }
+
+  /**
+   * Resolves every `icon=` in the vertex styles of a draw.io XML string,
+   * also a partial one while it streams in. A cell counts as a container
+   * (only group shapes fit) when its style has container=1 or other cells
+   * on its page name it as their parent; a cell larger than 100 × 100
+   * prefers a group shape but still takes an icon (rank's `large`).
+   * @returns {{xml: string, resolved: Array, unresolved: Array}}
+   */
+  function applyToXml(xml)
+  {
+    var resolved = [];
+    var unresolved = [];
+
+    if (typeof xml !== "string" || !/(^|[;"'\s])icon\s*=/i.test(xml))
+    {
+      return { xml: xml, resolved: resolved, unresolved: unresolved };
+    }
+
+    // Pages reuse ids ("2", "3", …): a parent counts on its own page only.
+    var pageStarts = [];
+    var pagePattern = /<mxGraphModel\b/g;
+    var pageMatch;
+
+    while ((pageMatch = pagePattern.exec(xml)) != null)
+    {
+      pageStarts.push(pageMatch.index);
+    }
+
+    function pageAt(offset)
+    {
+      var page = 0;
+
+      while (page < pageStarts.length && pageStarts[page] <= offset)
+      {
+        page++;
+      }
+
+      return page;
+    }
+
+    var parents = {};
+
+    xml.replace(/\sparent\s*=\s*(?:"([^"]*)"|'([^']*)')/g, function(_m, a, b, offset)
+    {
+      parents[pageAt(offset) + " " + (a != null ? a : b)] = true;
+      return "";
+    });
+
+    // Attribute by attribute, so a `>` in a value (value="a -> b") doesn't
+    // end the tag.
+    var out = xml.replace(/<mxCell\b((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)(\s*)(\/?)>/g,
+      function(tag, attrs, space, selfClosing, offset)
+    {
+      var styleMatch = /(\sstyle\s*=\s*)(?:"([^"]*)"|'([^']*)')/.exec(attrs);
+
+      if (styleMatch == null || !/vertex\s*=\s*["']1["']/.test(attrs))
+      {
+        return tag;
+      }
+
+      var quote = styleMatch[2] != null ? "\"" : "'";
+      var style = styleMatch[2] != null ? styleMatch[2] : styleMatch[3];
+
+      if (!/(^|;)\s*icon\s*=/i.test(style))
+      {
+        return tag;
+      }
+
+      var idMatch = /\sid\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(attrs);
+      var id = idMatch != null ? (idMatch[1] != null ? idMatch[1] : idMatch[2]) : null;
+
+      if (id == null)
+      {
+        // <object id="…"><mxCell …>: the wrapper carries the id.
+        var before = xml.substring(0, offset);
+        var wrapper = /<(?:object|UserObject)\b[^>]*?\sid\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>\s*$/.exec(before);
+
+        if (wrapper != null)
+        {
+          id = wrapper[1] != null ? wrapper[1] : wrapper[2];
+        }
+      }
+
+      var container = /(^|;)\s*container\s*=\s*1/.test(style) ||
+        (id != null && parents[pageAt(offset) + " " + id] === true);
+      var large = false;
+
+      if (!container && selfClosing !== "/")
+      {
+        var rest = xml.substring(offset + tag.length);
+        var end = rest.search(/<\/mxCell>|<mxCell\b/);
+        var geometry = /<mxGeometry\b[^>]*>/.exec(end >= 0 ? rest.substring(0, end) : rest);
+
+        if (geometry != null)
+        {
+          var w = /\swidth\s*=\s*["']([\d.]+)["']/.exec(geometry[0]);
+          var h = /\sheight\s*=\s*["']([\d.]+)["']/.exec(geometry[0]);
+
+          large = w != null && h != null && parseFloat(w[1]) > 100 && parseFloat(h[1]) > 100;
+        }
+      }
+
+      var result = applyToStyle(style, { container: container, large: large });
+
+      if (result == null)
+      {
+        return tag;
+      }
+
+      if (result.icon == null)
+      {
+        // The name goes back to the model in a warning: not a long one whole.
+        var shown = result.name.length > MAX_NAME_LENGTH ?
+          result.name.substring(0, MAX_NAME_LENGTH) + "…" : result.name;
+
+        unresolved.push({ id: id, name: shown, container: container });
+
+        return tag;
+      }
+
+      resolved.push({ id: id, name: result.name, title: result.icon.title, provider: result.icon.provider });
+
+      return "<mxCell" + attrs.substring(0, styleMatch.index) + styleMatch[1] + quote + result.style + quote +
+        attrs.substring(styleMatch.index + styleMatch[0].length) + space + selfClosing + ">";
+    });
+
+    return { xml: out, resolved: resolved, unresolved: unresolved };
+  }
+
+  return { resolve: resolve, rank: rank, applyToStyle: applyToStyle, applyToXml: applyToXml,
+    size: entries.length, cacheSize: function() { return cache.size; } };
+}

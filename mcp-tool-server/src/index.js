@@ -247,6 +247,28 @@ function loadEdgeWaypoints()
   return edgeWaypointsPromise;
 }
 
+// shared/icon-resolver.js and its table shared/icon-table.js (`icon=aws
+// lambda` in a style becomes the official icon), copied into src/ by
+// copy-shared - same import. Memoized: the resolver is built once.
+let iconResolverPromise = null;
+
+function loadIconResolver()
+{
+  if (!iconResolverPromise)
+  {
+    iconResolverPromise = Promise.all(
+    [
+      import("./icon-resolver.js").catch(function() { return import("../../shared/icon-resolver.js"); }),
+      import("./icon-table.js").catch(function() { return import("../../shared/icon-table.js"); }),
+    ]).then(function(mods)
+    {
+      return mods[0].createIconResolver(mods[1].ICON_TABLE, mods[1].ICON_DATA);
+    });
+  }
+
+  return iconResolverPromise;
+}
+
 // shared/repair-xml.js (the mechanical slips LLMs make in XML: text around the
 // diagram, `<` or a stray `&` in attribute values, a layer that is its own
 // parent), copied into src/ by copy-shared — same import. Memoized; pure
@@ -466,7 +488,7 @@ const tools =
       "(cloud, network, P&ID, UI mockups, floor plans); prefer open_drawio_mermaid " +
       "for flowcharts, sequence, class, ER and the other types Mermaid covers.\n\n" +
       xmlEssentials + "\n" +
-      "- Cloud/network/P&ID icons or logos: call search_shapes, use its style.\n" +
+      "- AWS/Azure/GCP/K8s icons: icon=aws lambda in style; others: search_shapes style.\n" +
       "- Set postLayout \"elk\" for flowcharts, process and tree diagrams (ELK places nodes and " +
       "routes edges), or routing \"libavoid\" for hand-placed layouts whose edges would cross " +
       "shapes. Never both.\n\n" +
@@ -1015,6 +1037,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
       catch (error)
       {
         console.error("[repair] skipped: " +
+          (error instanceof Error ? error.message : String(error)));
+      }
+    }
+
+    // XML: icons by name. `icon=aws lambda` in a vertex style becomes the
+    // style of the official icon, before the passes below treat it like any
+    // icon. A name that matches nothing stays and gets a note.
+    if (type === "xml" && /(^|[;"'\s])icon\s*=/i.test(content))
+    {
+      try
+      {
+        const resolver = await loadIconResolver();
+        const icons = resolver.applyToXml(content);
+
+        content = icons.xml;
+
+        for (const u of icons.unresolved)
+        {
+          notes.push("NOTE: icon=" + u.name + (u.id != null ? " (cell " + u.id + ")" : "") +
+            " matched no icon" + (u.container ?
+              " for a container: only AWS groups (icon=aws vpc, aws private subnet, aws account, aws region, …) " +
+              "can hold other shapes; style other containers yourself" :
+              ": name the provider and the service as the provider calls it (icon=aws lambda, " +
+              "icon=azure functions, icon=gcp pub sub, icon=kubernetes pod), or call search_shapes and use its style") +
+            ". It opened as a plain rectangle.");
+        }
+      }
+      catch (error)
+      {
+        console.error("[icons] skipped: " +
           (error instanceof Error ? error.message : String(error)));
       }
     }

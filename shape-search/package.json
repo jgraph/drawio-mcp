@@ -5,7 +5,7 @@
   "description": "Generates a shape search index from the deployed draw.io client",
   "type": "module",
   "scripts": {
-    "generate": "node generate-index.js"
+    "generate": "node generate-index.js && node generate-icon-table.js"
   },
   "dependencies": {
     "jsdom": "^26.1.0"

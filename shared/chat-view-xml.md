@@ -10,7 +10,7 @@ When the diagram is shown inline in the chat, it gets about 800 px of width and 
 - **Groups:** show tiers, zones, stages, systems and namespaces as pale titled containers with their members inside, not as loose labels beside them.
 - **Color by role:** the same color for the same kind of element, from the calm theme in **Color themes** below (`fillColor`/`strokeColor`, with its text and connector colors): blue for main steps and services, green for start, end and success, yellow for decisions, orange for retries and waiting, red for errors and cancellation, purple for data and storage, gray for external systems. Notes and containers take its note and container colors, lanes a light tint.
 - **Consistency:** one visual language per diagram. Take all icons from one set (one library such as AWS 4 or Cisco 19, or the set named in brackets in a `search_shapes` title) and give them one size; one-color icons get one `fillColor`. Shapes of one kind share size, corner rounding, outline width and font. Connectors share one color, width, arrowhead and path style that match the shape outlines (the same `strokeWidth`, a `strokeColor` from the same palette). Change a color or line only for something that means something different, and name it in the legend.
-- **Icons:** an icon's label sits below it. Leave a full grid row between rows of icons so the labels have room; an edge that meets an icon from below ends under its label.
+- **Icons:** an icon's label sits below it. Leave a full grid row between rows of icons so the labels have room; an edge that meets an icon from below ends under its label. Cloud icons need no search: `icon=aws lambda`, label keys only; groups `icon=aws vpc`.
 
 ## Laying out diagrams for the chat view
 
