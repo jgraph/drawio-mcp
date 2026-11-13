@@ -73,5 +73,5 @@ export async function semanticToXml(input, options)
   const stats = Object.assign({ type: d.type, width: Math.round(r.width), height: Math.round(r.height),
     ms: Math.round((now() - t0) * 10) / 10 }, r.stats);
 
-  return { xml: xml, error: null, warnings: n.warnings, stats: stats };
+  return { xml: xml, error: null, warnings: n.warnings.concat(r.warnings || []), stats: stats };
 }

@@ -63,10 +63,11 @@ readline.createInterface({ input: process.stdin }).on("line", async function(lin
   }
   else if (msg.method === "tools/call")
   {
-    count++;
+    // taken before the await, so calls that overlap keep a record each
+    const n = ++count;
     const args = msg.params.arguments || {};
     const r = await semanticToXml(args, { elk: elk });
-    fs.writeFileSync(path.join(runDir, tag + "-call" + count + ".json"), JSON.stringify({ arguments: args,
+    fs.writeFileSync(path.join(runDir, tag + "-call" + n + ".json"), JSON.stringify({ arguments: args,
       xml: r.xml, error: r.error, warnings: r.warnings, stats: r.stats }, null, 1));
     const content = r.error != null ? [{ type: "text", text: r.error }] :
       [{ type: "text", text: JSON.stringify({ xml: r.xml }) }];

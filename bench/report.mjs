@@ -63,6 +63,12 @@ const judgements = files.filter(function(x) { return /^judge-.*\.json$/.test(x);
 
   for (const r of j.results)
   {
+    // a judgement that failed (winner null) counts nowhere, as in judge.mjs
+    if (r.winner == null)
+    {
+      continue;
+    }
+
     const p = byPrompt[r.key] || (byPrompt[r.key] = { a: 0, b: 0, tie: 0 });
     p[r.winner === j.a ? "a" : r.winner === j.b ? "b" : "tie"]++;
   }

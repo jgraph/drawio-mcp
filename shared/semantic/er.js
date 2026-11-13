@@ -30,23 +30,33 @@ const KEY_TOKEN = /^(pk|fk|uk|pk\/fk|fk\/pk)$/i;
 
 /**
  * Reads one column line: "PK book_id", "PK, FK book_id", "book_id INT PK",
- * "FK author_id -> authors", "id (PK)".
+ * "FK author_id -> authors", "FK owner (person)", "buyer (customers.id)",
+ * "id (PK)".
  *
+ * A word in parentheses names the referenced table only in the form
+ * "(table.column)" or on a column marked FK, since "(enum)" or "(unique)"
+ * is a type or a note.
+ *
+ * @param {string} text
+ * @param {function(string): boolean} [isTable] - whether a word names a
+ *   table of the schema; a reference to anything else is dropped
  * @returns {{text: string, name: string, pk: boolean, fk: boolean, ref: string}}
  */
-export function parseField(text)
+export function parseField(text, isTable)
 {
   const t = String(text).trim();
+  const tokens = t.split(/[\s,:()]+/).filter(function(s) { return s !== ""; });
+  const fkMarked = /\bforeign key\b/i.test(t) || tokens.some(function(tok) { return KEY_TOKEN.test(tok) && /fk/i.test(tok); });
   let ref = "";
   const refMatch = /(?:→|->|=>|\breferences\b|\brefs?\b)\s*([A-Za-z_][\w]*)/i.exec(t) ||
-    /\(\s*([A-Za-z_]\w*)(?:\.\w+)?\s*\)\s*$/.exec(t);
+    /\(\s*([A-Za-z_]\w*)\.\w+\s*\)\s*$/.exec(t) ||
+    (fkMarked ? /\(\s*([A-Za-z_]\w*)\s*\)\s*$/.exec(t) : null);
 
-  if (refMatch != null && !KEY_TOKEN.test(refMatch[1]))
+  if (refMatch != null && !KEY_TOKEN.test(refMatch[1]) && (isTable == null || isTable(refMatch[1].toLowerCase())))
   {
     ref = refMatch[1].toLowerCase();
   }
 
-  const tokens = t.split(/[\s,:()]+/).filter(function(s) { return s !== ""; });
   let pk = false;
   let fk = false;
   let name = "";
@@ -122,21 +132,45 @@ function stems(table)
 
 // ---------------------------------------------------------------- relations
 
+// the multiplicities as words, also the names of the crow's-foot markers
 const CARD_WORDS =
 {
   one: "1",
+  "one-and-only-one": "1",
+  "exactly-one": "1",
+  "only-one": "1",
+  "mandatory-one": "1",
   many: "*",
+  multiple: "*",
   "zero-or-one": "0..1",
   "zero-to-one": "0..1",
+  "0-or-1": "0..1",
   "one-or-many": "1..*",
   "one-or-more": "1..*",
+  "at-least-one": "1..*",
+  "1-or-more": "1..*",
+  "1-or-many": "1..*",
   "zero-or-many": "0..*",
-  "zero-or-more": "0..*"
+  "zero-or-more": "0..*",
+  "0-or-more": "0..*",
+  "0-or-many": "0..*"
 };
 
+// the multiplicities as symbols, also in (min,max) notation
+const CARD_SYMBOLS =
+{
+  "1": ["1", "1..1", "1,1", "|"],
+  "0..1": ["0..1", "0,1", "?"],
+  "1..*": ["1..*", "1..n", "1..m", "1..many", "1,*", "1,n", "1,m", "+"],
+  "0..*": ["0..*", "0..n", "0..m", "0..many", "0,*", "0,n", "0,m"],
+  "*": ["*", "n", "m"]
+};
+
+// One multiplicity in the notation of the markers: "1", "0..1", "1..*",
+// "0..*" or "*", or "" for none and for one it can't read.
 function normalizeCard(c)
 {
-  const s = String(c || "").trim().toLowerCase().replace(/\s+/g, "");
+  const s = String(c || "").trim().toLowerCase().replace(/\s+/g, "").replace(/^\((.*)\)$/, "$1");
   const word = String(c || "").trim().toLowerCase().replace(/[\s_]+/g, "-");
 
   if (s === "")
@@ -149,27 +183,15 @@ function normalizeCard(c)
     return CARD_WORDS[word];
   }
 
-  if (s === "1" || s === "1..1" || s === "one" || s === "|")
+  for (const card in CARD_SYMBOLS)
   {
-    return "1";
+    if (CARD_SYMBOLS[card].indexOf(s) >= 0)
+    {
+      return card;
+    }
   }
 
-  if (s === "0..1" || s === "?" || s === "0,1")
-  {
-    return "0..1";
-  }
-
-  if (s === "1..*" || s === "1..n" || s === "+" || s === "1..m")
-  {
-    return "1..*";
-  }
-
-  if (s === "0..*" || s === "0..n" || s === "0..m")
-  {
-    return "0..*";
-  }
-
-  return "*";
+  return "";
 }
 
 function isMany(card)
@@ -179,7 +201,7 @@ function isMany(card)
 
 const MARKERS = { "1": "ERmandOne", "0..1": "ERzeroToOne", "1..*": "ERoneToMany", "0..*": "ERzeroToMany", "*": "ERmany" };
 
-function cardsOf(edge)
+function cardsOf(edge, warnings)
 {
   let from = "";
   let to = "";
@@ -191,10 +213,25 @@ function cardsOf(edge)
     to = CARD_WORDS[parts[1]] || "";
   }
 
-  from = normalizeCard(edge.fromCard) || from;
-  to = normalizeCard(edge.toCard) || to;
+  from = readCard(edge, "fromCard", warnings) || from;
+  to = readCard(edge, "toCard", warnings) || to;
 
   return { from: from, to: to };
+}
+
+// A multiplicity it can't read is left to the kind and the foreign key, with
+// a warning, rather than guessed.
+function readCard(edge, key, warnings)
+{
+  const card = normalizeCard(edge[key]);
+
+  if (card === "" && String(edge[key] || "").trim() !== "" && warnings != null)
+  {
+    warnings.push("Ignored the " + key + " \"" + String(edge[key]).trim() + "\" of the relation " + edge.from + " → " +
+      edge.to + ": use 1, 0..1, 1..*, 0..* or *.");
+  }
+
+  return card;
 }
 
 function findField(table, name)
@@ -221,16 +258,15 @@ function pkRow(table)
   });
 }
 
-// The row of `child` that references `parent`, or -1. Rows already used for a
-// relation between the two are skipped, so two references to one table
-// (origin and destination airport) take one row each.
-function fkRow(child, parent, used)
+// The tests for a row that references `parent`, strongest first. The first
+// four are what a foreign key to `parent` looks like; the last two also take
+// an unmarked row named after it.
+function refTests(parent)
 {
   const st = stems(parent);
   const pkNames = parent.fields.filter(function(f) { return f.pk; }).map(function(f) { return f.name; });
-  const free = function(i) { return !used.has(i); };
-  const tests =
-  [
+
+  return [
     function(f) { return f.ref !== "" && (st.indexOf(singular(f.ref)) >= 0 || st.indexOf(f.ref) >= 0); },
     function(f) { return f.fk && pkNames.indexOf(f.name) >= 0 && f.name !== "id"; },
     function(f) { return f.fk && st.some(function(s) { return f.name === s + "_id" || f.name === s + "id"; }); },
@@ -238,8 +274,16 @@ function fkRow(child, parent, used)
     function(f) { return !f.pk && pkNames.indexOf(f.name) >= 0 && f.name !== "id"; },
     function(f) { return st.some(function(s) { return f.name === s + "_id" || f.name === s + "id"; }); }
   ];
+}
 
-  for (const test of tests)
+// The row of `child` that references `parent`, or -1. Rows already used for a
+// relation between the two are skipped, so two references to one table
+// (origin and destination airport) take one row each.
+function fkRow(child, parent, used)
+{
+  const free = function(i) { return !used.has(i); };
+
+  for (const test of refTests(parent))
   {
     const i = child.fields.findIndex(function(f, k) { return free(k) && test(f); });
 
@@ -252,14 +296,51 @@ function fkRow(child, parent, used)
   return -1;
 }
 
+// The row of a table that references the table itself when its name doesn't
+// say so (parent_id, manager_id): the first free foreign key, else the first
+// free row ending in _id, that doesn't look like a reference to another table.
+function selfRefRow(tables, t, used)
+{
+  const table = tables[t];
+  const others = tables.filter(function(o) { return o !== table; }).map(function(o) { return refTests(o).slice(0, 4); });
+  const other = function(f) { return others.some(function(tests) { return tests.some(function(test) { return test(f); }); }); };
+  const pick = function(test)
+  {
+    return table.fields.findIndex(function(f, k) { return !used.has(k) && test(f) && !other(f); });
+  };
+  const i = pick(function(f) { return f.fk; });
+
+  return (i >= 0) ? i : pick(function(f) { return !f.pk && /_id$/.test(f.name); });
+}
+
+// What the row a relation names in a table says about the direction: 2 for
+// a foreign key, 1 for another column, 0 for the table's own key (referenced),
+// -1 for no row.
+function namedKind(table, name)
+{
+  const i = name ? findField(table, name) : -1;
+
+  if (i < 0)
+  {
+    return -1;
+  }
+
+  const f = table.fields[i];
+
+  return f.fk ? 2 : (f.pk ? 0 : 1);
+}
+
 /**
  * Resolves the edges of an ER description into relations between rows.
  *
+ * @param {object[]} tables
+ * @param {object[]} edges
+ * @param {string[]} [warnings] - what it couldn't read is added here
  * @returns {Array<{parent: number, parentRow: number, child: number,
  *   childRow: number, parentCard: string, childCard: string}>} table
  *   indexes; row -1 is the table's header
  */
-export function resolveRelations(tables, edges)
+export function resolveRelations(tables, edges, warnings)
 {
   const index = new Map(tables.map(function(t, i) { return [t.id, i]; }));
   const used = new Map();
@@ -269,7 +350,7 @@ export function resolveRelations(tables, edges)
   {
     const a = index.get(e.from);
     const b = index.get(e.to);
-    const cards = cardsOf(e);
+    const cards = cardsOf(e, warnings);
     // true: the "from" table holds the foreign key, false: the "to" table,
     // null: neither (many-to-many)
     let childIsFrom;
@@ -284,11 +365,27 @@ export function resolveRelations(tables, edges)
     }
     else
     {
-      // one-to-one, or no cardinality: the table that holds the foreign key
-      const key = function(c, p) { return c + ">" + p; };
-      const toRefs = fkRow(tables[b], tables[a], used.get(key(b, a)) || new Set()) >= 0;
-      const fromRefs = fkRow(tables[a], tables[b], used.get(key(a, b)) || new Set()) >= 0;
-      childIsFrom = !toRefs && fromRefs;
+      // one-to-one, or no cardinality: the table that holds the foreign key,
+      // as the rows named by fromField / toField say, else by the rows' names
+      const fromKind = namedKind(tables[a], e.fromField);
+      const toKind = namedKind(tables[b], e.toField);
+
+      if (fromKind !== toKind && (fromKind < 0 || toKind < 0))
+      {
+        // one side named: its foreign key or column holds the key, its own key is referenced
+        childIsFrom = (fromKind < 0) ? toKind === 0 : fromKind > 0;
+      }
+      else if (fromKind !== toKind)
+      {
+        childIsFrom = fromKind > toKind;
+      }
+      else
+      {
+        const key = function(c, p) { return c + ">" + p; };
+        const toRefs = fkRow(tables[b], tables[a], used.get(key(b, a)) || new Set()) >= 0;
+        const fromRefs = fkRow(tables[a], tables[b], used.get(key(a, b)) || new Set()) >= 0;
+        childIsFrom = !toRefs && fromRefs;
+      }
 
       if (cards.from === "" && cards.to === "")
       {
@@ -324,7 +421,14 @@ export function resolveRelations(tables, edges)
       used.get(usedKey).add(parentRow);
     }
 
-    const childRow = explicitRow(tables[child], childField, fkRow(tables[child], tables[parent], used.get(usedKey)));
+    let found = fkRow(tables[child], tables[parent], used.get(usedKey));
+
+    if (found < 0 && child === parent)
+    {
+      found = selfRefRow(tables, child, used.get(usedKey));
+    }
+
+    const childRow = explicitRow(tables[child], childField, found);
 
     if (childRow >= 0)
     {
@@ -733,13 +837,17 @@ function gridGeometry(tables, relations, titleWidth)
       return { crossings: countCrossings(lines), overlaps: countOverlaps(lines), bends: bendsOf(g.routes),
         length: lengthOf(g.routes), fit: fitOf(g.width, g.height, titleWidth) };
     };
-    const placed = placeOnGrid(n, links, cols, function(cellOf, rows)
+    // the refinement routes the grid for every swap it tries: above GRID_MAX
+    // tables (a host without ELK) the placement goes by link costs alone, which
+    // keeps the time bounded
+    const refine = (n > GRID_MAX) ? null : function(cellOf, rows)
     {
       const q = quality(routeGrid(boxes, links, Object.assign({ cellOf: cellOf, rows: rows, fast: true }, grid)));
 
       return linksCost(cellOf, links, cols) + q.crossings * W.crossing + q.overlaps * 4 + q.length / W.length +
         (1 - q.fit.fit) * 40;
-    });
+    };
+    const placed = placeOnGrid(n, links, cols, refine);
     const g = routeGrid(boxes, links, Object.assign({ cellOf: placed.cellOf, rows: placed.rows }, grid));
     const q = quality(g);
     // more than three tables in a row only when the schema needs it
@@ -761,14 +869,31 @@ function gridGeometry(tables, relations, titleWidth)
 
 // ---------------------------------------------------------------- build
 
+// Whether a word names a table of the schema, by the names fkRow matches.
+function tableNames(nodes)
+{
+  const all = new Set();
+
+  for (const n of nodes)
+  {
+    for (const s of stems(n))
+    {
+      all.add(s);
+    }
+  }
+
+  return function(w) { return all.has(w) || all.has(singular(w)); };
+}
+
 function buildTables(nodes)
 {
   const sizes = fontSizes(nodes.length);
   const fs = sizes.shape;
   const rowHeight = (fs > 14) ? 30 : 26;
+  const isTable = tableNames(nodes);
   const tables = nodes.map(function(n)
   {
-    const fields = n.fields.map(parseField);
+    const fields = n.fields.map(function(f) { return parseField(f, isTable); });
     const keysOnly = fields.length > 0 && fields.every(function(f) { return f.pk || f.fk; });
     const junction = keysOnly && fields.filter(function(f) { return f.fk; }).length >= 2;
 
@@ -804,14 +929,16 @@ function buildTables(nodes)
  * @param {object} diagram - from normalizeSpec
  * @param {{elk?: {layout: function(object): Promise<object>}}} ctx - ELK is
  *   needed for schemas of more than 16 tables
- * @returns {Promise<{cells: object[], width: number, height: number, stats: object}>}
+ * @returns {Promise<{cells: object[], width: number, height: number, stats: object,
+ *   warnings: string[]}>}
  */
 export async function layoutEr(diagram, ctx)
 {
   const built = buildTables(diagram.nodes);
   const tables = built.tables;
   const sizes = built.sizes;
-  const relations = resolveRelations(tables, diagram.edges);
+  const warnings = [];
+  const relations = resolveRelations(tables, diagram.edges, warnings);
   const titleWidth = diagram.title ? textWidth(diagram.title, sizes.title, true) + 20 : 0;
   const geo = (tables.length <= GRID_MAX || ctx.elk == null) ? gridGeometry(tables, relations, titleWidth) :
     await elkGeometry(tables, relations, ctx.elk, titleWidth);
@@ -884,6 +1011,7 @@ export async function layoutEr(diagram, ctx)
 
   return {
     cells: cells,
+    warnings: warnings,
     width: geo.fit.outerWidth,
     height: geo.fit.outerHeight,
     stats: Object.assign({ tables: tables.length, relations: relations.length, crossings: geo.crossings,
