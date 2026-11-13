@@ -11,3 +11,5 @@ src/normalize-model.js
 src/repair-xml.js
 src/label-perimeter.js
 src/edge-waypoints.js
+src/icon-resolver.js
+src/icon-table.js
