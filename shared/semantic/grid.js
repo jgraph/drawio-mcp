@@ -22,6 +22,7 @@ const STUB = 24; // straight run at each box side, room for the ER markers and a
 const TRACK = 14; // between tracks in a gutter
 const LANE = 12; // between tracks in a gap between rows
 const SPREAD = 10; // between links that end on one row, room for the ER markers
+const REFINE_ALL_MAX = 10; // up to this many boxes, every start is refined
 
 /**
  * The cost of a link between two cells.
@@ -235,12 +236,11 @@ export function placeOnGrid(n, links, cols, refine)
   starts.push(rowMajor);
 
   const byLinks = function(cellOf) { return totalCost(cellOf, links, cols); };
+  const found = starts.map(function(s) { return improve(s.slice(), byLinks, cells); });
   let best = null;
 
-  for (const s of starts)
+  for (const r of found)
   {
-    const r = improve(s.slice(), byLinks, cells);
-
     if (best == null || r.cost < best.cost - 1e-9)
     {
       best = r;
@@ -251,9 +251,24 @@ export function placeOnGrid(n, links, cols, refine)
 
   if (refine != null)
   {
-    const r = improve(best.cellOf.slice(), function(cellOf) { return refine(cellOf, rows); }, cells);
-    best = { cellOf: r.cellOf, cost: byLinks(r.cellOf) };
-    score = r.cost;
+    // the routed result from every start: the cheapest placement by the link
+    // costs is often not the one with the fewest crossings. Each refinement
+    // routes every swap, so larger grids refine the cheapest start only.
+    const refineFrom = (n <= REFINE_ALL_MAX) ? found : [best];
+    let refined = null;
+
+    for (const f of refineFrom)
+    {
+      const r = improve(f.cellOf.slice(), function(cellOf) { return refine(cellOf, rows); }, cells);
+
+      if (refined == null || r.cost < refined.cost - 1e-9)
+      {
+        refined = r;
+      }
+    }
+
+    best = { cellOf: refined.cellOf, cost: byLinks(refined.cellOf) };
+    score = refined.cost;
   }
 
   return { cellOf: best.cellOf, cost: best.cost, score: score, rows: rows };
@@ -361,6 +376,93 @@ function orderGutter(segs, maxBrute)
   return segs.slice().sort(function(a, b) { return key(a) - key(b) || a.lo - b.lo || a.hi - b.hi; });
 }
 
+// Boxes side by side in one row of the grid are moved down against each
+// other so that the rows a link joins are at one height and the link is a
+// straight line. Links are taken in order; one that would contradict the
+// shifts already set (a second link between the same two boxes) or move a
+// box more than grid.maxShift down is left as it is. Returns the shift of
+// every box from the top of its grid row.
+function alignRows(boxes, links, colOf, rowOf, grid)
+{
+  const n = boxes.length;
+  const maxShift = (grid.maxShift != null) ? grid.maxShift : 3 * (grid.rowHeight || 26);
+  // components of boxes whose relative heights are fixed: root and offset
+  const root = Array.from({ length: n }, function(_, i) { return i; });
+  const off = new Array(n).fill(0);
+  const find = function(i)
+  {
+    let d = 0;
+
+    while (root[i] !== i)
+    {
+      d += off[i];
+      i = root[i];
+    }
+
+    return { r: i, d: d };
+  };
+
+  for (const l of links)
+  {
+    if (rowOf(l.a) !== rowOf(l.b) || Math.abs(colOf(l.a) - colOf(l.b)) !== 1)
+    {
+      continue;
+    }
+
+    const fa = find(l.a);
+    const fb = find(l.b);
+    // wanted: y(b) - y(a) = ya - yb, y(i) = y(root) + d(i)
+    const want = l.ya - l.yb;
+
+    if (fa.r === fb.r)
+    {
+      continue;
+    }
+
+    // attach b's component to a's: y(rb) = y(ra) + fa.d + want - fb.d
+    const delta = fa.d + want - fb.d;
+    let lo = Infinity;
+    let hi = -Infinity;
+
+    for (let i = 0; i < n; i++)
+    {
+      const f = find(i);
+
+      if (f.r === fa.r || f.r === fb.r)
+      {
+        const y = (f.r === fa.r) ? f.d : delta + f.d;
+        lo = Math.min(lo, y);
+        hi = Math.max(hi, y);
+      }
+    }
+
+    if (hi - lo > maxShift)
+    {
+      continue;
+    }
+
+    root[fb.r] = fa.r;
+    off[fb.r] = delta;
+  }
+
+  const shift = new Array(n).fill(0);
+  const low = new Map();
+
+  for (let i = 0; i < n; i++)
+  {
+    const f = find(i);
+    shift[i] = f.d;
+    low.set(f.r, Math.min(low.has(f.r) ? low.get(f.r) : Infinity, f.d));
+  }
+
+  for (let i = 0; i < n; i++)
+  {
+    shift[i] -= low.get(find(i).r);
+  }
+
+  return shift;
+}
+
 /**
  * Lays out boxes on the grid and routes the links.
  *
@@ -368,8 +470,11 @@ function orderGutter(segs, maxBrute)
  * @param {Array<{a: number, b: number, ya: number, yb: number}>} links -
  *   box indexes and the y of each end, from the box's top
  * @param {{cols: number, cellOf: number[], rows: number, gutter?: number,
- *   gap?: number, top?: number, left?: number, maxJog?: number, fast?: boolean}}
- *   grid - fast: try fewer track orders (while searching placements)
+ *   gap?: number, top?: number, left?: number, maxJog?: number, fast?: boolean,
+ *   outer?: boolean, align?: boolean, rowHeight?: number, maxShift?: number}}
+ *   grid - fast: try fewer track orders (while searching placements); outer:
+ *   links within the first or last column run outside the grid; align: false
+ *   keeps every box at the top of its grid row
  * @returns {{pos: Array<{x: number, y: number}>, routes: Array<{points:
  *   Array<{x: number, y: number}>, sideA: string, sideB: string, dyB: number}>,
  *   width: number, height: number}}
@@ -401,13 +506,16 @@ export function routeGrid(boxes, links, grid)
       const inner = function(g) { return g > 0 && g < cols; };
       let g;
 
+      // a box in the first or last column: the inner gutter, or with
+      // grid.outer the free side outside the grid, where the line crosses
+      // nothing
       if (inner(right) && !inner(left))
       {
-        g = right;
+        g = grid.outer ? left : right;
       }
       else if (inner(left) && !inner(right))
       {
-        g = left;
+        g = grid.outer ? right : left;
       }
       else
       {
@@ -467,11 +575,12 @@ export function routeGrid(boxes, links, grid)
   });
   const colWidth = new Array(cols).fill(0);
   const rowHeight = new Array(rows).fill(0);
+  const shift = (grid.align === false) ? new Array(boxes.length).fill(0) : alignRows(boxes, links, colOf, rowOf, grid);
 
   boxes.forEach(function(b, i)
   {
     colWidth[colOf(i)] = Math.max(colWidth[colOf(i)], b.w);
-    rowHeight[rowOf(i)] = Math.max(rowHeight[rowOf(i)], b.h);
+    rowHeight[rowOf(i)] = Math.max(rowHeight[rowOf(i)], shift[i] + b.h);
   });
 
   const colX = [];
@@ -496,7 +605,7 @@ export function routeGrid(boxes, links, grid)
   const height = y - (grid.top || 0);
   const pos = boxes.map(function(b, i)
   {
-    return { x: colX[colOf(i)] + (colWidth[colOf(i)] - b.w) / 2, y: rowY[rowOf(i)] };
+    return { x: colX[colOf(i)] + (colWidth[colOf(i)] - b.w) / 2, y: rowY[rowOf(i)] + shift[i] };
   });
   const port = function(i, side, dy)
   {

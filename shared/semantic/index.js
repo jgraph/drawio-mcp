@@ -11,6 +11,7 @@
 import { normalizeSpec, TYPES } from "./spec.js";
 import { writeModel } from "./xml-writer.js";
 import { layoutEr } from "./er.js";
+import { expandDiagramShorthand } from "../diagram-shorthand.js";
 
 const LAYOUTS =
 {
@@ -69,7 +70,8 @@ export async function semanticToXml(input, options)
   }
 
   const r = await entry.layout(d, { elk: opts.elk });
-  const xml = writeModel(r.cells);
+  // the layouts write tables in the shorthand the app server expands
+  const xml = expandDiagramShorthand(writeModel(r.cells)).xml;
   const stats = Object.assign({ type: d.type, width: Math.round(r.width), height: Math.round(r.height),
     ms: Math.round((now() - t0) * 10) / 10 }, r.stats);
 

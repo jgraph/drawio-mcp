@@ -16,7 +16,7 @@
 // keys (a junction table) takes the data color.
 
 import { textWidth } from "./text-width.js";
-import { roleStyle, fontSizes, EDGE, FONT_COLOR } from "./theme.js";
+import { fontSizes, EDGE, FONT_COLOR } from "./theme.js";
 import { htmlLabel, IdPool } from "./xml-writer.js";
 import { placeOnGrid, routeGrid, linkCost } from "./grid.js";
 
@@ -632,6 +632,25 @@ function bendsOf(routes)
   return routes.reduce(function(n, r) { return n + Math.max(0, r.points.length - 2); }, 0);
 }
 
+// Relations that end on one side of the same row, beyond the first: their
+// markers sit next to each other and read as one bundle.
+function crowdedOf(links, routes)
+{
+  const seen = new Map();
+  let n = 0;
+
+  links.forEach(function(l, k)
+  {
+    for (const key of [l.a + "|" + routes[k].sideA + "|" + Math.round(l.ya), l.b + "|" + routes[k].sideB + "|" + Math.round(l.yb)])
+    {
+      n += seen.has(key) ? 1 : 0;
+      seen.set(key, true);
+    }
+  });
+
+  return n;
+}
+
 // Large schemas: ELK's layered layout, left to right.
 async function elkGeometry(tables, relations, elk, titleWidth)
 {
@@ -695,9 +714,9 @@ async function elkGeometry(tables, relations, elk, titleWidth)
 // Up to GRID_MAX tables: the grid of shared/chat-view-xml.md, two to four
 // columns, whichever fits the chat frame best with the fewest crossings.
 const GRID_MAX = 16;
-// weights of a crossing and of the lines' length (per 250 px) against the
-// link costs of grid.js
-const W = { crossing: 3, length: 250 };
+// weights against the link costs of grid.js: a crossing, the lines' length
+// (per 250 px), a bend, and a relation ending next to another on one row
+const W = { crossing: 4, length: 250, bend: 0.15, crowded: 1.5 };
 
 function gridGeometry(tables, relations, titleWidth)
 {
@@ -731,28 +750,36 @@ function gridGeometry(tables, relations, titleWidth)
       const lines = g.routes.map(function(r) { return r.points; });
 
       return { crossings: countCrossings(lines), overlaps: countOverlaps(lines), bends: bendsOf(g.routes),
-        length: lengthOf(g.routes), fit: fitOf(g.width, g.height, titleWidth) };
+        length: lengthOf(g.routes), crowded: crowdedOf(links, g.routes), fit: fitOf(g.width, g.height, titleWidth) };
+    };
+    const penalty = function(q)
+    {
+      return q.crossings * W.crossing + q.overlaps * 4 + q.bends * W.bend + q.length / W.length +
+        q.crowded * W.crowded + (1 - q.fit.fit) * 40;
     };
     const placed = placeOnGrid(n, links, cols, function(cellOf, rows)
     {
       const q = quality(routeGrid(boxes, links, Object.assign({ cellOf: cellOf, rows: rows, fast: true }, grid)));
 
-      return linksCost(cellOf, links, cols) + q.crossings * W.crossing + q.overlaps * 4 + q.length / W.length +
-        (1 - q.fit.fit) * 40;
+      return linksCost(cellOf, links, cols) + penalty(q);
     });
-    const g = routeGrid(boxes, links, Object.assign({ cellOf: placed.cellOf, rows: placed.rows }, grid));
-    const q = quality(g);
-    // more than three tables in a row only when the schema needs it
-    const crowd = (cols > 3) ? 2 : 0;
-    const badness = placed.cost + q.crossings * W.crossing + q.overlaps * 4 + q.bends * 0.1 + q.length / W.length +
-      (1 - q.fit.fit) * 40 + crowd;
-
-    if (best == null || badness < best.badness - 1e-6)
+    // links within the first or last column in the inner gutter, or
+    // outside the grid
+    for (const outer of [false, true])
     {
-      best = { badness: badness, width: g.width, height: g.height, crossings: q.crossings, bends: q.bends, fit: q.fit,
-        pos: g.pos, routes: g.routes.map(function(r) { return Object.assign({ reversed: false }, r); }),
-        stats: { layout: "grid", cols: cols, cost: Math.round(placed.cost * 10) / 10, overlaps: q.overlaps,
-          length: Math.round(q.length) } };
+      const g = routeGrid(boxes, links, Object.assign({ cellOf: placed.cellOf, rows: placed.rows, outer: outer }, grid));
+      const q = quality(g);
+      // more than three tables in a row only when the schema needs it
+      const crowd = (cols > 3) ? 2 : 0;
+      const badness = placed.cost + penalty(q) + crowd;
+
+      if (best == null || badness < best.badness - 1e-6)
+      {
+        best = { badness: badness, width: g.width, height: g.height, crossings: q.crossings, bends: q.bends, fit: q.fit,
+          pos: g.pos, routes: g.routes.map(function(r) { return Object.assign({ reversed: false }, r); }),
+          stats: { layout: "grid", cols: cols, outer: outer, cost: Math.round(placed.cost * 10) / 10,
+            overlaps: q.overlaps, crowded: q.crowded, length: Math.round(q.length) } };
+      }
     }
   }
 
@@ -765,7 +792,8 @@ function buildTables(nodes)
 {
   const sizes = fontSizes(nodes.length);
   const fs = sizes.shape;
-  const rowHeight = (fs > 14) ? 30 : 26;
+  // the row height of the table shorthand (shared/diagram-shorthand.js)
+  const rowHeight = Math.max(26, Math.round(fs) + 10);
   const tables = nodes.map(function(n)
   {
     const fields = n.fields.map(parseField);
@@ -784,7 +812,7 @@ function buildTables(nodes)
 
     for (const f of t.fields)
     {
-      width = Math.max(width, textWidth(f.text, fs) + 24);
+      width = Math.max(width, textWidth(f.text, fs, f.pk) + 24);
     }
   }
 
@@ -828,30 +856,32 @@ export async function layoutEr(diagram, ctx)
       x: MARGIN, y: MARGIN, width: contentWidth, height: 30 });
   }
 
-  const rowIds = [];
-
+  // Tables in the table shorthand of shared/diagram-shorthand.js (a cell
+  // with its columns in `rows`, its colors from a role), which index.js
+  // expands into the table and row cells, so that a schema drawn from a
+  // description and one the model places itself look the same. Primary
+  // keys are bold. Relations name their rows by position (`books.2`), which
+  // the expansion turns into the row's id (`books.author_id`).
   tables.forEach(function(t, i)
   {
     const p = geo.pos[i];
     const id = ids.take(t.id);
     t.cellId = id;
     cells.push({ id: id, value: htmlLabel(t.label),
-      style: "swimlane;fontStyle=1;childLayout=stackLayout;horizontalStack=0;resizeParent=1;resizeParentMax=0;" +
-        "horizontal=1;startSize=" + t.rowHeight + ";collapsible=0;html=1;whiteSpace=wrap;fontSize=" + t.fontSize + ";" +
-        roleStyle(t.role) + "swimlaneFillColor=default;",
-      x: ox + p.x, y: oy + p.y, width: t.width, height: t.height });
-    rowIds[i] = t.fields.map(function(f, r)
-    {
-      const rid = ids.take(t.id + "." + (f.name || r));
-      cells.push({ id: rid, value: htmlLabel(f.text), parent: id,
-        style: "text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;" +
-          "overflow=hidden;html=1;fontSize=" + t.fontSize + ";fontColor=" + FONT_COLOR + ";" +
-          "points=[[0,0.5],[1,0.5]];portConstraint=eastwest;",
-        x: 0, y: t.rowHeight * (r + 1), width: t.width, height: t.rowHeight });
+      style: "role=" + t.role + ";fontSize=" + t.fontSize + ";swimlaneFillColor=default;",
+      rows: t.fields.map(function(f)
+      {
+        const label = htmlLabel(f.text).replace(/\|/g, "\\|");
 
-      return rid;
-    });
+        return f.pk ? "<b>" + label + "</b>" : label;
+      }).join("|"),
+      x: ox + p.x, y: oy + p.y, width: t.width, height: t.height });
   });
+
+  const rowRef = function(t, row)
+  {
+    return (row < 0) ? tables[t].cellId : tables[t].cellId + "." + (row + 1);
+  };
 
   relations.forEach(function(r, k)
   {
@@ -873,8 +903,8 @@ export async function layoutEr(diagram, ctx)
     cells.push({
       id: ids.take(tables[r.child].id + "-" + tables[r.parent].id),
       edge: true,
-      source: src.row < 0 ? tables[src.t].cellId : rowIds[src.t][src.row],
-      target: dst.row < 0 ? tables[dst.t].cellId : rowIds[dst.t][dst.row],
+      source: rowRef(src.t, src.row),
+      target: rowRef(dst.t, dst.row),
       style: "html=1;rounded=0;strokeColor=" + EDGE.stroke + ";fontColor=" + EDGE.font + ";" +
         "startArrow=" + MARKERS[src.card || "1"] + ";endArrow=" + MARKERS[dst.card || "1"] + ";startFill=0;endFill=0;" +
         "startSize=10;endSize=10;" + end(src, route.sideA, "exit", route.dyA || 0) + end(dst, route.sideB, "entry", route.dyB || 0),

@@ -55,8 +55,9 @@ export class IdPool
 }
 
 /**
- * @param {Array<object>} cells - vertices: {id, value, style, parent?,
- *   x, y, width, height}; edges: {id, value?, style, parent?, edge: true,
+ * @param {Array<object>} cells - vertices: {id, value, style, rows?, parent?,
+ *   x, y, width, height} (rows: the table shorthand of
+ *   shared/diagram-shorthand.js); edges: {id, value?, style, parent?, edge: true,
  *   source, target, points?: [{x, y}]}
  * @returns {string} mxGraphModel XML
  */
@@ -68,7 +69,7 @@ export function writeModel(cells)
   {
     const head = '<mxCell id="' + escapeXml(c.id) + '"' +
       (c.value != null && c.value !== "" ? ' value="' + escapeXml(c.value) + '"' : "") +
-      ' style="' + escapeXml(c.style) + '"';
+      ' style="' + escapeXml(c.style) + '"' + (c.rows != null ? ' rows="' + escapeXml(c.rows) + '"' : "");
 
     if (c.edge)
     {

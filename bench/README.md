@@ -40,4 +40,4 @@ Prompts are in `prompts.json`. Per run, `run.mjs` writes the timestamped stream 
 
 ## When a type is switched on
 
-The semantic tool only offers a diagram type (`describeTool` in `shared/semantic/description.js`) once its layouts are at least as good as what the model places itself today: in a blind judgement of at least three prompts with three repeats each, both orders, the semantic share is 0.5 or more, and the layout check finds no more issues than today. Time and tokens alone don't switch a type on.
+The semantic tool only offers a diagram type (`describeTool` in `shared/semantic/description.js`) once its layouts are at least as good as what the model places itself today: in a blind judgement of at least three prompts with three repeats each, both orders, the semantic share is 0.5 or more, and the layout check finds no more issues than today. Time and tokens alone don't switch a type on. Switching it on means adding it to `SEMANTIC_TYPES_ON` in `mcp-app-server/src/shared.js`, which lists `create_semantic_diagram` in the app server; until then `DRAWIO_SEMANTIC_TYPES=er` offers a type in the Node app server only.

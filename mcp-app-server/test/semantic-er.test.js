@@ -9,6 +9,7 @@ import { textWidth } from "../../shared/semantic/text-width.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
 import { snapWaypoints } from "../../shared/edge-waypoints.js";
 import { repairDiagramXml } from "../../shared/repair-xml.js";
+import { expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 
 // The semantic engine (shared/semantic): the model describes a diagram's
 // content and the engine lays it out. These tests cover the ER type: reading
@@ -291,6 +292,8 @@ test("the layout is deterministic and the server's repairs find nothing to chang
   assert.equal(new Set(ids).size, ids.length, "cell ids are unique");
   assert.doesNotMatch(a.xml, /<!--/);
   assert.equal(repairDiagramXml(a.xml).xml, a.xml);
+  assert.doesNotMatch(a.xml, /\srows="/, "the table shorthand is expanded");
+  assert.equal(expandDiagramShorthand(a.xml).xml, a.xml);
   assert.equal(normalizeDiagram(a.xml).xml, a.xml);
   assert.equal(snapWaypoints(a.xml).xml, a.xml);
 });
@@ -322,6 +325,50 @@ test("all tables share one width, rows are one height, and nothing overlaps", as
   }
 
   assert.ok(r.stats.width <= 800 && r.stats.height <= 800, "fits the chat frame: " + r.stats.width + "x" + r.stats.height);
+});
+
+test("tables are drawn as the table shorthand expands them, primary keys bold", async function()
+{
+  const r = await semanticToXml(LIBRARY);
+  const cells = cellsOf(r.xml);
+  const byId = new Map(cells.map(function(c) { return [c.id, c]; }));
+  const books = byId.get("books");
+  const pk = byId.get("books.book_id");
+  const fk = byId.get("books.author_id");
+
+  assert.match(books.style, /^swimlane;fontStyle=1;childLayout=stackLayout;/);
+  assert.equal(styleValue(books.style, "startSize"), "26");
+  assert.equal(pk.value, "&lt;b&gt;PK book_id&lt;/b&gt;");
+  assert.equal(fk.value, "FK author_id");
+  assert.equal(pk.parent, "books");
+});
+
+test("a relation between tables side by side in one row is a straight line", async function()
+{
+  // the key is the first row of authors, the reference the third of books:
+  // books moves up against authors so that the two rows meet
+  const pair = { type: "er", nodes: [
+    { id: "authors", label: "Authors", fields: ["PK author_id", "name"] },
+    { id: "books", label: "Books", fields: ["PK book_id", "title", "FK author_id"] }],
+  edges: [{ from: "authors", to: "books", kind: "one-to-many" }] };
+  const r = await semanticToXml(pair);
+  const edge = edgesOf(r.xml)[0];
+
+  assert.equal(r.stats.bends, 0);
+  assert.doesNotMatch(r.xml, /<Array as="points">/);
+  assert.equal(edge.source, "authors.author_id");
+  assert.equal(edge.target, "books.author_id");
+
+  const top = {};
+  const re = /<mxCell id="(authors|books)"[^>]*><mxGeometry x="[\d.]+" y="([\d.]+)"/g;
+  let m;
+
+  while ((m = re.exec(r.xml)) != null)
+  {
+    top[m[1]] = +m[2];
+  }
+
+  assert.equal(top.authors - top.books, 2 * 26, "the key row and the reference row are at one height");
 });
 
 test("a chain and a star of tables are drawn without crossings or lines on each other", async function()
