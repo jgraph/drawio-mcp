@@ -89,14 +89,26 @@ test("a client that declares nothing gets the note after the link, as a conditio
   }
 });
 
+// The user of the hosted Codex harness sees nothing, and the block before
+// says so. A note that the user sees the diagram, or that the link is
+// optional, would contradict it: in ChatGPT Work the model took such a
+// condition as leave to drop the link.
 test("the hosted Codex harness keeps its note about the other tool, then the short reply", async function()
 {
-  const result = await callCreate(HIDDEN, UI, { xml: xml });
-  const texts = result.content.map(function(item) { return item.text; });
+  for (const args of [{ xml: xml }, { mermaid: mermaid }])
+  {
+    const result = await callCreate(HIDDEN, UI, args);
+    const texts = result.content.map(function(item) { return item.text; });
+    const note = lastText(result);
 
-  assert.ok(texts.some(function(text) { return /another draw\.io create_diagram tool/.test(text); }));
-  assert.doesNotMatch(lastText(result), /already sees/);
-  assert.match(lastText(result), /besides the link/);
+    assert.match(texts[texts.length - 2], /the user can't see this one/, JSON.stringify(args));
+    assert.match(texts[texts.length - 2], /another draw\.io create_diagram tool/);
+    assert.doesNotMatch(note, /sees/);
+    assert.doesNotMatch(note, /inline/);
+    assert.doesNotMatch(note, /if you give it/);
+    assert.match(note, /^Don't describe or list what the diagram shows/);
+    assert.match(note, /at most two sentences besides the link unless the user asked for an explanation/);
+  }
 });
 
 test("the note comes after the swap note and the warnings", async function()

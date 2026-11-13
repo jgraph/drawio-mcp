@@ -198,8 +198,14 @@ test("with DRAWIO_BROWSER=off the note comes after the request to give the link"
     const result = await off.client.callTool({ name: "open_drawio_mermaid", arguments: { content: "flowchart TD\n  A --> B" } });
     const text = result.content[0].text;
 
+    const last = text.substring(text.lastIndexOf("\n\n") + 2);
+
     assert.ok(text.indexOf("give the user this URL") < text.indexOf("at most two sentences"), text);
-    assert.match(text, /besides the URL/);
+    // No browser showed anything: the note must not say the user sees it.
+    assert.doesNotMatch(last, /sees/);
+    assert.match(last, /^The user opens the diagram in draw\.io through this URL, so don't describe or list what it shows\./);
+    assert.match(last, /at most two sentences besides the URL unless the user asked for an explanation/);
+    assert.ok(last.length < 300, String(last.length));
   }
   finally
   {
