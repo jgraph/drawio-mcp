@@ -18,6 +18,7 @@ import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES } from "../../shared/semantic/index.js";
 import { describeTool as describeSemanticTool } from "../../shared/semantic/description.js";
+import { readList as readSemanticList, typeName as semanticTypeName } from "../../shared/semantic/spec.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -10438,14 +10439,23 @@ export function resolveSemanticTypes(value)
   return out;
 }
 
-// A list of objects in a description may come as its JSON text.
+// A list in a description read as the engine reads it (readList in
+// shared/semantic/spec.js), so the call doesn't fail on what the viewer's
+// preview already draws: its JSON text, one item alone, items as one string
+// with `|` between them, and null for none. JSON text that doesn't parse
+// goes on as written, and fails.
 function jsonList(value)
 {
-  if (typeof value === "string")
+  if (value == null)
+  {
+    return undefined;
+  }
+
+  if (typeof value === "string" && /^\s*[\[{]/.test(value))
   {
     try
     {
-      return JSON.parse(value);
+      JSON.parse(value);
     }
     catch (e)
     {
@@ -10453,7 +10463,27 @@ function jsonList(value)
     }
   }
 
-  return value;
+  return readSemanticList(value);
+}
+
+// The nodes as a list; a node may be its id alone, as the engine reads it.
+function nodeList(value)
+{
+  var nodes = jsonList(value);
+
+  return Array.isArray(nodes) ? nodes.map(function(n)
+  {
+    return (typeof n === "string" || typeof n === "number") ? { id: String(n) } : n;
+  }) : nodes;
+}
+
+// null for an optional value the model leaves empty.
+function optional(schema)
+{
+  return z.preprocess(function(value)
+  {
+    return (value === null) ? undefined : value;
+  }, schema.optional());
 }
 
 /**
@@ -10468,7 +10498,7 @@ function jsonList(value)
  * @param {string|null} [options.iconServiceUrl] - Base URL of the draw.io icon service used to supplement sparse search_shapes results (default: icons.diagrams.net). Pass null to disable icon supplementation.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
  * @param {string} [options.drawioBaseUrl] - The draw.io editor the link for clients without an MCP Apps UI opens (DRAWIO_BASE_URL, see editorLinkBase), added to the CSP's connect and redirect domains. The same value as buildHtml's, which sets "Open in draw.io".
- * @param {string[]} [options.semanticTypes] - The semantic diagram types create_semantic_diagram offers (default SEMANTIC_TYPES_ON); without any, the tool isn't registered. The engine runs without ELK here, so ER schemas of more than 16 tables go on the grid too.
+ * @param {string[]} [options.semanticTypes] - The semantic diagram types create_semantic_diagram offers (default SEMANTIC_TYPES_ON); without any, the tool isn't registered. The engine runs without ELK here, so ER schemas of more than 16 tables go on the grid too, whose search stops at a work limit.
  * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize (clientUiState "renders"), `hidden` whether it declared it but is known not to render (clientUiState "hidden"), and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
  * @returns {McpServer}
  */
@@ -10732,12 +10762,16 @@ export function createServer(html, options = {})
         description: describeSemanticTool(semanticOffered),
         inputSchema:
         {
+          // any case and the engine's aliases (erd, schema); a type that
+          // isn't offered goes on as written, so the error quotes it
           type: z.preprocess(function(value)
           {
-            return (typeof value === "string") ? value.trim().toLowerCase() : value;
+            var name = semanticTypeName(value);
+
+            return (semanticOffered.indexOf(name) >= 0) ? name : value;
           }, z.enum(semanticOffered)).describe("The diagram type."),
-          title: z.string().optional().describe("A title shown above the diagram."),
-          nodes: z.preprocess(jsonList, z.array(z.object({}).passthrough()))
+          title: optional(z.string()).describe("A title shown above the diagram."),
+          nodes: z.preprocess(nodeList, z.array(z.object({}).passthrough()))
             .describe("The nodes, each with an id and a label; the fields the type takes are in the description."),
           edges: z.preprocess(jsonList, z.array(z.object({}).passthrough()).optional())
             .describe("The edges, each with from and to (node ids)."),

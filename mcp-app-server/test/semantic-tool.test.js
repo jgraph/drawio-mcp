@@ -106,6 +106,42 @@ test("slips in the arguments are forgiven, and what can't be drawn is reported",
   await client.close();
 });
 
+test("null for an empty option, a type alias and nodes by id alone are read as the engine reads them", async function()
+{
+  const client = await connect({ semanticTypes: ["er"] });
+  const call = function(args)
+  {
+    return client.callTool({ name: "create_semantic_diagram", arguments: args });
+  };
+
+  const nulls = await call({ type: "ERD", title: null, nodes: SCHEMA.nodes, edges: null });
+
+  assert.equal(nulls.isError, undefined, JSON.stringify(nulls.content));
+  assert.match(JSON.parse(nulls.content[0].text).xml, /id="books\.author_id"/);
+
+  for (const nodes of [["users", "orders"], "users|orders", JSON.stringify(["users", "orders"])])
+  {
+    const ids = await call({ type: "schema", nodes: nodes });
+
+    assert.equal(ids.isError, undefined, JSON.stringify(nodes) + ": " + JSON.stringify(ids.content));
+    assert.match(JSON.parse(ids.content[0].text).xml, /id="users".*id="orders"/s);
+  }
+
+  const one = await call({ type: "er", nodes: SCHEMA.nodes[0] });
+
+  assert.equal(one.isError, undefined, JSON.stringify(one.content));
+
+  // what isn't offered, or JSON that doesn't parse, still fails
+  for (const args of [{ type: "flowchart", nodes: SCHEMA.nodes }, { type: "er", nodes: "[{\"id\": \"a\"" }])
+  {
+    const failed = await call(args);
+
+    assert.equal(failed.isError, true, JSON.stringify(args));
+  }
+
+  await client.close();
+});
+
 test("the bundled engine gives the same XML as the modules", async function()
 {
   const js = bundleSemanticEngine();

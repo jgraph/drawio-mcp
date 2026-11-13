@@ -16,7 +16,7 @@
 // keys (a junction table) takes the data color.
 
 import { textWidth } from "./text-width.js";
-import { fontSizes, EDGE, FONT_COLOR } from "./theme.js";
+import { fontSizes, EDGE, FONT_COLOR, ROLES } from "./theme.js";
 import { htmlLabel, IdPool } from "./xml-writer.js";
 import { placeOnGrid, routeGrid, linkCost } from "./grid.js";
 
@@ -830,8 +830,9 @@ function buildTables(nodes)
  * Lays out an ER description and returns its cells.
  *
  * @param {object} diagram - from normalizeSpec
- * @param {{elk?: {layout: function(object): Promise<object>}}} ctx - ELK is
- *   needed for schemas of more than 16 tables
+ * @param {{elk?: {layout: function(object): Promise<object>}}} ctx - ELK, if
+ *   given, lays out schemas of more than 16 tables; without it they go on
+ *   the grid, whose search stops at a work limit (grid.js)
  * @returns {Promise<{cells: object[], width: number, height: number, stats: object}>}
  */
 export async function layoutEr(diagram, ctx)
@@ -857,18 +858,22 @@ export async function layoutEr(diagram, ctx)
   }
 
   // Tables in the table shorthand of shared/diagram-shorthand.js (a cell
-  // with its columns in `rows`, its colors from a role), which index.js
-  // expands into the table and row cells, so that a schema drawn from a
-  // description and one the model places itself look the same. Primary
-  // keys are bold. Relations name their rows by position (`books.2`), which
-  // the expansion turns into the row's id (`books.author_id`).
+  // with its columns in `rows`), which index.js expands into the table and
+  // row cells, so that a schema drawn from a description and one the model
+  // places itself look the same. The colors are the role's in theme.js, the
+  // engine's list of roles (the shorthand knows fewer: no success, retry or
+  // note). Primary keys are bold. Relations name their rows by position
+  // (`books.2`), which the expansion turns into the row's id
+  // (`books.author_id`).
   tables.forEach(function(t, i)
   {
     const p = geo.pos[i];
     const id = ids.take(t.id);
+    const colors = ROLES[t.role] || ROLES.step;
     t.cellId = id;
     cells.push({ id: id, value: htmlLabel(t.label),
-      style: "role=" + t.role + ";fontSize=" + t.fontSize + ";swimlaneFillColor=default;",
+      style: "fillColor=" + colors.fill + ";strokeColor=" + colors.stroke + ";fontSize=" + t.fontSize +
+        ";swimlaneFillColor=default;",
       rows: t.fields.map(function(f)
       {
         const label = htmlLabel(f.text).replace(/\|/g, "\\|");

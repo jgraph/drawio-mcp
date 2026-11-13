@@ -135,6 +135,28 @@ test("normalizeSpec forgives common slips and says what it dropped", function()
   assert.equal(n.warnings.length, 3, n.warnings.join("\n"));
 });
 
+test("nodes and edges as JSON text are read as JSON, and JSON cut off while it streams as nothing yet", function()
+{
+  const nodes = JSON.stringify(LIBRARY.nodes);
+  const n = normalizeSpec({ type: "er", nodes: nodes, edges: JSON.stringify(LIBRARY.edges) });
+
+  assert.equal(n.error, null);
+  assert.deepEqual(n.diagram.nodes.map(function(x) { return x.id; }), ["authors", "books", "publishers", "members", "loans"]);
+  assert.equal(n.diagram.edges.length, 4);
+  assert.deepEqual(n.warnings, []);
+
+  // the viewer's preview gets the text as it streams in
+  for (const cut of [1, 2, 20, nodes.length - 1])
+  {
+    assert.deepEqual(normalizeSpec({ type: "er", nodes: nodes.slice(0, cut) }).diagram.nodes, [], nodes.slice(0, cut));
+  }
+
+  // one object, and rows that only start with a bracket
+  assert.deepEqual(normalizeSpec({ type: "er", nodes: JSON.stringify({ id: "a" }) }).diagram.nodes.map(function(x) { return x.id; }), ["a"]);
+  assert.deepEqual(normalizeSpec({ type: "er", nodes: [{ id: "a", fields: "[legacy] id|name" }] }).diagram.nodes[0].fields,
+    ["[legacy] id", "name"]);
+});
+
 test("an unsupported type, no nodes or no JSON fail with a message the model can act on", async function()
 {
   const flow = await semanticToXml({ type: "flowchart", nodes: [{ id: "a" }] });
@@ -278,6 +300,24 @@ test("a junction table is drawn in the data color", async function()
 
   assert.equal(fill("enrollments"), "#F3EEFF");
   assert.equal(fill("students"), "#EEF4FF");
+});
+
+test("every role of the theme colors a table, also those the XML shorthand doesn't know", async function()
+{
+  const roles = { note: "#FFF9DB", retry: "#FFF0E5", success: "#E7F6EC", error: "#FDECEC", unknown: "#EEF4FF" };
+  const r = await semanticToXml({ type: "er", nodes: Object.keys(roles).map(function(role)
+  {
+    return { id: role, fields: ["PK " + role + "_id"], role: role };
+  }) });
+  const cells = cellsOf(r.xml);
+
+  for (const role of Object.keys(roles))
+  {
+    const style = cells.find(function(c) { return c.id === role; }).style;
+
+    assert.equal(styleValue(style, "fillColor"), roles[role], role);
+    assert.doesNotMatch(style, /(^|;)role=/);
+  }
 });
 
 test("the layout is deterministic and the server's repairs find nothing to change", async function()
@@ -438,4 +478,41 @@ test("a schema over 16 tables is laid out by ELK when it is available", { skip: 
 
   const grid = await semanticToXml({ type: "er", nodes: nodes, edges: edges });
   assert.equal(grid.stats.layout, "grid");
+});
+
+test("a large schema without ELK stays on the grid and takes bounded time", async function()
+{
+  // a tree of 60 tables with a second reference in most: without a limit,
+  // the routed search tried every swap of every round (24 tables took 6 s)
+  const nodes = [];
+  const edges = [];
+
+  for (let i = 0; i < 60; i++)
+  {
+    const parent = Math.floor((i - 1) / 2);
+    const other = (i * 7) % Math.max(1, i);
+    const fields = ["PK t" + i + "_id", "name"];
+
+    if (i > 0)
+    {
+      fields.push("FK t" + parent + "_id");
+      edges.push({ from: "t" + parent, to: "t" + i, kind: "one-to-many" });
+    }
+
+    if (i > 3 && other !== parent)
+    {
+      fields.push("FK t" + other + "_id");
+      edges.push({ from: "t" + other, to: "t" + i, kind: "one-to-many" });
+    }
+
+    nodes.push({ id: "t" + i, label: "Table " + i, fields: fields });
+  }
+
+  const t0 = Date.now();
+  const r = await semanticToXml({ type: "er", nodes: nodes, edges: edges });
+
+  assert.equal(r.error, null);
+  assert.equal(r.stats.layout, "grid");
+  assert.equal(edgesOf(r.xml).length, edges.length);
+  assert.ok(Date.now() - t0 < 10000, "took " + (Date.now() - t0) + " ms");
 });

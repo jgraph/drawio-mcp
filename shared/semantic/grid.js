@@ -23,6 +23,15 @@ const TRACK = 14; // between tracks in a gutter
 const LANE = 12; // between tracks in a gap between rows
 const SPREAD = 10; // between links that end on one row, room for the ER markers
 const REFINE_ALL_MAX = 10; // up to this many boxes, every start is refined
+// Work limits of one swap search, so that a large schema can't hold up the
+// server or the viewer: a search stops once the swaps it tried, weighted by
+// what trying one costs, reach the limit, and keeps the best placement found
+// so far. Trying a swap by the link costs costs one unit per link, by the
+// routed result about one per pair of links (the crossings). Up to 16 tables
+// with the usual number of relations neither limit is reached; above, a
+// schema takes about a second at most.
+const LINK_WORK = 2e6;
+const ROUTE_WORK = 1e6;
 
 /**
  * The cost of a link between two cells.
@@ -58,8 +67,9 @@ function totalCost(cellOf, links, cols)
 }
 
 // Steepest descent over swaps of two cells (a box with a box, or with an
-// empty cell). objective(cellOf) → lower is better.
-function improve(cellOf, objective, cells)
+// empty cell). objective(cellOf) → lower is better. After maxTries swaps
+// tried, the best one found in the round so far is made and the search ends.
+function improve(cellOf, objective, cells, maxTries)
 {
   const n = cellOf.length;
   const boxAt = new Array(cells).fill(-1);
@@ -67,14 +77,15 @@ function improve(cellOf, objective, cells)
   cellOf.forEach(function(c, i) { boxAt[c] = i; });
 
   let cost = objective(cellOf);
+  let tries = 0;
 
-  for (let round = 0; round < 200; round++)
+  for (let round = 0; round < 200 && tries < maxTries; round++)
   {
     let best = null;
 
-    for (let p = 0; p < cells; p++)
+    for (let p = 0; p < cells && tries < maxTries; p++)
     {
-      for (let q = p + 1; q < cells; q++)
+      for (let q = p + 1; q < cells && tries < maxTries; q++)
       {
         const i = boxAt[p];
         const j = boxAt[q];
@@ -95,6 +106,7 @@ function improve(cellOf, objective, cells)
         }
 
         const c = objective(cellOf);
+        tries++;
 
         if (i >= 0)
         {
@@ -236,7 +248,10 @@ export function placeOnGrid(n, links, cols, refine)
   starts.push(rowMajor);
 
   const byLinks = function(cellOf) { return totalCost(cellOf, links, cols); };
-  const found = starts.map(function(s) { return improve(s.slice(), byLinks, cells); });
+  const pairs = Math.max(1, links.length);
+  const linkTries = Math.floor(LINK_WORK / pairs);
+  const routeTries = Math.floor(ROUTE_WORK / (pairs * pairs));
+  const found = starts.map(function(s) { return improve(s.slice(), byLinks, cells, linkTries); });
   let best = null;
 
   for (const r of found)
@@ -259,7 +274,7 @@ export function placeOnGrid(n, links, cols, refine)
 
     for (const f of refineFrom)
     {
-      const r = improve(f.cellOf.slice(), function(cellOf) { return refine(cellOf, rows); }, cells);
+      const r = improve(f.cellOf.slice(), function(cellOf) { return refine(cellOf, rows); }, cells, routeTries);
 
       if (refined == null || r.cost < refined.cost - 1e-9)
       {
