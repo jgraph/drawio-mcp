@@ -10077,6 +10077,41 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout, l
   content.push({ type: "text", text: note });
 }
 
+/**
+ * The note that ends every create_diagram result: the user sees the diagram
+ * itself, so the reply after it can be short.
+ *
+ * Without it the model summarized the diagram it had just drawn, in 400 to
+ * 2,300 tokens: 5 to 25 s after the diagram until the answer ended, when
+ * the user had long seen the diagram (`claude -p`, November 2026). It stays
+ * the last block, after the link and any warnings, and leaves room for what
+ * the user asked for, for redrawing, and for the reference's offer of a
+ * next step. Only where the client is known to render the app does it say
+ * that the user sees the diagram in the chat; elsewhere the link may be how
+ * they see it (appendOpenUrl), and the reply is short besides that link.
+ *
+ * Result text only: the tool definitions stay as they are, since a changed
+ * definition means a new review of the ChatGPT app.
+ *
+ * @param {Array} content - the tool result's content blocks, appended to
+ * @param {boolean} rendersInline - whether the client renders the app
+ */
+function appendAnswerNote(content, rendersInline)
+{
+  var note = rendersInline ?
+    "The user already sees this diagram in the chat, so don't describe or " +
+    "list what it shows. Once you're done drawing, reply in at most two " +
+    "sentences unless the user asked for an explanation: for example what " +
+    "you assumed or changed, or an offer of a next step." :
+    "The user sees the diagram itself, inline or through the link, so don't " +
+    "describe or list what it shows. Once you're done drawing, reply in at " +
+    "most two sentences besides the link, if you give it, unless the user " +
+    "asked for an explanation: for example what you assumed or changed, or " +
+    "an offer of a next step.";
+
+  content.push({ type: "text", text: note });
+}
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 // The CSP of the app resource. icons.diagrams.net: remote icon images
@@ -10326,8 +10361,11 @@ export function createServer(html, options = {})
           mermaidContent.push({ type: "text", text: swapNote });
         }
 
-        appendOpenUrl(mermaidContent, await rendersInline(), hiddenUi(), mermaid,
+        var mermaidInline = await rendersInline();
+
+        appendOpenUrl(mermaidContent, mermaidInline, hiddenUi(), mermaid,
           "mermaid", postLayout, linkBase);
+        appendAnswerNote(mermaidContent, mermaidInline);
 
         return { content: mermaidContent };
       }
@@ -10422,8 +10460,11 @@ export function createServer(html, options = {})
       }
 
       // The absolutized XML, so image URLs resolve in the editor too.
-      appendOpenUrl(content, await rendersInline(), hiddenUi(), xmlPayload.xml,
+      var inline = await rendersInline();
+
+      appendOpenUrl(content, inline, hiddenUi(), xmlPayload.xml,
         "xml", postLayout, linkBase);
+      appendAnswerNote(content, inline);
 
       return { content: content };
     }
