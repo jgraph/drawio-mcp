@@ -575,6 +575,273 @@ test("lanes are bands of the page's grid: rows, or columns when the model turns 
   assert.equal((await semanticToXml(mixed, { hints: "ask" })).stats.grid, "group");
 });
 
+// ─── Lines on the page's grid (shared/grid-lines.js) ─────────────
+
+// Every routed edge as it is drawn: from its exit point over its bends to
+// its entry point, in page coordinates.
+function linesOf(xml)
+{
+  const b = boxesOf(xml);
+  const out = new Map();
+  const re = /<mxCell id="([^"]+)"([^>]*\bedge="1"[^>]*)>\s*<mxGeometry([^>]*?)(?:\/>|>([\s\S]*?)<\/mxGeometry>)/g;
+  let m;
+
+  while ((m = re.exec(xml)) != null)
+  {
+    const attrs = m[2];
+    const attr = function(name)
+    {
+      const a = new RegExp("\\b" + name + "=\"([^\"]*)\"").exec(attrs);
+
+      return (a != null) ? a[1] : null;
+    };
+    const style = attr("style") || "";
+    const key = function(name)
+    {
+      const a = new RegExp("(?:^|;)" + name + "=([-\\d.]+)").exec(style);
+
+      return (a != null) ? Number(a[1]) : null;
+    };
+    const s = absolute(b, attr("source"));
+    const t = absolute(b, attr("target"));
+    const origin = b.has(attr("parent")) ? absolute(b, attr("parent")) : { x: 0, y: 0 };
+    const points = [];
+
+    if (key("exitX") != null)
+    {
+      points.push({ x: s.x + s.w * key("exitX"), y: s.y + s.h * key("exitY") });
+    }
+
+    for (const p of (m[4] || "").matchAll(/<mxPoint x="([-\d.]+)" y="([-\d.]+)"\s*\/>/g))
+    {
+      points.push({ x: Number(p[1]) + origin.x, y: Number(p[2]) + origin.y });
+    }
+
+    if (key("entryX") != null)
+    {
+      points.push({ x: t.x + t.w * key("entryX"), y: t.y + t.h * key("entryY") });
+    }
+
+    const along = /\bx="([-\d.]+)"/.exec(m[3]);
+    let length = 0;
+
+    for (let i = 0; i + 1 < points.length; i++)
+    {
+      length += Math.abs(points[i + 1].x - points[i].x) + Math.abs(points[i + 1].y - points[i].y);
+    }
+
+    out.set(m[1], { id: m[1], source: attr("source"), target: attr("target"), points: points, length: length,
+      label: (along != null) ? Number(along[1]) : 0, routed: key("exitX") != null && key("entryX") != null });
+  }
+
+  return out;
+}
+
+// What is wrong with the lines of a diagram: a piece that is not at a right
+// angle, one that runs through a shape it doesn't connect, two lines on each
+// other.
+function lineFaults(xml)
+{
+  const b = boxesOf(xml);
+  const lines = Array.from(linesOf(xml).values());
+  const leaves = Array.from(b.keys()).filter(function(id)
+  {
+    return !Array.from(b.values()).some(function(o) { return o.parent === id; });
+  });
+  const faults = [];
+  const pieces = [];
+
+  for (const l of lines)
+  {
+    if (!l.routed)
+    {
+      faults.push(l.id + " is not routed");
+    }
+
+    for (let i = 0; i + 1 < l.points.length; i++)
+    {
+      const p = l.points[i];
+      const q = l.points[i + 1];
+      const vertical = Math.abs(p.x - q.x) < 0.5;
+
+      if (!vertical && Math.abs(p.y - q.y) >= 0.5)
+      {
+        faults.push(l.id + " has a slanted piece");
+      }
+
+      pieces.push({ line: l, vertical: vertical, at: vertical ? p.x : p.y, lo: vertical ? Math.min(p.y, q.y) : Math.min(p.x, q.x),
+        hi: vertical ? Math.max(p.y, q.y) : Math.max(p.x, q.x) });
+
+      for (const id of leaves)
+      {
+        const r = absolute(b, id);
+
+        if (id !== l.source && id !== l.target && Math.max(p.x, q.x) > r.x + 1 && Math.min(p.x, q.x) < r.x + r.w - 1 &&
+          Math.max(p.y, q.y) > r.y + 1 && Math.min(p.y, q.y) < r.y + r.h - 1)
+        {
+          faults.push(l.id + " runs through " + id);
+        }
+      }
+    }
+  }
+
+  pieces.forEach(function(a, i)
+  {
+    for (const o of pieces.slice(i + 1))
+    {
+      if (o.line !== a.line && o.vertical === a.vertical && Math.abs(o.at - a.at) < 4 && Math.min(a.hi, o.hi) - Math.max(a.lo, o.lo) > 1)
+      {
+        faults.push(a.line.id + " and " + o.line.id + " run on each other");
+      }
+    }
+  });
+
+  return faults;
+}
+
+function grid(columns, rows, edges)
+{
+  const d = { type: "architecture", nodes: [], edges: edges };
+
+  for (let r = 1; r <= rows; r++)
+  {
+    for (let c = 1; c <= columns; c++)
+    {
+      d.nodes.push({ id: "abcdef".charAt(c - 1) + r, label: "abcdef".charAt(c - 1).toUpperCase() + r, row: r, col: c });
+    }
+  }
+
+  return d;
+}
+
+test("lines on the page's grid run at right angles, through no shape and never on each other", async function()
+{
+  const crossed = grid(2, 4, [{ from: "a1", to: "b4" }, { from: "a2", to: "b3" }, { from: "a3", to: "b2" }, { from: "a4", to: "b1" }]);
+  const hub = grid(3, 3, [{ from: "b2", to: "a1" }, { from: "b2", to: "c1" }, { from: "b2", to: "a3" }, { from: "b2", to: "c3" },
+    { from: "a1", to: "c3" }, { from: "a2", to: "c2" }, { from: "b1", to: "b3" }]);
+
+  for (const d of [PAGE, PAGE_LANES, crossed, hub])
+  {
+    const r = await semanticToXml(d, { hints: "ask" });
+
+    assert.equal(r.stats.grid, "page");
+    assert.equal(r.stats.through, 0);
+    assert.deepEqual(lineFaults(r.xml), []);
+    assert.equal(linesOf(r.xml).size, d.edges.length);
+  }
+});
+
+test("the lines that run through a gap get a track each, and the gap the room for them", async function()
+{
+  const edges = [{ from: "a1", to: "b4" }, { from: "a4", to: "b1" }];
+  const one = await semanticToXml(grid(2, 4, edges.slice(0, 1)), { hints: "ask" });
+  const two = await semanticToXml(grid(2, 4, edges), { hints: "ask" });
+  const gap = function(r)
+  {
+    const b = boxesOf(r.xml);
+
+    return absolute(b, "b1").x - absolute(b, "a1").x - absolute(b, "a1").w;
+  };
+  const tracks = Array.from(linesOf(two.xml).values()).map(function(l) { return l.points[1].x; }).sort(function(a, b) { return a - b; });
+  const from = absolute(boxesOf(two.xml), "a1");
+
+  assert.ok(gap(two) > gap(one), "two lines need more room than one: " + gap(two) + " and " + gap(one));
+  assert.ok(tracks[1] - tracks[0] >= 12, "the lines are apart: " + tracks.join(", "));
+  assert.ok(tracks[0] - from.x - from.w >= 12 && from.x + from.w + gap(two) - tracks[1] >= 12, "and clear of the shapes");
+  assert.deepEqual(lineFaults(two.xml), []);
+
+  // without the engine's lines the room stays, for the viewer's router
+  const open = await semanticToXml(grid(2, 4, edges), { hints: "ask", route: false });
+
+  assert.equal(gap(open), gap(two));
+  assert.doesNotMatch(open.xml, /exitX=/);
+});
+
+test("a line between two shapes of a frame stays inside it, and the title makes way for a line", async function()
+{
+  const d =
+  {
+    type: "architecture",
+    groups: [{ id: "g", label: "Group" }],
+    nodes: [
+      { id: "top", label: "Gateway", row: 1, col: 2 },
+      { id: "a", label: "Alpha", group: "g", row: 2, col: 1 }, { id: "b", label: "Beta", group: "g", row: 2, col: 2 },
+      { id: "c", label: "Gamma", group: "g", row: 2, col: 3 }],
+    edges: [{ from: "a", to: "b" }, { from: "b", to: "c" }, { from: "a", to: "c", label: "sync" }]
+  };
+  const r = await semanticToXml(d, { hints: "ask" });
+  const b = boxesOf(r.xml);
+  const frame = absolute(b, "g");
+
+  assert.deepEqual(lineFaults(r.xml), []);
+  assert.equal(linesOf(r.xml).get("a-c").points.length, 4, "around Beta");
+
+  for (const p of linesOf(r.xml).get("a-c").points)
+  {
+    assert.ok(p.x > frame.x && p.x < frame.x + frame.w && p.y > frame.y && p.y < frame.y + frame.h, "inside the frame: " + JSON.stringify(p));
+  }
+
+  assert.doesNotMatch(b.get("g").style, /align=left/, "the title stays in the middle");
+
+  // a line into the frame where its title stands
+  d.edges.push({ from: "top", to: "b" });
+
+  const t = await semanticToXml(d, { hints: "ask" });
+  const line = linesOf(t.xml).get("top-b");
+
+  assert.equal(line.points.length, 2, "straight down");
+  assert.match(boxesOf(t.xml).get("g").style, /align=left;spacingLeft=\d+/);
+});
+
+test("the outcome of a decision is labeled at the decision, however long its line is", async function()
+{
+  const d =
+  {
+    type: "flowchart",
+    nodes: [
+      { id: "s", label: "Start", kind: "start", row: 1, col: 1 }, { id: "d", label: "Valid?", kind: "decision", row: 2, col: 1 },
+      { id: "p", label: "Process", row: 2, col: 2 }, { id: "q", label: "Queue", row: 2, col: 3 },
+      { id: "r", label: "Reject", kind: "error", row: 2, col: 4 }, { id: "e", label: "End", kind: "end", row: 3, col: 1 }],
+    edges: [{ from: "s", to: "d" }, { from: "d", to: "p", label: "Yes" }, { from: "p", to: "q" }, { from: "d", to: "r", label: "No" },
+      { from: "q", to: "e" }, { from: "r", to: "e" }]
+  };
+  const r = await semanticToXml(d, { hints: "ask" });
+  const no = linesOf(r.xml).get("d-r");
+
+  assert.deepEqual(lineFaults(r.xml), []);
+  assert.ok(no.length > 400, "the line runs around Process and Queue: " + no.length);
+  assert.ok((no.label + 1) / 2 * no.length < 150, "its label is beside the decision: " + (no.label + 1) / 2 * no.length);
+});
+
+test("a page the chat would cut off at the bottom gets wider until it is shown whole", async function()
+{
+  const d = { type: "flowchart", nodes: [], edges: [] };
+
+  for (let i = 1; i <= 36; i++)
+  {
+    d.nodes.push({ id: "n" + i, label: "Step number " + i, row: Math.ceil(i / 3), col: ((i - 1) % 3) + 1 });
+
+    if (i > 1)
+    {
+      d.edges.push({ from: "n" + (i - 1), to: "n" + i });
+    }
+  }
+
+  const r = await semanticToXml(d, { hints: "ask" });
+  const b = boxesOf(r.xml);
+
+  // the viewer shows a tall diagram whole when the scale of its width is
+  // about that of the whole (computeDefaultViewTransform); the frame is
+  // 736 × 664
+  const whole = Math.min(736 / r.stats.width, 664 / r.stats.height);
+
+  assert.equal(r.stats.grid, "page");
+  assert.ok(736 / r.stats.width <= whole * 1.05, "shown whole: " + r.stats.width + " × " + r.stats.height);
+  assert.ok(whole >= 0.5, "and not too small");
+  assert.ok(absolute(b, "n1").y === absolute(b, "n3").y && absolute(b, "n1").x < absolute(b, "n2").x, "in the model's cells");
+  assert.deepEqual(lineFaults(r.xml), []);
+});
+
 test("the compact XML of a description has no positions and uses the shorthands of the XML path", function()
 {
   const xml = compactXml(normalizeSpec(SHOP).diagram, { flow: false, links: false }).xml;

@@ -28,12 +28,16 @@
 import { transformPages } from "./mx-xml.js";
 import { MxGeometry, MxPoint } from "./mx-model.js";
 import { textWidth } from "./semantic/text-width.js";
+import { planLines, drawLines } from "./grid-lines.js";
 
 // What the chat shows a diagram in: the app server's card in an 800 px frame
 // on a screen 1000 px high, less the room the viewer keeps around a diagram
 // (measured on the inline screenshots of bench/render.mjs: a card of
 // 784 × 728 px, 24 px on every side and 16 px at the bottom).
 const FRAME = { width: 736, height: 664 };
+
+// Lanes are narrow: their lines run closer together than on an open page.
+const LANE_LINES = { track: 12, margin: 12 };
 
 // Room between cells and inside frames: the usual one, and a tighter one for
 // a diagram that is larger than the frame at full size.
@@ -55,6 +59,10 @@ const LANE_TITLE = 30;
 // How much more of a lane diagram the chat has to show before the pass
 // turns the rows the model wrote into columns (or the other way round).
 const TURN_MARGIN = 0.1;
+
+// A page without lanes is turned (rows as columns) only for a clear gain: its
+// rows are the tiers the model had in mind.
+const TURN_MARGIN_PAGE = 0.2;
 const ICON_SIZE = 60;
 const HINT_KEYS = ["row", "col", "lane"];
 
@@ -1082,6 +1090,18 @@ function isCut(size, frame)
   return whole < READABLE_SCALE && Math.min(frame.width / Math.max(1, size.width), READABLE_SCALE) > whole * 1.05;
 }
 
+// A grid for the whole page that would be cut off is made wider instead,
+// until the viewer shows it whole (widening costs nothing: the frame has the
+// room beside a tall diagram). So it counts with the scale of the whole,
+// down to this scale; below it the text gets too small and the top of the
+// diagram at a readable size is the better view.
+const WHOLE_FROM = 0.5;
+
+function canWiden(size, frame)
+{
+  return isCut(size, frame) && fit(size, frame) >= WHOLE_FROM;
+}
+
 // ─── One container ───────────────────────────────────────────────
 
 function hasHints(children)
@@ -1870,8 +1890,10 @@ function isInside(item, frame)
 // Returns the size, or null when the cells can't be drawn like that: a shape
 // without a cell, a frame around a stranger's cell, lanes that share rows
 // and columns. `turned` swaps rows and columns: lanes written as rows
-// become columns, with every hand-over still straight.
-function placeOnPage(content, lanes, ctx, turned)
+// become columns, with every hand-over still straight. `room` is the room
+// the lines need in every gap and around the grid (planLines), or null; the
+// result's `grid` is what the lines are planned and drawn on.
+function placeOnPage(content, lanes, ctx, turned, room)
 {
   const sp = spacing(ctx);
   const rowOf = function(l) { return turned ? l.col : l.row; };
@@ -2017,6 +2039,15 @@ function placeOnPage(content, lanes, ctx, turned)
   const bottom = new Array(rows).fill(0);
   const colGap = new Array(Math.max(0, cols - 1)).fill(0);
   const rowGap = new Array(Math.max(0, rows - 1)).fill(0);
+  const lineRoom = room || { col: new Array(cols + 1).fill(0), row: new Array(rows + 1).fill(0) };
+
+  // Around the grid: nothing without lines there. Lanes reach to the edge
+  // of the page, so their lines run inside them.
+  const rim = { left: lineRoom.col[0], right: lineRoom.col[cols], top: lineRoom.row[0], bottom: lineRoom.row[rows] };
+
+  // Before the first row or column of every lane but the first: the border
+  // and, on the lane's side of it, the room for lines.
+  const lead = new Map();
 
   if (bands == null)
   {
@@ -2024,22 +2055,29 @@ function placeOnPage(content, lanes, ctx, turned)
     {
       const f = frames[i];
       const pad = padding(f, ctx);
+      const lines = (lineRoom.frames != null && lineRoom.frames.get(f)) || { left: 0, right: 0, top: 0, bottom: 0 };
 
-      f.dl = pad.left;
-      f.dr = pad.right;
-      f.dt = pad.top;
-      f.db = pad.bottom;
+      // What its inner frames take on each side, and outside of that its
+      // own padding, or the room of the lines that run along its border.
+      f.inner = { left: 0, right: 0, top: 0, bottom: 0 };
 
       for (const c of f.children)
       {
         if (c.children.length > 0)
         {
-          f.dl = Math.max(f.dl, c.c0 === f.c0 ? pad.left + c.dl : 0);
-          f.dr = Math.max(f.dr, c.c1 === f.c1 ? pad.right + c.dr : 0);
-          f.dt = Math.max(f.dt, c.r0 === f.r0 ? pad.top + c.dt : 0);
-          f.db = Math.max(f.db, c.r1 === f.r1 ? pad.bottom + c.db : 0);
+          f.inner.left = Math.max(f.inner.left, c.c0 === f.c0 ? c.dl : 0);
+          f.inner.right = Math.max(f.inner.right, c.c1 === f.c1 ? c.dr : 0);
+          f.inner.top = Math.max(f.inner.top, c.r0 === f.r0 ? c.dt : 0);
+          f.inner.bottom = Math.max(f.inner.bottom, c.r1 === f.r1 ? c.db : 0);
         }
       }
+
+      f.lines = { left: Math.max(pad.left, lines.left), right: Math.max(pad.right, lines.right),
+        top: Math.max(sp.pad, lines.top), bottom: Math.max(pad.bottom, lines.bottom) };
+      f.dl = f.inner.left + f.lines.left;
+      f.dr = f.inner.right + f.lines.right;
+      f.dt = f.inner.top + f.lines.top + (pad.top - sp.pad);
+      f.db = f.inner.bottom + f.lines.bottom;
 
       left[f.c0] = Math.max(left[f.c0], f.dl);
       right[f.c1] = Math.max(right[f.c1], f.dr);
@@ -2054,48 +2092,72 @@ function placeOnPage(content, lanes, ctx, turned)
     // two shapes do.
     for (let c = 0; c < cols - 1; c++)
     {
-      colGap[c] = ((right[c] > 0 && left[c + 1] > 0) ? Math.min(baseCol, 30) : baseCol) + right[c] + left[c + 1];
+      colGap[c] = Math.max((right[c] > 0 && left[c + 1] > 0) ? Math.min(baseCol, 30) : baseCol, lineRoom.col[c + 1]) +
+        right[c] + left[c + 1];
     }
 
     for (let r = 0; r < rows - 1; r++)
     {
-      rowGap[r] = ((bottom[r] > 0 && top[r + 1] > 0) ? Math.min(baseRow, 30) : baseRow) + bottom[r] + top[r + 1];
+      rowGap[r] = Math.max((bottom[r] > 0 && top[r + 1] > 0) ? Math.min(baseRow, 30) : baseRow, lineRoom.row[r + 1]) +
+        bottom[r] + top[r + 1];
     }
   }
   else if (bands.rows)
   {
-    colGap.fill(sp.col + 10);
-    rowGap.fill(sp.laneCross);
+    for (let c = 0; c < cols - 1; c++)
+    {
+      colGap[c] = Math.max(sp.col + 10, lineRoom.col[c + 1]);
+    }
+
+    for (let r = 0; r < rows - 1; r++)
+    {
+      rowGap[r] = Math.max(sp.laneCross, lineRoom.row[r + 1]);
+    }
+
     bands.lanes.forEach(function(l, i)
     {
       if (i > 0)
       {
-        rowGap[l.r0 - 1] = 2 * sp.pad;
+        lead.set(l, Math.max(sp.pad, lineRoom.row[l.r0]));
+        rowGap[l.r0 - 1] = sp.pad + lead.get(l);
       }
     });
-    left[0] = LANE_TITLE + sp.pad;
-    right[cols - 1] = sp.pad;
-    top[0] = sp.pad;
-    bottom[rows - 1] = sp.pad;
+    left[0] = LANE_TITLE + Math.max(sp.pad, rim.left);
+    right[cols - 1] = Math.max(sp.pad, rim.right);
+    top[0] = Math.max(sp.pad, rim.top);
+    bottom[rows - 1] = Math.max(sp.pad, rim.bottom);
+    rim.left = rim.right = rim.top = rim.bottom = 0;
   }
   else
   {
-    colGap.fill(sp.col);
-    rowGap.fill(sp.row);
+    for (let c = 0; c < cols - 1; c++)
+    {
+      colGap[c] = Math.max(sp.col, lineRoom.col[c + 1]);
+    }
+
+    for (let r = 0; r < rows - 1; r++)
+    {
+      rowGap[r] = Math.max(sp.row, lineRoom.row[r + 1]);
+    }
+
     bands.lanes.forEach(function(l, i)
     {
       if (i > 0)
       {
-        colGap[l.c0 - 1] = 2 * sp.pad;
+        lead.set(l, Math.max(sp.pad, lineRoom.col[l.c0]));
+        colGap[l.c0 - 1] = sp.pad + lead.get(l);
       }
     });
-    left[0] = sp.pad;
-    right[cols - 1] = sp.pad;
-    top[0] = LANE_TITLE + sp.pad;
-    bottom[rows - 1] = sp.pad;
+    left[0] = Math.max(sp.pad, rim.left);
+    right[cols - 1] = Math.max(sp.pad, rim.right);
+    top[0] = LANE_TITLE + Math.max(sp.pad, rim.top);
+    bottom[rows - 1] = Math.max(sp.pad, rim.bottom);
+    rim.left = rim.right = rim.top = rim.bottom = 0;
   }
 
-  // A labeled line straight across a gap needs room for its label.
+  // A labeled line straight across a gap needs room for its label, clear of
+  // the borders in that gap: between the frames that end and begin there,
+  // or on the far side of the border between two lanes.
   for (const e of ctx.edges)
   {
     const a = e.from;
@@ -2108,11 +2170,34 @@ function placeOnPage(content, lanes, ctx, turned)
 
     if (a.gr === b.gr && Math.abs(a.gc - b.gc) === 1)
     {
-      colGap[Math.min(a.gc, b.gc)] = Math.max(colGap[Math.min(a.gc, b.gc)], Math.ceil(e.labelW + 36));
+      const c = Math.min(a.gc, b.gc);
+      const lane = (bands != null && !bands.rows) ? bands.lanes.filter(function(l) { return lead.has(l) && l.c0 === c + 1; })[0] : null;
+
+      if (lane != null)
+      {
+        lead.set(lane, Math.max(lead.get(lane), Math.ceil(e.labelW + 18)));
+        colGap[c] = Math.max(colGap[c], sp.pad + lead.get(lane));
+      }
+      else
+      {
+        colGap[c] = Math.max(colGap[c], Math.ceil(e.labelW + (bands == null ? 20 + right[c] + left[c + 1] : 36)));
+      }
     }
     else if (a.gc === b.gc && Math.abs(a.gr - b.gr) === 1)
     {
-      rowGap[Math.min(a.gr, b.gr)] = Math.max(rowGap[Math.min(a.gr, b.gr)], (ctx.iconic ? sp.iconRow : sp.row) + 10);
+      const r = Math.min(a.gr, b.gr);
+      const lane = (bands != null && bands.rows) ? bands.lanes.filter(function(l) { return lead.has(l) && l.r0 === r + 1; })[0] : null;
+
+      if (lane != null)
+      {
+        lead.set(lane, Math.max(lead.get(lane), (e.labelH || 18) + 24));
+        rowGap[r] = Math.max(rowGap[r], sp.pad + lead.get(lane));
+      }
+      else
+      {
+        rowGap[r] = Math.max(rowGap[r], (bands == null) ? (e.labelH || 18) + 30 + bottom[r] + top[r + 1] :
+          (ctx.iconic ? sp.iconRow : sp.row) + 10);
+      }
     }
   }
 
@@ -2171,10 +2256,21 @@ function placeOnPage(content, lanes, ctx, turned)
     }
   }
 
+  // As wide as asked for (a tall diagram that the chat should show whole).
+  if (ctx.minWidth > 0)
+  {
+    const now = rim.left + left[0] + span(colW, colGap, 0, cols - 1) + right[cols - 1] + rim.right;
+
+    if (ctx.minWidth > now)
+    {
+      widen(colW, 0, cols - 1, ctx.minWidth - now);
+    }
+  }
+
   const colX = [];
   const rowY = [];
-  let x = left[0];
-  let y = top[0];
+  let x = rim.left + left[0];
+  let y = rim.top + top[0];
 
   for (let c = 0; c < cols; c++)
   {
@@ -2188,8 +2284,8 @@ function placeOnPage(content, lanes, ctx, turned)
     y += rowH[r] + (r < rows - 1 ? rowGap[r] : bottom[r]);
   }
 
-  const width = Math.ceil(x);
-  const height = Math.ceil(y);
+  const width = Math.ceil(x + rim.right);
+  const height = Math.ceil(y + rim.bottom);
 
   // Shapes in the middle of their cell; icons of one row at one height, so
   // that the lines between them are straight.
@@ -2214,6 +2310,14 @@ function placeOnPage(content, lanes, ctx, turned)
       f.ay = Math.round(rowY[f.r0] - f.dt);
       f.w = Math.round(colX[f.c1] + colW[f.c1] + f.dr) - f.ax;
       f.h = Math.round(rowY[f.r1] + rowH[f.r1] + f.db) - f.ay;
+
+      // Where its title is, for the lines: in the middle, or with a group
+      // icon in the left corner.
+      const title = titleOf(f);
+
+      f.titleFrom = (f.st.map.align === "left") ? f.ax : f.ax + (f.w - title) / 2;
+      f.titleTo = (f.st.map.align === "left") ? f.ax + (Number(f.st.map.spacingLeft) || 0) + title + 8 :
+        f.titleFrom + title;
     }
   }
   else
@@ -2229,16 +2333,16 @@ function placeOnPage(content, lanes, ctx, turned)
       {
         setKey(l.st, "horizontal", "0");
         l.ax = 0;
-        l.ay = (i === 0) ? 0 : Math.round(rowY[l.r0] - sp.pad);
+        l.ay = (i === 0) ? 0 : Math.round(rowY[l.r0] - lead.get(l));
         l.w = width;
-        l.h = ((next != null) ? Math.round(rowY[next.r0] - sp.pad) : height) - l.ay;
+        l.h = ((next != null) ? Math.round(rowY[next.r0] - lead.get(next)) : height) - l.ay;
       }
       else
       {
         dropKey(l.st, "horizontal");
-        l.ax = (i === 0) ? 0 : Math.round(colX[l.c0] - sp.pad);
+        l.ax = (i === 0) ? 0 : Math.round(colX[l.c0] - lead.get(l));
         l.ay = 0;
-        l.w = ((next != null) ? Math.round(colX[next.c0] - sp.pad) : width) - l.ax;
+        l.w = ((next != null) ? Math.round(colX[next.c0] - lead.get(next)) : width) - l.ax;
         l.h = height;
       }
     });
@@ -2256,7 +2360,64 @@ function placeOnPage(content, lanes, ctx, turned)
     }
   }
 
-  return { width: width, height: height };
+  // The room for lines in every gap: between what borders it on both sides
+  // (shapes, or the frames that end and begin there).
+  const vz = [];
+  const hz = [];
+
+  for (let g = 0; g <= cols; g++)
+  {
+    const from = (g === 0) ? ((bands != null && bands.rows) ? LANE_TITLE : 0) : colX[g - 1] + colW[g - 1] + (bands == null ? right[g - 1] : 0);
+    const to = (g === cols) ? width : colX[g] - (bands == null ? left[g] : 0);
+
+    vz.push({ from: from, to: to });
+  }
+
+  for (let h = 0; h <= rows; h++)
+  {
+    const from = (h === 0) ? ((bands != null && !bands.rows) ? LANE_TITLE : 0) : rowY[h - 1] + rowH[h - 1] + (bands == null ? bottom[h - 1] : 0);
+    const to = (h === rows) ? height : rowY[h] - (bands == null ? top[h] : 0);
+
+    hz.push({ from: from, to: to });
+  }
+
+  if (bands != null)
+  {
+    bands.lanes.forEach(function(l)
+    {
+      if (lead.has(l))
+      {
+        const zone = bands.rows ? hz[l.r0] : vz[l.c0];
+
+        zone.from = zone.to - lead.get(l);
+      }
+    });
+  }
+
+  const px = [];
+  const py = [];
+
+  for (let X = 0; X <= 2 * cols; X++)
+  {
+    px.push((X & 1) === 1 ? colX[X >> 1] + colW[X >> 1] / 2 : (vz[X >> 1].from + vz[X >> 1].to) / 2);
+  }
+
+  for (let Y = 0; Y <= 2 * rows; Y++)
+  {
+    py.push((Y & 1) === 1 ? rowY[Y >> 1] + rowH[Y >> 1] / 2 : (hz[Y >> 1].from + hz[Y >> 1].to) / 2);
+  }
+
+  // The room inside a frame's border, between it and what the frame holds.
+  const zone = function(f, side)
+  {
+    const at = (side === "left") ? colX[f.c0] - f.inner.left : (side === "right") ? colX[f.c1] + colW[f.c1] + f.inner.right :
+      (side === "top") ? rowY[f.r0] - f.inner.top : rowY[f.r1] + rowH[f.r1] + f.inner.bottom;
+
+    return (side === "left" || side === "top") ? { from: at - f.lines[side], to: at } : { from: at, to: at + f.lines[side] };
+  };
+
+  return { width: width, height: height, grid: { cols: cols, rows: rows, leaves: leaves, frames: frames,
+    bands: bands != null, colX: colX, colW: colW, rowY: rowY, rowH: rowH, vz: vz, hz: hz, px: px, py: py, zone: zone } };
 }
 
 // A model that counts cells sometimes leaves a shape inside the block of a
@@ -2832,6 +2993,194 @@ function routeEdges(graph, tree, ctx)
   return { routed: jobs.length, crossings: crossings, through: through };
 }
 
+// Writes the lines planned on the page grid (shared/grid-lines.js): their
+// ports, their bends and where their labels go. `dy` is what the grid moved
+// down by since it was placed (a heading above it).
+function writeLines(graph, tree, ctx, dy)
+{
+  const model = graph.getModel();
+  const grid = ctx.page.grid;
+  const rects = new Map();
+  const obstacles = [];
+  const shapes = [];
+
+  for (const item of tree.order)
+  {
+    const r = absolute(item);
+
+    rects.set(item, r);
+
+    if (item.children.length === 0)
+    {
+      obstacles.push({ x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4 });
+      shapes.push({ item: item, r: r });
+
+      if (item.labelH > 0)
+      {
+        obstacles.push({ x: r.x + r.w / 2 - item.labelW / 2, y: r.y + r.h, w: item.labelW, h: item.labelH });
+      }
+    }
+    else if (item.lane)
+    {
+      // the title strip of a lane
+      obstacles.push(item.st.map.horizontal === "0" ? { x: r.x, y: r.y, w: LANE_TITLE, h: r.h } :
+        { x: r.x, y: r.y, w: r.w, h: LANE_TITLE });
+      obstacles.push({ x: r.x, y: r.y - 3, w: r.w, h: 6, soft: true }, { x: r.x - 3, y: r.y, w: 6, h: r.h, soft: true });
+    }
+    else
+    {
+      // the title of a frame, and its border
+      if (item.titleFrom != null)
+      {
+        obstacles.push({ x: item.titleFrom - 4, y: r.y, w: item.titleTo - item.titleFrom + 8, h: 30 });
+      }
+
+      obstacles.push({ x: r.x, y: r.y - 3, w: r.w, h: 6, soft: true }, { x: r.x, y: r.y + r.h - 3, w: r.w, h: 6, soft: true },
+        { x: r.x - 3, y: r.y, w: 6, h: r.h, soft: true }, { x: r.x + r.w - 3, y: r.y, w: 6, h: r.h, soft: true });
+    }
+  }
+
+  const down = function(list) { return list.map(function(v) { return v + dy; }); };
+  const zones = function(list) { return list.map(function(z) { return { from: z.from + dy, to: z.to + dy }; }); };
+  const drawn = drawLines(ctx.plan, { colX: grid.colX, colW: grid.colW, rowY: down(grid.rowY), rowH: grid.rowH,
+    vz: grid.vz, hz: zones(grid.hz), rect: function(item) { return rects.get(item); }, obstacles: obstacles,
+    zone: function(frame, side)
+    {
+      const z = grid.zone(frame, side);
+      const by = (side === "top" || side === "bottom") ? dy : 0;
+
+      return { from: z.from + by, to: z.to + by };
+    } });
+  const round = function(v) { return String(Math.round(v * 1000) / 1000); };
+  let through = 0;
+
+  for (const line of drawn.lines)
+  {
+    const cell = line.e.cell;
+    const st = parseStyle(cell.style);
+
+    for (let i = 0; i + 1 < line.points.length; i++)
+    {
+      for (const s of shapes)
+      {
+        if (s.item !== line.e.from && s.item !== line.e.to && segmentHitsRect(line.points[i], line.points[i + 1], s.r, 0))
+        {
+          through++;
+        }
+      }
+    }
+
+    setKey(st, "exitX", round(line.exit[0]));
+    setKey(st, "exitY", round(line.exit[1]));
+    setKey(st, "exitDx", "0");
+    setKey(st, "exitDy", "0");
+    setKey(st, "entryX", round(line.entry[0]));
+    setKey(st, "entryY", round(line.entry[1]));
+    setKey(st, "entryDx", "0");
+    setKey(st, "entryDy", "0");
+    model.setStyle(cell, styleText(st));
+
+    // The bends, in the frame of the edge's parent.
+    const origin = { x: 0, y: 0 };
+    const parentItem = itemOfCell(cell.parent, tree.items);
+
+    if (parentItem != null)
+    {
+      origin.x = rects.get(parentItem).x;
+      origin.y = rects.get(parentItem).y;
+    }
+
+    const geo = (cell.geometry != null) ? cell.geometry.clone() : new MxGeometry(0, 0, 0, 0);
+
+    geo.relative = true;
+    geo.points = [];
+
+    for (let i = 1; i + 1 < line.points.length; i++)
+    {
+      geo.points.push(new MxPoint(Math.round(line.points[i].x - origin.x), Math.round(line.points[i].y - origin.y)));
+    }
+
+    if (geo.points.length === 0)
+    {
+      geo.points = null;
+    }
+
+    if (line.label != null && line.label !== 0)
+    {
+      geo.x = line.label;
+      geo.y = 0;
+    }
+
+    model.setGeometry(cell, geo);
+  }
+
+  // The title of a frame moves into a corner when a line comes in where it
+  // stands.
+  for (const item of tree.order)
+  {
+    if (item.children.length === 0 || item.lane || item.titleFrom == null || item.st.names.indexOf("swimlane") < 0 ||
+      item.st.map.align != null)
+    {
+      continue;
+    }
+
+    const r = rects.get(item);
+    const band = Number(item.st.map.startSize) || 23;
+    const width = item.titleTo - item.titleFrom;
+    const at = [];
+
+    for (const line of drawn.lines)
+    {
+      for (let i = 0; i + 1 < line.points.length; i++)
+      {
+        const p = line.points[i];
+        const q = line.points[i + 1];
+
+        if (Math.abs(p.x - q.x) < 0.5 && Math.min(p.y, q.y) < r.y + band && Math.max(p.y, q.y) > r.y && p.x > r.x &&
+          p.x < r.x + r.w)
+        {
+          at.push(p.x);
+        }
+      }
+    }
+
+    const free = function(from)
+    {
+      return at.every(function(x) { return x < from - 6 || x > from + width + 6; });
+    };
+
+    if (free(item.titleFrom))
+    {
+      continue;
+    }
+
+    // Left, right, or wherever between two of the lines it fits.
+    const places = [r.x + 10, r.x + r.w - 10 - width];
+
+    at.sort(function(x, y) { return x - y; });
+    at.forEach(function(x, i)
+    {
+      if (i + 1 < at.length && at[i + 1] - x >= width + 16)
+      {
+        places.push(x + 8);
+      }
+    });
+
+    const place = places.filter(function(x) { return x >= r.x + 4 && x + width <= r.x + r.w - 4 && free(x); })[0];
+
+    if (place == null)
+    {
+      continue;
+    }
+
+    setKey(item.st, "align", "left");
+    setKey(item.st, "spacingLeft", String(Math.round(place - r.x)));
+    model.setStyle(item.cell, styleText(item.st));
+  }
+
+  return { routed: drawn.lines.length, crossings: drawn.crossings, through: through };
+}
+
 // ─── The pass ────────────────────────────────────────────────────
 
 function isUnplaced(cell)
@@ -2895,8 +3244,15 @@ function layoutPage(graph, options, stats)
       labelW = Math.max(labelW, textWidth(l.text, l.size, false));
     }
 
-    edges.push({ cell: cell, from: from, to: to, labelW: labelW, index: edges.length,
-      decision: from.st.names.indexOf("rhombus") >= 0 });
+    let labelH = 4;
+
+    for (const l of lines)
+    {
+      labelH += Math.round(l.size * 1.3);
+    }
+
+    edges.push({ cell: cell, from: from, to: to, labelW: labelW, labelH: labelH, index: edges.length,
+      decision: from.st.names.indexOf("rhombus") >= 0, routed: st.map.edgeStyle === "orthogonalEdgeStyle" });
   }
 
   let icons = 0;
@@ -2951,12 +3307,22 @@ function layoutPage(graph, options, stats)
 
     if (ctx.grid === "page")
     {
-      const s = placeOnPage(content, isPool ? lanes : null, ctx, policy === "turned");
+      const turned = policy === "turned";
+      const first = placeOnPage(content, isPool ? lanes : null, ctx, turned, null);
 
-      if (s != null)
+      if (first != null)
       {
-        return s;
+        // The lines are planned on the grid, and the grid is placed again
+        // with the room they need.
+        const routable = edges.filter(function(e) { return e.routed; });
+
+        ctx.plan = (routable.length > 0) ? planLines(first.grid, routable, isPool ? LANE_LINES : null) : null;
+        ctx.page = (ctx.plan != null) ? placeOnPage(content, isPool ? lanes : null, ctx, turned, ctx.plan.room) : first;
+
+        return ctx.page;
       }
+
+      ctx.plan = null;
 
       ctx.grid = "group";
       ctx.policy = "";
@@ -3000,7 +3366,7 @@ function layoutPage(graph, options, stats)
     }
   }
 
-  const policies = (ctx.grid === "page") ? (isPool ? ["", "turned"] : [""]) : (nested ? ["", "vh", "hv", "v", "h"] : [""]);
+  const policies = (ctx.grid === "page") ? ["", "turned"] : (nested ? ["", "vh", "hv", "v", "h"] : [""]);
   let best = null;
   let size = null;
 
@@ -3025,10 +3391,12 @@ function layoutPage(graph, options, stats)
       // The model's own orientation wins unless the other one shows clearly
       // more, and shows it whole: in the blind judgements a lane diagram cut
       // off at the bottom lost against a small one that was complete.
-      const score = shown(whole, ctx.frame) - 0.05 * (edges.length > 0 ? length / edges.length / 200 : 0) -
-        (policy === "turned" ? TURN_MARGIN : 0);
+      const widened = ctx.grid === "page" && canWiden(whole, ctx.frame);
+      const score = (widened ? fit(whole, ctx.frame) : shown(whole, ctx.frame)) -
+        0.05 * (edges.length > 0 ? length / edges.length / 200 : 0) -
+        (policy === "turned" ? (isPool ? TURN_MARGIN : TURN_MARGIN_PAGE) : 0);
 
-      if (policy === "turned" && isCut(whole, ctx.frame))
+      if (policy === "turned" && isCut(whole, ctx.frame) && !widened)
       {
         continue;
       }
@@ -3047,6 +3415,19 @@ function layoutPage(graph, options, stats)
 
   ctx.tight = best.tight;
   size = place(best.policy);
+
+  // Cut off at the bottom: wider, until it is shown whole.
+  if (ctx.grid === "page")
+  {
+    const whole = { width: size.width, height: size.height + (heading != null ? heading.h + 10 : 0) };
+
+    if (canWiden(whole, ctx.frame))
+    {
+      ctx.minWidth = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
+      size = place(best.policy);
+      ctx.minWidth = 0;
+    }
+  }
 
   let y = 0;
 
@@ -3098,7 +3479,9 @@ function layoutPage(graph, options, stats)
     }
   }
 
-  const routed = (options.route === false) ? { routed: 0, crossings: 0, through: 0 } : routeEdges(graph, tree, ctx);
+  const routed = (options.route === false) ? { routed: 0, crossings: 0, through: 0 } :
+    (ctx.grid === "page" && ctx.plan != null) ? writeLines(graph, tree, ctx, heading != null ? heading.h + 10 : 0) :
+      routeEdges(graph, tree, ctx);
 
   stats.pages++;
   stats.vertices += tree.order.length;
