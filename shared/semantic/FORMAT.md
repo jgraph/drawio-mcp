@@ -1,8 +1,8 @@
 # Semantic diagram format
 
-A semantic diagram says what a diagram contains and how it connects. It never says where anything goes or how it looks: the engine in this folder places every shape, routes every line and styles everything in draw.io's calm colors, the same way every time for the same description. The result is ordinary draw.io XML, so everything the format can't say can still be done in XML.
+A semantic diagram says what a diagram contains and how it connects. It never gives coordinates, sizes or styles: the engine in this folder sizes and places every shape, routes every line and styles everything in draw.io's calm colors, the same way every time for the same description. At most it says roughly where things go, as a row and a column (see **Placement hints**). The result is ordinary draw.io XML, so everything the format can't say can still be done in XML.
 
-Status: `er` is implemented. The other types below are the planned format; a description of a type the engine can't lay out yet is answered with an error that points to XML or Mermaid.
+Status: `er`, `architecture`, `network`, `flowchart` and `swimlane` are implemented; none is offered to models yet. The other types below are the planned format; a description of a type the engine can't lay out yet is answered with an error that points to XML or Mermaid.
 
 ## The description
 
@@ -26,9 +26,9 @@ Status: `er` is implemented. The other types below are the planned format; a des
 |---|---|
 | `type` | `er`, `class`, `flowchart`, `swimlane`, `architecture`, `network`, `state`, `sequence`, `orgchart`, `mindmap`. Common other names are read too (`erd`, `database`, `uml`, `cloud`, `aws`, `org chart`, `mind map`, …) |
 | `title` | optional, drawn above the diagram |
-| `direction` | optional, `vertical` or `horizontal`, for the types that flow (flowchart, swimlane, state, architecture) |
-| `groups` | optional: `{id, label, kind, parent}`. A lane, a VPC, a subnet, a tier, a package. `parent` nests a group in another |
-| `nodes` | `{id, label, kind, role, icon, group, sub, fields, methods}`, the keys a type uses |
+| `direction` | optional, `vertical` or `horizontal`, for the types that flow (flowchart, swimlane, state, architecture): where the top level runs. Read when given, but not offered in the tool's schema: without it the layout takes whichever is shown larger in the chat frame, and models that are offered the key set it without need |
+| `groups` | optional: `{id, label, kind, icon, parent, row, col}`. A lane, a VPC, a subnet, a tier, a package. `parent` nests a group in another. `lanes` is read as groups of kind `lane` |
+| `nodes` | `{id, label, kind, role, icon, group, sub, fields, methods, row, col}`, the keys a type uses |
 | `edges` | `{from, to, kind, label, fromCard, toCard, fromField, toField}`, the keys a type uses |
 
 Every id is a string, unique across nodes and groups, and stays the same when the diagram is changed, so a changed description changes the same cells. A missing label is the id.
@@ -36,6 +36,12 @@ Every id is a string, unique across nodes and groups, and stays the same when th
 ### Leniency
 
 The format forgives what models get wrong, as `create_diagram` does: a JSON string is parsed, `source` / `target` are read as `from` / `to`, the type and an edge's `kind` in any case (`One To Many`, `one_to_many`), and `fields` / `methods` as one string with `|` or line breaks between the rows. A field can also be an object (`{name, type, pk, fk}` or `{name, key: "PK"}`). What can't be used is dropped with a warning in the result, so the model learns it, and the rest is drawn: an edge to a node that doesn't exist, a second node with an id already taken, a node in a group that doesn't exist (drawn outside any group), an unknown key.
+
+### Placement hints
+
+`row` and `col` (1, 2, …) on a node or a group say where it goes in the grid of the group it is in (the diagram's own grid at the top level): rows from the top, columns from the left. Only their order counts, so a free row or column takes no room. The engine still does everything that needs numbers: the size of every box from its text, column widths and row heights, the frames around groups, the gaps a labeled line needs, and the lines. Nodes of one row without `col` stand side by side in the order written; a node without either goes below the hinted ones; a level without any hint is arranged by its connections. In a flowchart with lanes, `row` counts along the whole process, across the lanes, and `col` only separates two steps of one lane in one row.
+
+A model knows where things belong (clients above services above data, a database under its service, the main path down the first column) far faster than it can write coordinates, and a layout algorithm doesn't know it at all. Whether hints are offered as optional, asked for or left out is a choice of the tool description (`describeTool(types, {hints})`); `bench/` measures the three against each other.
 
 ### Roles
 
@@ -61,23 +67,19 @@ The format forgives what models get wrong, as `create_diagram` does: a JSON stri
 - An edge is `inheritance`, `implementation`, `association`, `aggregation`, `composition` or `dependency`, from the subclass, implementer or owner; `fromCard` / `toCard` and `label` on associations.
 - Layout: a grid by inheritance tree, parents above children, as shared/chat-view-xml.md lays out class diagrams; inheritance lines join into one trunk per parent.
 
-### `flowchart`: processes and decisions (planned)
+### `flowchart` and `swimlane`: processes and decisions (implemented, measured in `bench/`, not offered yet)
 
-- A node is a step: `kind` `start`, `end`, `step`, `decision`, `io`, `data`, `subprocess`, `note`; the kind sets the shape and the role.
-- An edge is a transition with an optional `label` (`yes` / `no` on decisions color the line).
-- Layout: the main path in one column (or row for `horizontal`), branches beside it, loops back along the side. Today's choice for larger flowcharts, Mermaid with ELK, stays the fallback.
+- A node is a step: `kind` `start`, `end`, `step`, `decision`, `error`, `data`, `external`, `retry`, `note` (and what models write for them: `task`, `gateway`, `failure`, …); the kind sets the shape and the role.
+- An edge is a transition with an optional `label`; `Yes` / `No` on the branches of a decision color the label.
+- A `group` is a lane (a role, a team, a system) and every node names its lane in `group`; `swimlane` is the same type under another name. Lanes take light tints in turn.
+- Layout without hints: the main path (at every step the successor with the longest way to go) runs along one line, a branch starts beside the step it leaves, a link that closes a loop is kept out of the ranking. A flow that is longer than the chat frame continues at the start of the next column. Lanes share one grid: a hand-over to another lane stays in the same row, and the lanes are columns or rows, whichever is shown larger.
 
-### `swimlane`: processes across roles (planned)
+### `architecture` and `network`: systems, cloud and networks (implemented, measured in `bench/`, not offered yet)
 
-- A `group` with `kind` `lane` is a lane (a role, a team, a system); every node names its lane in `group`. Nodes and edges as in `flowchart`.
-- Layout: lanes as rows (or columns for `vertical`), every step in its lane, steps in order of the flow across the lanes, so a hand-over is one short line between two lanes.
-
-### `architecture` and `network`: systems, cloud and networks (planned)
-
-- A node is a component with an `icon` (`"aws api gateway"`, `"cisco router"`) or a `kind` (`service`, `database`, `queue`, `user`, `external`); `sub` is a second line (an instance type, an address).
-- A `group` is a boundary: `kind` `cloud`, `region`, `vpc`, `subnet`, `zone`, `tier`, `cluster`, `onprem`, nested with `parent`. Boundaries take the official group styles of the cloud's library.
-- An edge is a call or a link with an optional `label` (a protocol, a port); `kind` `sync`, `async`, `data`, `network`.
-- Layout: tiers left to right (users, edge, services, data), groups as frames around their nodes on a grid, lines between facing sides.
+- A node is a component with an `icon` (`"aws lambda"`, `"azure sql database"`, `"gcp bigquery"`, `"kubernetes pod"`: the names of `shared/icon-resolver.js`) or a `kind` (`service`, `database`, `queue`, `user`, `external`); `sub` is a second line (an instance type, an address). A name the resolver doesn't know becomes a box by kind, with a warning. A `user` is drawn as a person only when its label names people.
+- A `group` is a boundary, nested with `parent`; with an `icon` (`"aws vpc"`, `"aws private subnet"`, `"aws region"`) it takes the official group style, otherwise a pale titled frame. An edge may end at a group.
+- An edge is a call or a link with an optional `label` (a protocol, a port); `kind` `async` (events, messages) is dashed. In a `network`, links are cables without arrowheads.
+- Layout without hints: tiers by the connections (every node one rank after its deepest predecessor, the order in a rank by what it connects to), every rank centered, a chain of single components beside a frame folded into one rank. Which way each nesting level runs is tried as a whole (all down, all to the right, alternating) and the one that is shown largest in the chat frame wins.
 
 ### `state`: state machines (planned)
 

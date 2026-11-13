@@ -90,7 +90,7 @@ function tryElk()
 
 test("only the types with a layout are offered", function()
 {
-  assert.deepEqual(SUPPORTED_TYPES, ["er"]);
+  assert.deepEqual(SUPPORTED_TYPES, ["er", "architecture", "network", "flowchart", "swimlane"]);
 });
 
 test("parseField reads keys in front, behind and in parentheses", function()
@@ -136,9 +136,9 @@ test("normalizeSpec forgives common slips and says what it dropped", function()
 
 test("an unsupported type, no nodes or no JSON fail with a message the model can act on", async function()
 {
-  const flow = await semanticToXml({ type: "flowchart", nodes: [{ id: "a" }] });
-  assert.equal(flow.xml, null);
-  assert.match(flow.error, /XML or Mermaid/);
+  const map = await semanticToXml({ type: "mindmap", nodes: [{ id: "a" }] });
+  assert.equal(map.xml, null);
+  assert.match(map.error, /XML or Mermaid/);
 
   const empty = await semanticToXml({ type: "er", nodes: [] });
   assert.equal(empty.xml, null);

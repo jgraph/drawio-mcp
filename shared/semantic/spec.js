@@ -22,20 +22,37 @@ const TYPE_ALIASES =
   "class diagram": "class",
   flow: "flowchart",
   process: "flowchart",
+  "flow chart": "flowchart",
   lanes: "swimlane",
   "cross-functional": "swimlane",
+  "swimlane flowchart": "swimlane",
+  "swim lane": "swimlane",
   cloud: "architecture",
   aws: "architecture",
   azure: "architecture",
   gcp: "architecture",
+  kubernetes: "architecture",
+  system: "architecture",
+  infrastructure: "architecture",
+  "network diagram": "network",
   "state machine": "state",
   "org chart": "orgchart",
   org: "orgchart",
   "mind map": "mindmap"
 };
 
-const KNOWN_KEYS = new Set(["type", "title", "direction", "nodes", "groups", "edges", "participants", "messages",
+const KNOWN_KEYS = new Set(["type", "title", "direction", "nodes", "groups", "lanes", "edges", "participants", "messages",
   "fragments", "legend"]);
+
+// The types whose edges may end at a group (a call into a cluster, a
+// monitor that reads from every service of a namespace).
+const GROUP_ENDS = new Set(["architecture", "network", "flowchart", "swimlane"]);
+
+const DIRECTIONS =
+{
+  vertical: "vertical", tb: "vertical", td: "vertical", "top-down": "vertical", "top to bottom": "vertical", down: "vertical",
+  horizontal: "horizontal", lr: "horizontal", "left-right": "horizontal", "left to right": "horizontal", right: "horizontal"
+};
 
 function str(v)
 {
@@ -60,6 +77,14 @@ function list(v)
   }
 
   return [v];
+}
+
+// A placement hint: a number from 1 (also as text); anything else is none.
+function ordinal(v)
+{
+  const n = (v == null || v === "" || typeof v === "boolean") ? NaN : Number(v);
+
+  return (Number.isFinite(n) && n >= 0 && n <= 1000) ? n : null;
 }
 
 function fieldText(f)
@@ -89,10 +114,13 @@ function fieldText(f)
 
 /**
  * @param {object|string} input - the description, or its JSON text
+ * @param {{hints?: boolean}} [options] - hints: false drops the placement
+ *   hints (row, col) of nodes and groups
  * @returns {{diagram: object|null, warnings: string[], error: string|null}}
  */
-export function normalizeSpec(input)
+export function normalizeSpec(input, options)
 {
+  const hints = !(options != null && options.hints === false);
   const warnings = [];
   let spec = input;
 
@@ -133,9 +161,15 @@ export function normalizeSpec(input)
   const groups = [];
   const groupIds = new Set();
 
-  for (const g of list(spec.groups))
+  // `lanes` is read as groups of the kind lane; a lane or a group may be
+  // just its name.
+  const groupList = list(spec.groups).map(function(g) { return { g: g, lane: false }; })
+    .concat(list(spec.lanes).map(function(g) { return { g: g, lane: true }; }));
+
+  for (const entry of groupList)
   {
-    const id = str(g && (g.id != null ? g.id : g.label));
+    const g = (entry.g != null && typeof entry.g === "object") ? entry.g : { id: entry.g };
+    const id = str(g.id != null ? g.id : g.label);
 
     if (id === "" || groupIds.has(id))
     {
@@ -144,7 +178,9 @@ export function normalizeSpec(input)
     }
 
     groupIds.add(id);
-    groups.push({ id: id, label: str(g.label) || id, kind: str(g.kind).toLowerCase(), parent: str(g.parent) });
+    groups.push({ id: id, label: str(g.label) || id, kind: str(g.kind).toLowerCase() || (entry.lane ? "lane" : ""),
+      parent: str(g.parent != null ? g.parent : g.group), icon: str(g.icon),
+      row: hints ? ordinal(g.row) : null, col: hints ? ordinal(g.col != null ? g.col : g.column) : null });
   }
 
   for (const g of groups)
@@ -171,7 +207,7 @@ export function normalizeSpec(input)
     }
 
     nodeIds.add(id);
-    const group = str(node.group);
+    const group = str(node.group != null ? node.group : (node.lane != null ? node.lane : node.parent));
 
     if (group !== "" && !groupIds.has(group))
     {
@@ -186,6 +222,8 @@ export function normalizeSpec(input)
       icon: str(node.icon),
       role: str(node.role).toLowerCase(),
       group: groupIds.has(group) ? group : "",
+      row: hints ? ordinal(node.row) : null,
+      col: hints ? ordinal(node.col != null ? node.col : node.column) : null,
       fields: list(node.fields).map(fieldText).filter(function(s) { return s !== ""; }),
       methods: list(node.methods).map(fieldText).filter(function(s) { return s !== ""; })
     });
@@ -202,11 +240,12 @@ export function normalizeSpec(input)
 
     const from = str(e.from != null ? e.from : e.source);
     const to = str(e.to != null ? e.to : e.target);
+    const isEnd = function(id) { return nodeIds.has(id) || (GROUP_ENDS.has(type) && groupIds.has(id)); };
 
-    if (!nodeIds.has(from) || !nodeIds.has(to))
+    if (!isEnd(from) || !isEnd(to))
     {
       warnings.push("Dropped the edge " + (from || "?") + " → " + (to || "?") + ": " +
-        (!nodeIds.has(from) ? "\"" + from + "\"" : "\"" + to + "\"") + " is not a node.");
+        (!isEnd(from) ? "\"" + from + "\"" : "\"" + to + "\"") + " is not a node.");
       continue;
     }
 
@@ -223,7 +262,7 @@ export function normalizeSpec(input)
   }
 
   return {
-    diagram: { type: type, title: str(spec.title), direction: str(spec.direction).toLowerCase(), groups: groups,
+    diagram: { type: type, title: str(spec.title), direction: DIRECTIONS[str(spec.direction).toLowerCase()] || "", groups: groups,
       nodes: nodes, edges: edges },
     warnings: warnings,
     error: null

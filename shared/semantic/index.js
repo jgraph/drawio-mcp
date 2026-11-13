@@ -3,18 +3,27 @@
 // turns that into draw.io XML: deterministic, headless (no DOM), the same in
 // the Cloudflare Worker, Node and the browser. Format: FORMAT.md.
 //
-// Most layouts are written here (grid placement and channel routing in
-// grid.js). ELK is optional and passed in rather than imported, so every host
-// brings its own copy (elkjs from npm in Node and the Worker, the global ELK
-// in the browser); ER uses it only for schemas too large for the grid.
+// ER schemas have a layout of their own (er.js, with the grid placement and
+// channel routing of grid.js). Architecture, network, flowchart and swimlane
+// diagrams become compact XML without geometry (boxes.js) and are placed by
+// the grid layout pass over the draw.io model (shared/grid-layout.js), which
+// the XML path can use as well. ELK is optional and passed in rather than
+// imported, so every host brings its own copy (elkjs from npm in Node and the
+// Worker, the global ELK in the browser); ER uses it only for schemas too
+// large for the grid.
 
 import { normalizeSpec, TYPES } from "./spec.js";
 import { writeModel } from "./xml-writer.js";
 import { layoutEr } from "./er.js";
+import { layoutArchitecture, layoutFlow } from "./boxes.js";
 
 const LAYOUTS =
 {
-  er: { layout: layoutEr, needsElk: false }
+  er: { layout: layoutEr, needsElk: false },
+  architecture: { layout: layoutArchitecture, needsElk: false },
+  network: { layout: layoutArchitecture, needsElk: false },
+  flowchart: { layout: layoutFlow, needsElk: false },
+  swimlane: { layout: layoutFlow, needsElk: false }
 };
 
 export { TYPES };
@@ -31,9 +40,10 @@ function now()
  * Turns a semantic description into draw.io XML.
  *
  * @param {object|string} input - the description (FORMAT.md) or its JSON text
- * @param {{elk?: {layout: function(object): Promise<object>}}} [options] -
+ * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean}} [options] -
  *   elk: an optional ELK instance (`new ELK()` from elkjs, or the global ELK
- *   in the browser), used for large schemas
+ *   in the browser), used for large schemas; hints: false ignores the
+ *   placement hints (row, col) of the description
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
  *   stats: object|null}>}
  */
@@ -41,7 +51,7 @@ export async function semanticToXml(input, options)
 {
   const t0 = now();
   const opts = options || {};
-  const n = normalizeSpec(input);
+  const n = normalizeSpec(input, { hints: opts.hints !== false });
 
   if (n.error != null)
   {
@@ -68,10 +78,10 @@ export async function semanticToXml(input, options)
     return { xml: null, error: "No layout engine (ELK) is available here.", warnings: n.warnings, stats: null };
   }
 
-  const r = await entry.layout(d, { elk: opts.elk });
-  const xml = writeModel(r.cells);
+  const r = await entry.layout(d, { elk: opts.elk, hints: opts.hints !== false, route: opts.route !== false });
+  const xml = (r.xml != null) ? r.xml : writeModel(r.cells);
   const stats = Object.assign({ type: d.type, width: Math.round(r.width), height: Math.round(r.height),
     ms: Math.round((now() - t0) * 10) / 10 }, r.stats);
 
-  return { xml: xml, error: null, warnings: n.warnings, stats: stats };
+  return { xml: xml, error: null, warnings: n.warnings.concat(r.warnings || []), stats: stats };
 }
