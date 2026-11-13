@@ -8651,7 +8651,8 @@ app.ontoolinputpartial = function(params)
     return;
   }
 
-  healedXml = expandDiagramShorthand(absolutizeImageUrls(expandIcons(healedXml)), { partial: true }).xml;
+  healedXml = expandIcons(healedXml);
+  healedXml = expandDiagramShorthand(absolutizeImageUrls(healedXml), { partial: true }).xml;
 
   // Update loading text during streaming
   if (loadingEl.style.display !== 'none')
