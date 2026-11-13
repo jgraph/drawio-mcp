@@ -34,9 +34,11 @@
 //
 // Both are expanded by the app server before anything else sees the diagram,
 // and by its viewer on the raw tool input, so the diagram draws the same while
-// it streams in. The result is plain draw.io XML: no `rows` attribute and no
-// `role` key is left, so expanding again changes nothing, and a diagram
-// without either comes back byte-identical.
+// it streams in (there a table waits for its geometry, so that it never shows
+// up at the top left before its position arrives). The result is plain
+// draw.io XML: no `rows` attribute and no `role` key is left, so expanding
+// again changes nothing, and a diagram without either comes back
+// byte-identical.
 //
 // String in, string out, no XML parser and no DOM, so it runs in Node, in the
 // Worker and in the browser. createDiagramShorthand is self-contained (no
@@ -95,6 +97,11 @@ export function createDiagramShorthand()
   var NAME = /[A-Za-z_$\u00C0-\u1FFF\u2C00-\uD7FF][\w$\u00C0-\u1FFF\u2C00-\uD7FF]*/;
 
   var ENTITIES = { lt: "<", gt: ">", quot: "\"", apos: "'", amp: "&" };
+
+  // The attributes of a start tag, up to its end: a quoted value is taken
+  // whole, since it may hold a raw `>` (`value="Retries > 3?"`, or
+  // `List&lt;Item>` once the repair has escaped the `<`), which XML allows.
+  var TAG_ATTRS = "((?:\"[^\"]*\"|'[^']*'|[^>\"'])*?)";
 
   function decode(s)
   {
@@ -425,7 +432,7 @@ export function createDiagramShorthand()
 
   // ─── Geometry ───────────────────────────────────────────────────
 
-  var GEOMETRY = /<mxGeometry\b([^>]*?)(\/?)>/;
+  var GEOMETRY = new RegExp("<mxGeometry\\b" + TAG_ATTRS + "(\\/?)>");
 
   function geometryOf(body)
   {
@@ -479,7 +486,7 @@ export function createDiagramShorthand()
 
   // ─── The pass ───────────────────────────────────────────────────
 
-  var CELL = /<mxCell\b([^>]*?)(\/>|>([\s\S]*?)<\/mxCell>)/g;
+  var CELL = new RegExp("<mxCell\\b" + TAG_ATTRS + "(\\/>|>([\\s\\S]*?)<\\/mxCell>)", "g");
 
   function parseCells(text)
   {
@@ -511,7 +518,7 @@ export function createDiagramShorthand()
     return "<mxCell" + attrs + (body == null ? "/>" : ">" + body + "</mxCell>");
   }
 
-  function expandPage(text)
+  function expandPage(text, partial)
   {
     var cells = parseCells(text);
     var ids = {};
@@ -529,12 +536,12 @@ export function createDiagramShorthand()
     }
 
     // Ids on <object>/<UserObject> wrappers are taken too.
-    var wrapperId = /<(?:object|UserObject)\b[^>]*?\sid="([^"]*)"/g;
+    var wrapperId = new RegExp("<(?:object|UserObject)\\b" + TAG_ATTRS + "\\sid=\"([^\"]*)\"", "g");
     var w;
 
     while ((w = wrapperId.exec(text)) !== null)
     {
-      ids[w[1]] = true;
+      ids[w[2]] = true;
     }
 
     var changed = 0;
@@ -555,6 +562,15 @@ export function createDiagramShorthand()
 
       if (rawRows != null && cell.id != null)
       {
+        // While the diagram streams in, a table whose geometry hasn't
+        // arrived yet stays as written: the viewer keeps a vertex without
+        // a geometry hidden, where a made-up one would show the table at
+        // the top left until its position arrives.
+        if (partial && !cell.selfClosing && geometryOf(cell.body) == null)
+        {
+          continue;
+        }
+
         replacements.push({ cell: cell, xml: expandTable(cell, rawRows, style, ids, tables) });
         changed++;
         continue;
@@ -769,11 +785,16 @@ export function createDiagramShorthand()
    * Expands the rows and role shorthands on every page of a diagram.
    *
    * @param {string} xml - mxGraphModel or mxfile XML
+   * @param {{partial: boolean}=} options - partial: the XML is a part of the
+   *   diagram, healed while it streams in, so a table cell without its
+   *   geometry yet is left as written
    * @returns {{xml: string, changed: number}} the XML and the number of cells
    *   that were expanded or pointed at a row
    */
-  function expand(xml)
+  function expand(xml, options)
   {
+    var partial = options != null && options.partial === true;
+
     if (typeof xml !== "string" || (xml.indexOf("rows=") < 0 && xml.indexOf("role=") < 0))
     {
       return { xml: xml, changed: 0 };
@@ -782,12 +803,12 @@ export function createDiagramShorthand()
     // Each <mxGraphModel> is one page with ids of its own; a fragment without
     // one is a page.
     var pages = [];
-    var re = /<mxGraphModel\b[^>]*>([\s\S]*?)<\/mxGraphModel>/g;
+    var re = new RegExp("<mxGraphModel\\b" + TAG_ATTRS + ">([\\s\\S]*?)<\\/mxGraphModel>", "g");
     var m;
 
     while ((m = re.exec(xml)) !== null)
     {
-      pages.push({ start: m.index + m[0].length - m[1].length - "</mxGraphModel>".length, text: m[1] });
+      pages.push({ start: m.index + m[0].length - m[2].length - "</mxGraphModel>".length, text: m[2] });
     }
 
     if (pages.length === 0)
@@ -804,7 +825,7 @@ export function createDiagramShorthand()
 
       try
       {
-        result = expandPage(pages[p].text);
+        result = expandPage(pages[p].text, partial);
       }
       catch (e)
       {
