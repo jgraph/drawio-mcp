@@ -76,6 +76,83 @@ test("a container gets the group shape, an icon never does", function()
   assert.equal(resolver.resolve("azure virtual network", { container: true }), null);
 });
 
+test("a large cell without children prefers a group but still takes an icon", function()
+{
+  assert.equal(title("aws vpc", { large: true }), "aws: VPC");
+  assert.equal(resolver.resolve("aws vpc", { large: true }).kind, "g");
+  assert.equal(resolver.resolve("aws private subnet", { large: true }).kind, "g");
+
+  for (const name of ["aws lambda", "aws ec2", "azure functions", "gcp bigquery", "kubernetes pod"])
+  {
+    assert.notEqual(resolver.resolve(name, { large: true }), null, name);
+    assert.notEqual(resolver.resolve(name, { large: true }).kind, "g", name);
+  }
+
+  // Through the XML: size alone makes no container.
+  const xml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="fn" value="Big" style="icon=aws lambda;" vertex="1" parent="1">' +
+    '<mxGeometry x="40" y="40" width="120" height="120" as="geometry"/></mxCell>' +
+    '<mxCell id="vpc" value="VPC" style="icon=aws vpc;" vertex="1" parent="1">' +
+    '<mxGeometry x="200" y="40" width="400" height="240" as="geometry"/></mxCell></root></mxGraphModel>';
+  const result = resolver.applyToXml(xml);
+
+  assert.deepEqual(result.resolved.map(function(r) { return r.id + " " + r.title; }), ["fn Lambda", "vpc VPC"]);
+  assert.match(result.xml, /<mxCell id="fn" value="Big" style="[^"]*resIcon=mxgraph\.aws4\.lambda;/);
+  assert.match(result.xml, /<mxCell id="vpc" value="VPC" style="[^"]*grIcon=mxgraph\.aws4\.group_vpc2;/);
+  assert.equal(result.unresolved.length, 0);
+});
+
+test("a parent on another page doesn't make a cell a container", function()
+{
+  const xml = '<mxfile><diagram id="p1" name="One"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="3" value="Orders" style="icon=aws lambda;" vertex="1" parent="1">' +
+    '<mxGeometry x="40" y="40" width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel></diagram>' +
+    '<diagram id="p2" name="Two"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="3" value="Box" style="rounded=0;" vertex="1" parent="1">' +
+    '<mxGeometry x="40" y="40" width="300" height="200" as="geometry"/></mxCell>' +
+    '<mxCell id="4" value="Inner" style="icon=aws vpc;" vertex="1" parent="3">' +
+    '<mxGeometry x="20" y="20" width="200" height="120" as="geometry"/></mxCell>' +
+    '<mxCell id="5" value="Fn" style="icon=aws lambda;" vertex="1" parent="4">' +
+    '<mxGeometry x="20" y="20" width="48" height="48" as="geometry"/></mxCell>' +
+    '</root></mxGraphModel></diagram></mxfile>';
+  const result = resolver.applyToXml(xml);
+
+  assert.deepEqual(result.resolved.map(function(r) { return r.id + " " + r.title; }),
+    ["3 Lambda", "4 VPC", "5 Lambda"]);
+  assert.match(result.xml, /<mxCell id="3" value="Orders" style="[^"]*resIcon=mxgraph\.aws4\.lambda;/);
+  assert.match(result.xml, /<mxCell id="4" value="Inner" style="[^"]*grIcon=mxgraph\.aws4\.group_vpc2;/);
+});
+
+test("the cache stays bounded and long names are neither ranked nor kept", function()
+{
+  const fresh = createIconResolver(ICON_TABLE, ICON_DATA);
+  const long = "aws lambda " + "x".repeat(200000);
+  const start = Date.now();
+
+  assert.equal(fresh.resolve(long), null);
+  assert.ok(Date.now() - start < 100, (Date.now() - start) + " ms");
+  assert.equal(fresh.cacheSize(), 0);
+
+  for (let i = 0; i < 1200; i++)
+  {
+    fresh.resolve("aws lambda " + i);
+  }
+
+  assert.ok(fresh.cacheSize() <= 500, String(fresh.cacheSize()));
+  // Recently used names stay, evicted ones resolve again.
+  assert.equal(fresh.resolve("aws lambda").title, "Lambda");
+  assert.deepEqual(fresh.resolve("aws lambda 0"), resolver.resolve("aws lambda 0"));
+
+  // A long unresolved name goes back to the model shortened.
+  const xml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="x" style="icon=' + "y".repeat(5000) + ';" vertex="1" parent="1">' +
+    '<mxGeometry x="0" y="0" width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel>';
+  const result = fresh.applyToXml(xml);
+
+  assert.equal(result.unresolved.length, 1);
+  assert.ok(result.unresolved[0].name.length <= 101, String(result.unresolved[0].name.length));
+});
+
 test("names that match no icon resolve to nothing", function()
 {
   for (const name of ["aws payment service", "aws quantum flux", "aws", "", "gcp frobnicator"])

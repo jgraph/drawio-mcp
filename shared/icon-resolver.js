@@ -23,7 +23,7 @@
  *   images. Without it (the viewer) those icons resolve to a placeholder
  *   that the server's result replaces.
  * @returns {{resolve: Function, rank: Function, applyToStyle: Function,
- *   applyToXml: Function, size: number}}
+ *   applyToXml: Function, size: number, cacheSize: Function}}
  */
 export function createIconResolver(table, data)
 {
@@ -51,6 +51,18 @@ export function createIconResolver(table, data)
   // An icon whose image the viewer doesn't have, while the XML streams in.
   var PLACEHOLDER_STYLE = "rounded=1;arcSize=16;fillColor=#F1F3F4;strokeColor=#DADCE0;" +
     "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;";
+  // No icon name is longer (the longest in the table has 59 characters), so
+  // a longer one matches nothing and isn't ranked or kept.
+  var MAX_NAME_LENGTH = 100;
+  // The names resolved last. The servers keep one resolver for every caller,
+  // so the cache must not grow with what callers send.
+  var CACHE_SIZE = 500;
+  // A cell larger than 100 × 100 without children (a VPC drawn before its
+  // subnets, or whose subnets haven't streamed in yet) takes a group that
+  // fits as well as an icon; a smaller one takes a group only as a last
+  // resort.
+  var LARGE_GROUP_BONUS = 2;
+  var SMALL_GROUP_PENALTY = 6;
 
   function stem(token)
   {
@@ -177,10 +189,10 @@ export function createIconResolver(table, data)
    * over on either side cost, an exact name gets a bonus, and the kind of
    * icon breaks ties (a service tile before a resource glyph).
    */
-  function scoreEntry(entry, query, squashed, container)
+  function scoreEntry(entry, query, squashed, container, large)
   {
-    // A container takes only a group shape (VPC, subnet, …); an icon takes a
-    // group only as a last resort (penalty below).
+    // A container takes only a group shape (VPC, subnet, …); any other cell
+    // takes a group if it is large, otherwise only as a last resort (below).
     if (container && entry.kind !== "g")
     {
       return null;
@@ -250,7 +262,7 @@ export function createIconResolver(table, data)
 
     if (entry.kind === "g" && !container)
     {
-      score -= 6;
+      score += large ? LARGE_GROUP_BONUS : -SMALL_GROUP_PENALTY;
     }
 
     return score;
@@ -312,15 +324,24 @@ export function createIconResolver(table, data)
   /**
    * The best icons for a name, best first, with their scores.
    * @param {string} name - e.g. "aws lambda", "Azure Functions", "gcp pub/sub"
-   * @param {{container?: boolean}} [options] - container: the cell holds
-   *   other cells, so only group shapes (AWS VPC, subnet, …) qualify
+   * @param {{container?: boolean, large?: boolean}} [options] - container:
+   *   the cell holds other cells, so only group shapes (AWS VPC, subnet, …)
+   *   qualify; large: the cell is larger than 100 × 100, so a group shape
+   *   wins over an icon that fits as well
    * @param {number} [limit]
    */
   function rank(name, options, limit)
   {
     var container = options != null && options.container === true;
-    var parsed = parseQuery(name);
+    var large = options != null && options.large === true;
     var results = [];
+
+    if (String(name).length > MAX_NAME_LENGTH)
+    {
+      return results;
+    }
+
+    var parsed = parseQuery(name);
 
     if (parsed.words.length === 0)
     {
@@ -334,7 +355,7 @@ export function createIconResolver(table, data)
         return;
       }
 
-      var score = scoreEntry(entry, parsed.words, parsed.squashed, container);
+      var score = scoreEntry(entry, parsed.words, parsed.squashed, container, large);
 
       if (score != null)
       {
@@ -361,23 +382,46 @@ export function createIconResolver(table, data)
     });
   }
 
-  var cache = {};
+  // Least recently used first (a Map iterates in insertion order).
+  var cache = new Map();
 
   /**
    * The icon for a name, or null when none fits.
+   * @param {string} name
+   * @param {{container?: boolean, large?: boolean}} [options] - see rank
    * @returns {{title: string, provider: string, kind: string, style: string,
    *   placeholder: boolean, w: number, h: number}|null}
    */
   function resolve(name, options)
   {
-    var key = String(name).toLowerCase().trim() + "|" + (options != null && options.container === true);
+    var text = String(name);
 
-    if (!Object.prototype.hasOwnProperty.call(cache, key))
+    if (text.length > MAX_NAME_LENGTH)
     {
-      cache[key] = rank(name, options, 1)[0] || null;
+      return null;
     }
 
-    return cache[key];
+    var key = text.toLowerCase().trim() + "|" + (options != null && options.container === true) +
+      "|" + (options != null && options.large === true);
+    var icon = cache.get(key);
+
+    if (icon !== undefined)
+    {
+      cache.delete(key);
+    }
+    else
+    {
+      icon = rank(name, options, 1)[0] || null;
+
+      if (cache.size >= CACHE_SIZE)
+      {
+        cache.delete(cache.keys().next().value);
+      }
+    }
+
+    cache.set(key, icon);
+
+    return icon;
   }
 
   function parseStyle(style)
@@ -492,8 +536,9 @@ export function createIconResolver(table, data)
   /**
    * Resolves every `icon=` in the vertex styles of a draw.io XML string,
    * also a partial one while it streams in. A cell counts as a container
-   * (only group shapes fit) when its style has container=1, other cells
-   * name it as their parent, or it is larger than 100 × 100.
+   * (only group shapes fit) when its style has container=1 or other cells
+   * on its page name it as their parent; a cell larger than 100 × 100
+   * prefers a group shape but still takes an icon (rank's `large`).
    * @returns {{xml: string, resolved: Array, unresolved: Array}}
    */
   function applyToXml(xml)
@@ -506,11 +551,33 @@ export function createIconResolver(table, data)
       return { xml: xml, resolved: resolved, unresolved: unresolved };
     }
 
+    // Pages reuse ids ("2", "3", …): a parent counts on its own page only.
+    var pageStarts = [];
+    var pagePattern = /<mxGraphModel\b/g;
+    var pageMatch;
+
+    while ((pageMatch = pagePattern.exec(xml)) != null)
+    {
+      pageStarts.push(pageMatch.index);
+    }
+
+    function pageAt(offset)
+    {
+      var page = 0;
+
+      while (page < pageStarts.length && pageStarts[page] <= offset)
+      {
+        page++;
+      }
+
+      return page;
+    }
+
     var parents = {};
 
-    xml.replace(/\sparent\s*=\s*(?:"([^"]*)"|'([^']*)')/g, function(_m, a, b)
+    xml.replace(/\sparent\s*=\s*(?:"([^"]*)"|'([^']*)')/g, function(_m, a, b, offset)
     {
-      parents[a != null ? a : b] = true;
+      parents[pageAt(offset) + " " + (a != null ? a : b)] = true;
       return "";
     });
 
@@ -549,7 +616,9 @@ export function createIconResolver(table, data)
         }
       }
 
-      var container = /(^|;)\s*container\s*=\s*1/.test(style) || (id != null && parents[id] === true);
+      var container = /(^|;)\s*container\s*=\s*1/.test(style) ||
+        (id != null && parents[pageAt(offset) + " " + id] === true);
+      var large = false;
 
       if (!container && selfClosing !== "/")
       {
@@ -562,11 +631,11 @@ export function createIconResolver(table, data)
           var w = /\swidth\s*=\s*["']([\d.]+)["']/.exec(geometry[0]);
           var h = /\sheight\s*=\s*["']([\d.]+)["']/.exec(geometry[0]);
 
-          container = w != null && h != null && parseFloat(w[1]) > 100 && parseFloat(h[1]) > 100;
+          large = w != null && h != null && parseFloat(w[1]) > 100 && parseFloat(h[1]) > 100;
         }
       }
 
-      var result = applyToStyle(style, { container: container });
+      var result = applyToStyle(style, { container: container, large: large });
 
       if (result == null)
       {
@@ -575,7 +644,11 @@ export function createIconResolver(table, data)
 
       if (result.icon == null)
       {
-        unresolved.push({ id: id, name: result.name, container: container });
+        // The name goes back to the model in a warning: not a long one whole.
+        var shown = result.name.length > MAX_NAME_LENGTH ?
+          result.name.substring(0, MAX_NAME_LENGTH) + "…" : result.name;
+
+        unresolved.push({ id: id, name: shown, container: container });
 
         return tag;
       }
@@ -590,5 +663,5 @@ export function createIconResolver(table, data)
   }
 
   return { resolve: resolve, rank: rank, applyToStyle: applyToStyle, applyToXml: applyToXml,
-    size: entries.length };
+    size: entries.length, cacheSize: function() { return cache.size; } };
 }

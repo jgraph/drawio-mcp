@@ -78,6 +78,22 @@ test("a name that matches no icon stays as written and the model is told what to
   assert.match(warnings, /icon=aws payment flux \(cell pay\) matched no icon: name the provider and the service/);
 });
 
+test("a large icon without children is still an icon, and gets no container warning", async function()
+{
+  const xml = diagram(
+    '<mxCell id="fn" value="Orders" style="icon=aws lambda;" vertex="1" parent="1">' +
+    '<mxGeometry x="40" y="40" width="120" height="120" as="geometry"/></mxCell>' +
+    '<mxCell id="x" value="?" style="icon=aws quantum flux;" vertex="1" parent="1">' +
+    '<mxGeometry x="200" y="40" width="160" height="160" as="geometry"/></mxCell>');
+  const result = await client.callTool({ name: "create_diagram", arguments: { xml: xml } });
+  const sent = JSON.parse(result.content[0].text).xml;
+  const warnings = result.content.map(function(c) { return c.text; }).join("\n");
+
+  assert.match(cellStyle(sent, "fn"), /resIcon=mxgraph\.aws4\.lambda;/);
+  assert.match(warnings, /icon=aws quantum flux \(cell x\) matched no icon: name the provider/);
+  assert.doesNotMatch(warnings, /for a container/);
+});
+
 test("Google Cloud icons that are images get their data URI on the server", async function()
 {
   const xml = diagram(

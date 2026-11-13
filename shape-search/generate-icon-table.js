@@ -22,6 +22,11 @@
  * Usage: `npm run generate` runs it after generate-index.js (also in the
  * update-search-index workflow), or alone after the index changed:
  *   node generate-icon-table.js
+ *
+ * An entry it can't read (a style without the key that names its icon, a
+ * value that would need escaping) is left out with a warning instead of
+ * failing the run, so a palette change in a draw.io release never stops the
+ * workflow from proposing the new index.
  */
 
 import fs from "node:fs";
@@ -218,6 +223,20 @@ var icons = [];
 var data = [];
 var dataIds = {};
 var seen = {};
+var skipped = [];
+
+/** Runs fn for an index entry; an entry it can't read is skipped. */
+function safely(entry, fn)
+{
+  try
+  {
+    fn();
+  }
+  catch (e)
+  {
+    skipped.push((entry != null && entry.title) + ": " + (e instanceof Error ? e.message : String(e)));
+  }
+}
 
 /**
  * Adds an icon. The style is split into a template (shared by the icons of
@@ -253,6 +272,12 @@ function add(provider, kind, title, extraNames, style, w, h, identity)
   if (identity != null)
   {
     var value = styleValue(style, identity);
+
+    if (value == null || value === "")
+    {
+      throw new Error("No " + identity + " in the style");
+    }
+
     var prefix = "";
     var suffix = "";
 
@@ -350,23 +375,26 @@ var awsGroups = {};
 
 aws.forEach(function(s)
 {
-  var shape = styleValue(s.style, "shape") || "";
-  var isGroup = /^mxgraph\.aws4\.group/.test(shape) ||
-    (shape === "" && /^(Availability Zone|Security group)$/i.test(s.title));
-
-  if (isGroup)
+  safely(s, function()
   {
-    var stroke = (styleValue(s.style, "strokeColor") || "").toUpperCase();
-    var old = OLD_AWS_GROUP_STROKES.indexOf(stroke) >= 0;
-    var k = squash(s.title);
+    var shape = styleValue(s.style, "shape") || "";
+    var isGroup = /^mxgraph\.aws4\.group/.test(shape) ||
+      (shape === "" && /^(Availability Zone|Security group)$/i.test(s.title));
 
-    // The current palette comes later in the index: it replaces the old
-    // one; of the old ones, the first (light) one is kept.
-    if (awsGroups[k] == null || (!old && awsGroups[k].old) || (!old && !awsGroups[k].old))
+    if (isGroup)
     {
-      awsGroups[k] = { entry: s, old: old };
+      var stroke = (styleValue(s.style, "strokeColor") || "").toUpperCase();
+      var old = OLD_AWS_GROUP_STROKES.indexOf(stroke) >= 0;
+      var k = squash(s.title);
+
+      // The current palette comes later in the index: it replaces the old
+      // one; of the old ones, the first (light) one is kept.
+      if (awsGroups[k] == null || (!old && awsGroups[k].old) || (!old && !awsGroups[k].old))
+      {
+        awsGroups[k] = { entry: s, old: old };
+      }
     }
-  }
+  });
 });
 
 Object.keys(awsGroups).forEach(function(k)
@@ -379,45 +407,56 @@ Object.keys(awsGroups).forEach(function(k)
     return;
   }
 
-  var title = g.entry.title.replace(/^AWS Iot/, "AWS IoT");
-  var names = /^AWS /.test(title) ? [title.substring(4)] : [];
+  safely(g.entry, function()
+  {
+    var title = g.entry.title.replace(/^AWS Iot/, "AWS IoT");
+    var names = /^AWS /.test(title) ? [title.substring(4)] : [];
 
-  add("aws", "g", title, names, g.entry.style, g.entry.w, g.entry.h,
-    styleValue(g.entry.style, "grIcon") != null ? "grIcon" : null);
+    add("aws", "g", title, names, g.entry.style, g.entry.w, g.entry.h,
+      styleValue(g.entry.style, "grIcon") != null ? "grIcon" : null);
+  });
 });
 
 aws.forEach(function(s)
 {
-  var shape = styleValue(s.style, "shape") || "";
-  var fill = (styleValue(s.style, "fillColor") || "").toUpperCase();
-  var gradient = styleValue(s.style, "gradientColor");
-  var t = splitTitle(s.title);
-
-  if (shape === "mxgraph.aws4.resourceIcon")
+  safely(s, function()
   {
-    // The white tiles and the gradients are the first AWS 4 release.
-    if (fill === "#FFFFFF" || (gradient != null && gradient !== "none"))
+    var shape = styleValue(s.style, "shape") || "";
+    var fill = (styleValue(s.style, "fillColor") || "").toUpperCase();
+    var gradient = styleValue(s.style, "gradientColor");
+    var t = splitTitle(s.title);
+
+    if (shape === "mxgraph.aws4.resourceIcon")
     {
-      return;
-    }
+      // The white tiles and the gradients are the first AWS 4 release.
+      if (fill === "#FFFFFF" || (gradient != null && gradient !== "none"))
+      {
+        return;
+      }
 
-    // Retired services keep their icon in draw.io's palette, not here.
-    if (t.retired)
+      // Retired services keep their icon in draw.io's palette, not here.
+      if (t.retired)
+      {
+        return;
+      }
+
+      var resIcon = styleValue(s.style, "resIcon");
+
+      if (resIcon == null)
+      {
+        throw new Error("No resIcon in the style");
+      }
+
+      add("aws", "s", t.main, t.extra.concat([stencilName(resIcon)]),
+        s.style, s.w, s.h, "resIcon");
+    }
+    else if (/^mxgraph\.aws4\./.test(shape) && !/^mxgraph\.aws4\.(productIcon|group)/.test(shape) &&
+      !t.retired)
     {
-      return;
+      add("aws", "r", t.main, t.extra.concat([stencilName(shape)]),
+        s.style, s.w, s.h, "shape");
     }
-
-    var resIcon = styleValue(s.style, "resIcon");
-
-    add("aws", "s", t.main, t.extra.concat([stencilName(resIcon)]),
-      s.style, s.w, s.h, "resIcon");
-  }
-  else if (/^mxgraph\.aws4\./.test(shape) && !/^mxgraph\.aws4\.(productIcon|group)/.test(shape) &&
-    !t.retired)
-  {
-    add("aws", "r", t.main, t.extra.concat([stencilName(shape)]),
-      s.style, s.w, s.h, "shape");
-  }
+  });
 });
 
 // ── Azure ───────────────────────────────────────────────────────────────────
@@ -426,34 +465,51 @@ var seenAzureImages = {};
 
 index.filter(function(s) { return libraryOf(s) === "azure2"; }).forEach(function(s)
 {
-  var image = styleValue(s.style, "image") || "";
-  var file = image.replace(/^.*\//, "");
-
-  if (seenAzureImages[file])
+  safely(s, function()
   {
-    return;
-  }
+    var image = styleValue(s.style, "image") || "";
+    var file = image.replace(/^.*\//, "");
 
-  seenAzureImages[file] = true;
-  var t = splitTitle(s.title);
-  var fileName = file.replace(/\.svg$/, "").replace(/^Azure_/, "").replace(/_/g, " ");
+    if (seenAzureImages[file])
+    {
+      return;
+    }
 
-  add("azure", "s", t.main, t.extra.concat([fileName]), s.style, s.w, s.h, "image");
+    seenAzureImages[file] = true;
+    var t = splitTitle(s.title);
+    var fileName = file.replace(/\.svg$/, "").replace(/^Azure_/, "").replace(/_/g, " ");
+
+    add("azure", "s", t.main, t.extra.concat([fileName]), s.style, s.w, s.h, "image");
+  });
 });
 
 // ── Google Cloud ────────────────────────────────────────────────────────────
 
 index.filter(function(s) { return libraryOf(s) === "gcp3"; }).forEach(function(s)
 {
-  var shape = styleValue(s.style, "shape");
-  var name = shape.replace(/^mxgraph\.gcp3\./, "");
-  var title = GCP3_TITLES[name] || s.title;
-  var category = (styleValue(s.style, "fillColor") || "").toLowerCase() === "#9aa0a6";
+  safely(s, function()
+  {
+    var shape = styleValue(s.style, "shape");
 
-  add("gcp", category ? "c" : "s", title, [], s.style, s.w, s.h, "shape");
+    if (shape == null)
+    {
+      throw new Error("No shape in the style");
+    }
+
+    var name = shape.replace(/^mxgraph\.gcp3\./, "");
+    var title = GCP3_TITLES[name] || s.title;
+    var category = (styleValue(s.style, "fillColor") || "").toLowerCase() === "#9aa0a6";
+
+    add("gcp", category ? "c" : "s", title, [], s.style, s.w, s.h, "shape");
+  });
 });
 
 index.filter(function(s) { return libraryOf(s) === "gcp2" && /image=data:/.test(s.style); }).forEach(function(s)
+{
+  safely(s, function() { addGcp2(s); });
+});
+
+function addGcp2(s)
 {
   var title = s.title;
 
@@ -483,7 +539,7 @@ index.filter(function(s) { return libraryOf(s) === "gcp2" && /image=data:/.test(
   {
     add("gcp", "s", title, [], s.style, s.w, s.h, "image");
   }
-});
+}
 
 // ── Kubernetes ──────────────────────────────────────────────────────────────
 
@@ -492,7 +548,10 @@ index.filter(function(s)
   return libraryOf(s) === "kubernetes" && styleValue(s.style, "shape") === "mxgraph.kubernetes.icon2";
 }).forEach(function(s)
 {
-  add("k8s", "r", s.title, [], s.style, s.w, s.h, "prIcon");
+  safely(s, function()
+  {
+    add("k8s", "r", s.title, [], s.style, s.w, s.h, "prIcon");
+  });
 });
 
 // ── Output ──────────────────────────────────────────────────────────────────
@@ -526,3 +585,8 @@ icons.forEach(function(icon)
 console.log("Wrote " + OUT + ": " + icons.length + " icons " + JSON.stringify(counts) + ", " +
   templates.length + " templates, table " + Math.round(tableBytes / 1024) + " KB, data " +
   Math.round(dataBytes / 1024) + " KB");
+
+if (skipped.length > 0)
+{
+  console.warn("Skipped " + skipped.length + " entries the generator can't read:\n  " + skipped.join("\n  "));
+}
