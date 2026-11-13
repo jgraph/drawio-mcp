@@ -6144,20 +6144,61 @@ var viewTransform = { scale: 1, tx: 0, ty: 0 };
 var viewTransformSvg = null;
 
 /**
+ * The box of a vertex's label in diagram units when the label is drawn
+ * outside the shape (verticalLabelPosition / labelPosition), or null: also
+ * while the cell has no rendered label yet. x and y are the cell's absolute
+ * position.
+ */
+function outsideLabelBox(model, cell, x, y)
+{
+  if (streamGraph == null || streamGraph.getModel() !== model || !model.isVertex(cell))
+  {
+    return null;
+  }
+
+  var state = streamGraph.view.getState(cell);
+
+  if (state == null || state.text == null || state.text.boundingBox == null || state.style == null)
+  {
+    return null;
+  }
+
+  var vertical = mxUtils.getValue(state.style, 'verticalLabelPosition', 'middle');
+  var horizontal = mxUtils.getValue(state.style, 'labelPosition', 'center');
+
+  if (vertical == 'middle' && horizontal == 'center')
+  {
+    return null;
+  }
+
+  var bb = state.text.boundingBox;
+  var sc = streamGraph.view.scale || 1;
+
+  if (!(bb.width > 0) || !(bb.height > 0) || !isFinite(bb.x) || !isFinite(bb.y))
+  {
+    return null;
+  }
+
+  return { x: x + (bb.x - state.x) / sc, y: y + (bb.y - state.y) / sc, w: bb.width / sc, h: bb.height / sc };
+}
+
+/**
  * Compute the bbox of cells (in model-space, with parent offsets) from
- * an array of cell IDs. Returns null when no usable geometry was found.
+ * an array of cell IDs: the shapes, the labels drawn outside of them and the
+ * bends of the edges. Returns null when no usable geometry was found.
  */
 function computeCellsBBox(model, ids)
 {
   var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   var any = false;
+  var bends = [];
 
   for (var i = 0; i < ids.length; i++)
   {
     var cell = model.getCell(ids[i]);
     if (cell == null || !cell.visible) continue;
     var geo = cell.geometry;
-    if (geo == null || geo.relative) continue;
+    if (geo == null) continue;
 
     var ox = 0, oy = 0;
     var p = model.getParent(cell);
@@ -6173,6 +6214,26 @@ function computeCellsBBox(model, ids)
       p = model.getParent(p);
     }
 
+    // The bends of an edge: a line that runs around the shapes is part of
+    // the diagram too, and a fit by the shapes alone cuts it off.
+    if (model.isEdge(cell))
+    {
+      for (var j = 0; geo.points != null && j < geo.points.length; j++)
+      {
+        var wx = geo.points[j].x + ox;
+        var wy = geo.points[j].y + oy;
+
+        if (isFinite(wx) && isFinite(wy))
+        {
+          bends.push({ x: wx, y: wy });
+        }
+      }
+
+      continue;
+    }
+
+    if (geo.relative) continue;
+
     var x1 = geo.x + ox;
     var y1 = geo.y + oy;
     var x2 = x1 + (geo.width || 0);
@@ -6183,9 +6244,30 @@ function computeCellsBBox(model, ids)
     if (x2 > maxX) maxX = x2;
     if (y2 > maxY) maxY = y2;
     any = true;
+
+    // A label outside its shape (an icon's name below it) belongs to the
+    // shape: without it the fit cuts the names of the bottom row off.
+    var lb = outsideLabelBox(model, cell, x1, y1);
+
+    if (lb != null)
+    {
+      if (lb.x < minX) minX = lb.x;
+      if (lb.y < minY) minY = lb.y;
+      if (lb.x + lb.w > maxX) maxX = lb.x + lb.w;
+      if (lb.y + lb.h > maxY) maxY = lb.y + lb.h;
+    }
   }
 
   if (!any) return null;
+
+  for (var k = 0; k < bends.length; k++)
+  {
+    if (bends[k].x < minX) minX = bends[k].x;
+    if (bends[k].y < minY) minY = bends[k].y;
+    if (bends[k].x > maxX) maxX = bends[k].x;
+    if (bends[k].y > maxY) maxY = bends[k].y;
+  }
+
   return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
 }
 
