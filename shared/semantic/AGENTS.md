@@ -48,7 +48,7 @@ These four types have no layout module of their own. `boxes.js` writes what a mo
 - **Shown whole**: a page that the chat would cut off at the bottom is made wider until the viewer shows it whole (`canWiden`, down to a scale of `WHOLE_FROM`, 0.5: the frame has the room beside a tall diagram), and it is scored with that scale. A page without lanes is turned (rows as columns) only when the chat then shows a fifth more (`TURN_MARGIN_PAGE`).
 - **Edges elsewhere** (a grid per group, tiers, flow): for every right-angle edge a handful of candidate routes (straight, one bend, two bends, around the outside) is scored by bends, length, shapes in the way, crossings with routes already chosen and the sides already in use; the winner is written as exit and entry points and waypoints.
 
-What the measurements in `bench/` say so far (November 2026, Sonnet and Opus, 12 prompts per type, half held out) is in **Results** below. In short: the description is 3 to 9 times faster to write than placed XML, the layouts the pass finds on its own lose against the ones a model places by hand, and the ones where the model names the cells win a quarter of the comparisons, with one grid for the page four in ten of Sonnet's on the held-out prompts and still a sixth of Opus's. Nothing is offered to models.
+What the measurements in `bench/` say so far (November 2026, Sonnet and Opus, 12 prompts per type, half held out) is in **Results** below. In short: the description is 3 to 9 times faster to write than placed XML, the layouts the pass finds on its own lose against the ones a model places by hand, and the ones where the model names the cells of one grid for the page, with the lines planned and given room, win 58 % of Sonnet's comparisons on the held-out prompts and a quarter of Opus's. No type passes the gate yet: swimlanes and flowcharts from Sonnet have the share (0.72) but one prompt below the floor. Nothing is offered to models.
 
 ## Results
 
@@ -93,6 +93,32 @@ Same day, same prompts and the same `today` runs, one run per prompt, first diag
 - **The router is not the whole of it:** with the viewer's own router on the same placements (`render.mjs --routing viewer`) the dev prompts gave 5 of 24 instead of 6. The viewer reroutes most diagrams anyway: 21 of the 24 Sonnet placed as XML, because a line ran through a shape or a label, and 8 of the engine's 24. What a model does when it writes coordinates and doesn't when it names cells is leave room for the lines.
 - **Cut off loses against small:** a lane diagram turned into columns and cut off before its last steps lost both orders with scores of 7 to 4; left in rows at a third of its size it lost with 7 to 6 and 8 to 7. So the pass turns lanes only when the result is shown whole. The judge sees one screenshot and can't drag the diagram, which a user can.
 - **The frame is smaller than assumed:** the viewer's card leaves 736 × 664 px for a diagram, not 752 × 752, so diagrams the pass took to fit were cut off.
+
+### Third measurement: room for lines, and the viewer's router
+
+13 November 2026. The lines of a page grid are planned before the grid has its sizes and get the room they need (`shared/grid-lines.js`), a tall page is made wide enough to be shown whole, and the viewer's fit includes the labels below icons and the bends of the lines. Three runs per held-out prompt, model and variant (two new ones each for `today` and the descriptions; the tool's description and schema didn't change, so the first is the second measurement's), all rendered again, `today` too because of the viewer's fit; 36 judgements per type and model, both orders, the same judge.
+
+| Judge's share on the held-out prompts | Sonnet, architecture | Sonnet, swimlane | Opus, architecture | Opus, swimlane |
+|---|---|---|---|---|
+| Second measurement: one grid, the candidate routes (one run) | 0.33 | 0.50 | 0.17 | 0.17 |
+| … with libavoid in the viewer instead (one run) | 0.33 | 0.33 | 0.17 | 0.17 |
+| Room for lines, routed by libavoid in the viewer (three runs) | 0.11 | 0.50 | 0.06 | 0.31 |
+| Room for lines, the engine's lines (three runs) | 0.44 | 0.72 | 0.11 | 0.39 |
+| … judgements won | 16 of 36 | 26 of 36 | 4 of 36 | 14 of 36 |
+| … the first run alone | 0.50 | 0.75 | 0.08 | 0.17 |
+| … the prompt with the lowest share | 0 | 0.17 | 0 | 0 |
+| Passes the gate (0.5, no prompt below 0.3) | no | no | no | no |
+| Layout-check findings per diagram, `today` / engine's lines / libavoid | 3.0 / 2.6 / 6.6 | 1.4 / 0.3 / 0.8 | 2.4 / 2.5 / 5.9 | 1.0 / 0.0 / 2.1 |
+| Diagrams of 18 the viewer rerouted, `today` / engine's lines | 13 / 4 | 15 / 0 | 7 / 5 | 2 / 0 |
+| Seconds to the diagram, `today` / description (median of 18) | 56 / 10 | 63 / 20 | 303 / 47 | 339 / 110 |
+
+- **Sonnet: 42 of 72 judgements (0.58, mean scores 6.6 against 6.2), after 10 of 24.** On the dev prompts, one run: 13 of 24 after 6 of 24. The lines were what it lost on, and planning them with their room is what changed.
+- **No type passes the gate.** Swimlanes and flowcharts from Sonnet have the share, 0.72, and five of six prompts between 0.5 and 1, but the large refund flowchart won 1 of 6. On the first run alone the type passed (0.75, no prompt below 0.5): one run per prompt says too little, which is why the rule is read on three. Architecture from Sonnet is at 0.44: three prompts won two thirds or more of their judgements, the branch network a third, and the two large ones (about 35 shapes) none of 12.
+- **Opus: 18 of 72 (0.25), after 4 of 24.** Its own XML scores 7.2 on average against 6.2, and costs it a median of five to six minutes against one to two.
+- **libavoid in the viewer is no substitute for planning the lines.** On the same placements, room included (`render.mjs --routing viewer`), Sonnet's diagrams won 22 of 72 and Opus's 13 of 72, less than the engine's lines in every column. It finds each line a short way around the shapes but knows nothing of the tracks that were kept free, of a frame's border and title or of where a label has room, and the layout check finds two to three times as much in its results. Nothing has to be built to use it: the viewer loads it already (pure JavaScript, 572 KB and 52 KB from draw.io's CDN with the viewer, no WASM and no request of its own, LGPL-2.1-or-later in a file of its own), and it stays what the viewer runs on XML a model placed with a line through a shape.
+- **What still loses** (the judge's reasons, read only after the layout was final): the large architecture diagrams, with long lines that cross, small text, and one cut off at the bottom; descriptions that leave out what the XML of the same model has (Kafka connected to one service instead of six, three steps of the refund flowchart), which is content and not layout; a branch that runs around the outside to a step the model put far away.
+- **Tried and dropped:** letting the steps of a lane diagram share a column where no lane has a step in both. On the widest dev diagram it took 3798 px to 3124 px, still a strip at a quarter of its size.
+- **Not done yet:** a change that keeps the cells it doesn't touch in place, the pass for XML without positions in the servers, narrower decisions.
 
 ## Tests
 
