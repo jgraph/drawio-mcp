@@ -162,3 +162,53 @@ test("DRAWIO_BROWSER=off only returns the link", { skip: process.platform === "w
     await off.client.close();
   }
 });
+
+// Every open_drawio_* result ends by asking for a short reply: the user sees
+// the diagram in draw.io, and a summary of it only delays the answer.
+test("every open_drawio_* result ends with the short-answer note", { skip: process.platform === "win32" }, async function()
+{
+  const calls =
+  [
+    ["open_drawio_xml", { content: xml }],
+    ["open_drawio_xml", { content: xml, postLayout: "elk", routing: "libavoid" }],
+    ["open_drawio_mermaid", { content: "sequenceDiagram\n  A->>B: hi", postLayout: "elk" }],
+    ["open_drawio_csv", { content: "## Org chart\n# label: %name%\nname,refs\nAda,\nBob,Ada" }],
+  ];
+
+  for (const [name, args] of calls)
+  {
+    const result = await client.callTool({ name: name, arguments: args });
+    const text = result.content[0].text;
+    const last = text.substring(text.lastIndexOf("\n\n") + 2);
+
+    assert.equal(result.isError, undefined, text);
+    assert.equal(result.content.length, 1, name);
+    assert.match(last, /^The user sees the diagram in draw\.io, so don't describe or list what it shows\./, name);
+    assert.match(last, /at most two sentences besides the URL unless the user asked for an explanation/, name);
+    assert.ok(last.length < 300, name + ": " + last.length);
+  }
+});
+
+test("with DRAWIO_BROWSER=off the note comes after the request to give the link", { skip: process.platform === "win32" }, async function()
+{
+  const off = await startServer({ DRAWIO_BROWSER: "off" });
+
+  try
+  {
+    const result = await off.client.callTool({ name: "open_drawio_mermaid", arguments: { content: "flowchart TD\n  A --> B" } });
+    const text = result.content[0].text;
+
+    const last = text.substring(text.lastIndexOf("\n\n") + 2);
+
+    assert.ok(text.indexOf("give the user this URL") < text.indexOf("at most two sentences"), text);
+    // No browser showed anything: the note must not say the user sees it.
+    assert.doesNotMatch(last, /sees/);
+    assert.match(last, /^The user opens the diagram in draw\.io through this URL, so don't describe or list what it shows\./);
+    assert.match(last, /at most two sentences besides the URL unless the user asked for an explanation/);
+    assert.ok(last.length < 300, String(last.length));
+  }
+  finally
+  {
+    await off.client.close();
+  }
+});

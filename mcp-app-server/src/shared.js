@@ -10077,6 +10077,64 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout, l
   content.push({ type: "text", text: note });
 }
 
+/**
+ * The note that ends every create_diagram result: the user sees the diagram
+ * itself, so the reply after it can be short.
+ *
+ * Without it the model summarized the diagram the user was looking at:
+ * with a client that renders the app, the median answer after the diagram
+ * shrank from 408 to 115 output tokens with Sonnet and from 605 to 97 with
+ * Opus, and ended 1.3 and 4.3 s sooner (`claude -p`, November 2026, see
+ * AGENTS.md). It stays the last block, after the link and any warnings,
+ * and leaves room for what the user asked for, for redrawing, and for the
+ * reference's offer of a next step. Only where the client is known to
+ * render the app does it say that the user sees the diagram in the chat;
+ * elsewhere the link may be how they see it (appendOpenUrl), and the reply
+ * is short besides that link.
+ *
+ * A "hidden" client never shows the diagram, and appendOpenUrl has just
+ * told the model so. There the note claims nothing about what the user
+ * sees and doesn't make the link optional: in ChatGPT Work the model
+ * already took a conditional note as leave to drop the link.
+ *
+ * Result text only: the tool definitions stay as they are, since a changed
+ * definition means a new review of the ChatGPT app.
+ *
+ * @param {Array} content - the tool result's content blocks, appended to
+ * @param {boolean} rendersInline - whether the client renders the app
+ * @param {boolean} hidden - whether the client is known not to show it
+ */
+function appendAnswerNote(content, rendersInline, hidden)
+{
+  var note;
+
+  if (rendersInline)
+  {
+    note = "The user already sees this diagram in the chat, so don't " +
+      "describe or list what it shows. Once you're done drawing, reply in " +
+      "at most two sentences unless the user asked for an explanation: for " +
+      "example what you assumed or changed, or an offer of a next step.";
+  }
+  else if (hidden)
+  {
+    note = "Don't describe or list what the diagram shows: the user will " +
+      "look at it themselves. Once you're done drawing, reply in at most " +
+      "two sentences besides the link unless the user asked for an " +
+      "explanation: for example what you assumed or changed, or an offer " +
+      "of a next step.";
+  }
+  else
+  {
+    note = "The user sees the diagram itself, inline or through the link, " +
+      "so don't describe or list what it shows. Once you're done drawing, " +
+      "reply in at most two sentences besides the link, if you give it, " +
+      "unless the user asked for an explanation: for example what you " +
+      "assumed or changed, or an offer of a next step.";
+  }
+
+  content.push({ type: "text", text: note });
+}
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 // The CSP of the app resource. icons.diagrams.net: remote icon images
@@ -10326,8 +10384,12 @@ export function createServer(html, options = {})
           mermaidContent.push({ type: "text", text: swapNote });
         }
 
-        appendOpenUrl(mermaidContent, await rendersInline(), hiddenUi(), mermaid,
+        var mermaidInline = await rendersInline();
+        var mermaidHidden = hiddenUi();
+
+        appendOpenUrl(mermaidContent, mermaidInline, mermaidHidden, mermaid,
           "mermaid", postLayout, linkBase);
+        appendAnswerNote(mermaidContent, mermaidInline, mermaidHidden);
 
         return { content: mermaidContent };
       }
@@ -10422,8 +10484,12 @@ export function createServer(html, options = {})
       }
 
       // The absolutized XML, so image URLs resolve in the editor too.
-      appendOpenUrl(content, await rendersInline(), hiddenUi(), xmlPayload.xml,
+      var inline = await rendersInline();
+      var hidden = hiddenUi();
+
+      appendOpenUrl(content, inline, hidden, xmlPayload.xml,
         "xml", postLayout, linkBase);
+      appendAnswerNote(content, inline, hidden);
 
       return { content: content };
     }
