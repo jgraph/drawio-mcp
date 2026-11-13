@@ -17,6 +17,7 @@ import { snapWaypoints } from "../../shared/edge-waypoints.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import { createIconResolver } from "../../shared/icon-resolver.js";
 import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
+import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -689,6 +690,12 @@ function expandIcons(xml)
     return xml;
   }
 }
+
+// Table rows (rows="PK id|…") and role styles (role=step, …) expanded into
+// draw.io cells and styles, as the server does (shared/diagram-shorthand.js),
+// so that the diagram draws the same from the raw tool input while it streams.
+${createDiagramShorthand.toString()}
+var expandDiagramShorthand = createDiagramShorthand().expand;
 
 // --- XML healing for partial/streaming XML ---
 
@@ -6936,7 +6943,7 @@ var lastFinalizedKey = null;
 function finalizeStreamingView(xml, opts)
 {
   opts = opts || {};
-  xml = absolutizeImageUrls(xml);
+  xml = expandDiagramShorthand(absolutizeImageUrls(xml)).xml;
 
   var key = (xml || '') + '|' + (opts.postLayout || '') + '|' + (opts.routing || '') + '|' + (opts.replaceMode ? 'r' : '') +
     '|' + (opts.autoRoute ? 'a' : '');
@@ -8644,7 +8651,7 @@ app.ontoolinputpartial = function(params)
     return;
   }
 
-  healedXml = absolutizeImageUrls(expandIcons(healedXml));
+  healedXml = expandDiagramShorthand(absolutizeImageUrls(expandIcons(healedXml)), { partial: true }).xml;
 
   // Update loading text during streaming
   if (loadingEl.style.display !== 'none')
@@ -10478,7 +10485,10 @@ export function createServer(html, options = {})
       var repaired = repairDiagramXml(normalizedXml);
       var leaked = leakedArguments(repaired.trailing, XML_OPTION_VALUES);
 
-      normalizedXml = repaired.xml;
+      // Table rows (rows="PK id|FK book_id|…") and role styles (role=step,
+      // decision, …) into the cells and calm-theme styles draw.io draws,
+      // before the passes below see the diagram (shared/diagram-shorthand.js).
+      normalizedXml = expandDiagramShorthand(repaired.xml).xml;
       postLayout = postLayout || leaked.postLayout;
       direction = direction || leaked.direction;
       routing = routing || leaked.routing;
