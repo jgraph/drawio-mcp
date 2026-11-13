@@ -17,12 +17,14 @@ const HINTS =
   "top; nodes sharing a row without col stand side by side as written. Use them when you know where things belong " +
   "(tiers, a database under its service); otherwise the server arranges by the connections.";
 
-// The firm version: the model places everything on a coarse grid and the
-// server does the rest. Measured against the optional hints in bench/.
+// The firm version: the model places every node on one coarse grid for the
+// whole diagram, as it does when it writes XML, and the server sizes the
+// cells, draws the frames and routes the lines. Measured against the
+// optional hints in bench/.
 const HINTS_ASKED =
-  "Placement: give every node and group row and col (1, 2, …), its cell in the grid of its group: rows are tiers " +
-  "or steps from the top, a branch goes in the next col, a database under its service; with lanes, row counts " +
-  "through the whole process. At most 5 cols and 6 rows; the server sizes the cells and routes the lines.";
+  "Placement: give every node row and col (1, 2, …), its cell in one grid for the whole diagram, as if you placed " +
+  "the shapes yourself; about 5 cols × 6 rows show well. Keep a group's nodes in a block of cells of their own: " +
+  "the server draws the frame around it. A lane is a row (or a column) of that grid, col (or row) the step.";
 
 const TYPES =
 {
@@ -50,7 +52,8 @@ const DESCRIBED_BY = { network: "architecture", swimlane: "flowchart" };
 /**
  * @param {string[]} types - the types to offer, in this order
  * @param {{hints?: boolean|"ask"}} [options] - hints: false leaves out the
- *   placement hints, "ask" asks for a cell for every node and group
+ *   placement hints, "ask" asks for a cell for every node, in one grid for
+ *   the whole diagram
  * @returns {string}
  */
 export function describeTool(types, options)
@@ -84,7 +87,7 @@ export function describeTool(types, options)
  * what each one means.
  *
  * @param {string[]} types - the types to offer
- * @param {{hints?: boolean}} [options]
+ * @param {{hints?: boolean|"ask"}} [options]
  * @returns {object}
  */
 export function describeSchema(types, options)
@@ -137,11 +140,26 @@ export function describeSchema(types, options)
   edge.kind = { type: "string", description: [has("er") ? "er: one-to-many, one-to-one, many-to-many" : null,
     has("architecture") ? "architecture: async for events and messages" : null].filter(Boolean).join("; ") };
 
-  if (placed && hints)
+  if (placed && hints && options != null && options.hints === "ask")
   {
-    const asked = options != null && options.hints === "ask";
-    const row = { type: "integer", description: (asked ? "Placement" : "Optional placement") + ": the row in the grid of its group (1 is the top)" };
-    const col = { type: "integer", description: (asked ? "Placement" : "Optional placement") + ": the column in that grid (1 is the left)" };
+    const lanes = has("flowchart");
+
+    node.row = { type: "integer", description: "The row of the node's cell (1 is the top) in one grid for the whole diagram, " +
+      "not per group. More than 6 rows are cut off in the chat: put things side by side instead" +
+      (lanes ? ". With lanes as rows, every lane has a row to itself (two when its steps branch)" : "") };
+    node.col = { type: "integer", description: "The column of the node's cell (1 is the left) in that grid; more than 5 or 6 " +
+      "columns get small. The nodes of a group form a block of cells with no other node in it, nested groups a block in " +
+      "their parent's" + (lanes ? ". With lanes as rows, col is the step of the flow over all lanes: a step that hands " +
+        "over to another lane can keep the col of the step before it, straight below or above" : "") };
+  }
+  else if (placed && hints)
+  {
+    const lanes = has("flowchart");
+    const row = { type: "integer", description: "Optional placement: the row in the grid of its group (1 is the top)" +
+      (lanes ? ". In a lane: the line within the lane, 1 unless two of its steps share a col" : "") };
+    const col = { type: "integer", description: "Optional placement: the column in that grid (1 is the left)" +
+      (lanes ? ". In a lane: the step along the flow, counted over all lanes, so the next step takes the next col " +
+        "whatever its lane, and both branches of a decision the col after it" : "") };
 
     node.row = row;
     node.col = col;

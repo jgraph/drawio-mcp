@@ -13,8 +13,12 @@
 // The diagrams of edit turns (<tag>-edit-diagram.json, run.mjs --edits) are
 // rendered the same way, as <tag>-edit-inline.png and so on.
 //
+// --routing viewer leaves the edges of semantic descriptions to the viewer
+// (create_diagram's routing: "libavoid") instead of the engine's own router,
+// to compare the two on the same placements.
+//
 // usage: node render.mjs --chrome /path/to/chrome [--out DIR] [--match er]
-//          [--force]
+//          [--force] [--routing viewer]
 
 import fs from "node:fs";
 import os from "node:os";
@@ -27,6 +31,7 @@ const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
 const chrome = args.chrome || process.env.CHROME_PATH;
 const match = args.match ? new RegExp(args.match) : null;
+const viewerRouting = args.routing === "viewer";
 const puppeteer = require("puppeteer-core");
 
 if (!chrome)
@@ -110,8 +115,10 @@ async function render(f)
 
   if (d.tool === "create_semantic_diagram")
   {
-    // as in the run: without the placement hints when the variant had none
-    const r = await semanticToXml(d.arguments, { elk: elk, hints: d.hints !== false });
+    // as in the run: without the placement hints when the variant had none,
+    // as one grid for the page when it asked for them
+    const r = await semanticToXml(d.arguments, { elk: elk, hints: d.hints === "ask" ? "ask" : d.hints !== false,
+      route: !viewerRouting });
 
     if (r.xml == null)
     {
@@ -119,7 +126,7 @@ async function render(f)
       return;
     }
 
-    input = { xml: r.xml };
+    input = viewerRouting ? { xml: r.xml, routing: "libavoid" } : { xml: r.xml };
     engine = { warnings: r.warnings, stats: r.stats };
   }
 

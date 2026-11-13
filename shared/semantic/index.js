@@ -40,10 +40,12 @@ function now()
  * Turns a semantic description into draw.io XML.
  *
  * @param {object|string} input - the description (FORMAT.md) or its JSON text
- * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean}} [options] -
+ * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean|"ask"}} [options] -
  *   elk: an optional ELK instance (`new ELK()` from elkjs, or the global ELK
  *   in the browser), used for large schemas; hints: false ignores the
- *   placement hints (row, col) of the description
+ *   placement hints (row, col) of the description, "ask" reads them as the
+ *   cells of one grid for the whole diagram (what the description asks for
+ *   with describeTool's "ask"), anything else as cells in each group's grid
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
  *   stats: object|null}>}
  */
@@ -78,7 +80,8 @@ export async function semanticToXml(input, options)
     return { xml: null, error: "No layout engine (ELK) is available here.", warnings: n.warnings, stats: null };
   }
 
-  const r = await entry.layout(d, { elk: opts.elk, hints: opts.hints !== false, route: opts.route !== false });
+  const r = await entry.layout(d, { elk: opts.elk, hints: opts.hints === "ask" ? "ask" : opts.hints !== false,
+    route: opts.route !== false });
   const xml = (r.xml != null) ? r.xml : writeModel(r.cells);
   const stats = Object.assign({ type: d.type, width: Math.round(r.width), height: Math.round(r.height),
     ms: Math.round((now() - t0) * 10) / 10 }, r.stats);

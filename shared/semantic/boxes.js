@@ -83,6 +83,34 @@ const ACTOR_STYLE = "shape=umlActor;verticalLabelPosition=bottom;verticalAlign=t
 
 const PEOPLE = /\b(users?|customers?|admins?|administrators?|people|person|staff|employees?|visitors?|clients?|operators?|developers?|engineers?|teams?|shoppers?|members?|agents?|analysts?|managers?|actors?|guests?|buyers?|sellers?|drivers?|students?|patients?)\b/i;
 
+// The provider's own icon for people, where its set has one: beside official
+// service icons a stick figure looks borrowed from another diagram.
+const PEOPLE_ICONS = { aws: "aws users", azure: "azure users", kubernetes: "kubernetes user" };
+
+// The provider most of the diagram's icons come from, or "".
+function mainProvider(nodes)
+{
+  const count = new Map();
+  let best = "";
+
+  for (const n of nodes)
+  {
+    const provider = String(n.icon || "").trim().split(/\s+/)[0].toLowerCase();
+
+    if (provider !== "" && icons().resolve(n.icon) != null)
+    {
+      count.set(provider, (count.get(provider) || 0) + 1);
+
+      if (best === "" || count.get(provider) > count.get(best))
+      {
+        best = provider;
+      }
+    }
+  }
+
+  return best;
+}
+
 // Lanes take light tints in turn, so that neighbours differ.
 const LANE_TINTS = ["#F7F8FA", "#F4F8FF", "#F6FBF7", "#FFFBF2", "#F9F6FF", "#FFF7F5"];
 
@@ -187,6 +215,7 @@ export function compactXml(d, kind)
   const shapes = d.nodes.length + d.groups.length;
   const font = fontSizes(shapes);
   const cells = [];
+  const peopleIcon = kind.flow ? null : (PEOPLE_ICONS[mainProvider(d.nodes)] || null);
 
   // Groups, parents first; a group that names itself as an ancestor goes to
   // the top level.
@@ -295,7 +324,7 @@ export function compactXml(d, kind)
       }
       else if (role === "actor")
       {
-        style = ACTOR_STYLE;
+        style = (peopleIcon != null && icons().resolve(peopleIcon) != null) ? "icon=" + peopleIcon + ";" : ACTOR_STYLE;
         wrapAt = 120;
       }
       else
@@ -359,7 +388,7 @@ export function compactXml(d, kind)
  * expanded, the edges filed, every cell on the grid, the edges routed.
  *
  * @param {string} xml
- * @param {{direction?: string, mode?: string, hints?: boolean}} [options]
+ * @param {{direction?: string, mode?: string, hints?: boolean|"page"}} [options]
  * @returns {{xml: string, stats: object}}
  */
 export function placeCompactXml(xml, options)
@@ -375,10 +404,10 @@ function layout(d, ctx, kind)
 {
   const compact = compactXml(d, kind);
   const r = placeCompactXml(compact.xml, { direction: d.direction || null, mode: kind.flow ? "flow" : "tiers",
-    hints: ctx.hints !== false, route: ctx.route !== false });
+    hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false });
 
   return { xml: r.xml, width: r.stats.width || 0, height: r.stats.height || 0, warnings: compact.warnings,
-    stats: { shapes: compact.shapes, edges: d.edges.length, hinted: r.stats.hinted || 0, crossings: r.stats.crossings || 0,
+    stats: { shapes: compact.shapes, edges: d.edges.length, hinted: r.stats.hinted || 0, grid: r.stats.grid || null, crossings: r.stats.crossings || 0,
       through: r.stats.through || 0, compactChars: compact.xml.length } };
 }
 

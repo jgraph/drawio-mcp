@@ -275,12 +275,24 @@ function summarizeTurn(events, start)
   };
 }
 
+// How the variant offers the placement hints, as render.mjs has to read
+// them again: not at all, asked for (one grid for the page) or optional.
+function hintsOf(variant)
+{
+  if (variant === "semantic-auto" || process.env.SEMANTIC_HINTS === "off")
+  {
+    return false;
+  }
+
+  return (variant === "semantic-rows" || process.env.SEMANTIC_HINTS === "ask") ? "ask" : true;
+}
+
 function saveDiagram(file, variant, call)
 {
   if (call)
   {
     fs.writeFileSync(path.join(out, file), JSON.stringify({ tool: shortName(call.name), arguments: call.input,
-      hints: variant !== "semantic-auto" && process.env.SEMANTIC_HINTS !== "off" }, null, 1));
+      hints: hintsOf(variant) }, null, 1));
   }
 }
 

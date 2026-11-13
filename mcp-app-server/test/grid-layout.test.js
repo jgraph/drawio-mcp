@@ -303,7 +303,7 @@ test("an architecture is drawn with official icons, nested frames and dashed eve
   assert.match(b.get("vpc").style, /mxgraph\.aws4\.group/);
   assert.equal(b.get("api").parent, "private");
   assert.equal(b.get("private").parent, "vpc");
-  assert.match(b.get("users").style, /umlActor/);
+  assert.match(b.get("users").style, /mxgraph\.aws4\.users/, "people take the provider's icon");
   assert.match(/<mxCell id="api-queue"[^>]*style="([^"]*)"/.exec(r.xml)[1], /dashed=1/);
   assert.doesNotMatch(r.xml, /\b(icon|role|row|col)=/, "no shorthand is left");
   assert.doesNotMatch(r.xml, /<!--/);
@@ -325,6 +325,11 @@ test("an icon that doesn't exist becomes a box with a warning, and a device is n
 
   assert.doesNotMatch(b.get("pc").style, /umlActor/);
   assert.ok(r.warnings.some(function(w) { return /hyperswitch/.test(w); }));
+
+  const people = await semanticToXml({ type: "architecture", nodes: [{ id: "u", label: "Customers", kind: "user" },
+    { id: "s", label: "Shop", kind: "service" }], edges: [{ from: "u", to: "s" }] });
+
+  assert.match(boxesOf(people.xml).get("u").style, /umlActor/, "people without a provider's icons are a figure");
   assert.match(/<mxCell id="sw-pc"[^>]*style="([^"]*)"/.exec(r.xml)[1], /endArrow=none/, "network links have no arrowheads");
 });
 
@@ -356,6 +361,220 @@ test("placement hints are read from row and col, and ignored when they are switc
   assert.equal(normalizeSpec(d, { hints: false }).diagram.nodes[0].row, null);
 });
 
+// One grid for the whole diagram ("ask"): the model gives every node its
+// cell as it would place the shape itself, and the pass draws the frames.
+const PAGE =
+{
+  type: "architecture",
+  nodes: [
+    { id: "users", label: "Users", kind: "user", row: 1, col: 2 },
+    { id: "cdn", label: "CDN", icon: "aws cloudfront", row: 2, col: 2 },
+    { id: "web1", label: "Web 1", icon: "aws ec2", group: "pub", row: 3, col: 1 },
+    { id: "web2", label: "Web 2", icon: "aws ec2", group: "pub", row: 3, col: 2 },
+    { id: "app", label: "App", icon: "aws lambda", group: "priv", row: 4, col: 1 },
+    { id: "db", label: "Orders", icon: "aws rds", group: "priv", row: 4, col: 2 },
+    { id: "mail", label: "Mail provider", kind: "external", row: 4, col: 3 }],
+  groups: [{ id: "vpc", label: "VPC", icon: "aws vpc" }, { id: "pub", label: "Public subnet", icon: "aws public subnet", parent: "vpc" },
+    { id: "priv", label: "Private subnet", icon: "aws private subnet", parent: "vpc" }],
+  edges: [{ from: "users", to: "cdn" }, { from: "cdn", to: "web1" }, { from: "cdn", to: "web2" }, { from: "web1", to: "app" },
+    { from: "app", to: "db", label: "SQL" }, { from: "app", to: "mail", label: "SMTP" }]
+};
+
+const PAGE_LANES =
+{
+  type: "flowchart",
+  groups: [{ id: "cust", label: "Customer" }, { id: "shop", label: "Shop" }, { id: "wh", label: "Warehouse" }],
+  nodes: [
+    { id: "s", label: "Start", kind: "start", group: "cust", row: 1, col: 1 },
+    { id: "order", label: "Place order", group: "cust", row: 1, col: 2 },
+    { id: "check", label: "In stock?", kind: "decision", group: "shop", row: 2, col: 2 },
+    { id: "bill", label: "Send invoice", group: "shop", row: 2, col: 3 },
+    { id: "cancel", label: "Cancel order", kind: "error", group: "shop", row: 3, col: 3 },
+    { id: "pick", label: "Pick and pack", group: "wh", row: 4, col: 3 },
+    { id: "ship", label: "Ship", group: "wh", row: 4, col: 4 },
+    { id: "e", label: "Done", kind: "end", group: "cust", row: 1, col: 4 }],
+  edges: [{ from: "s", to: "order" }, { from: "order", to: "check" }, { from: "check", to: "bill", label: "Yes" },
+    { from: "check", to: "cancel", label: "No" }, { from: "bill", to: "pick" }, { from: "pick", to: "ship" }, { from: "ship", to: "e" }]
+};
+
+function inside(inner, outer)
+{
+  return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h;
+}
+
+function apart(a, b)
+{
+  return a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+}
+
+test("asked hints are the cells of one grid for the page, with the frames drawn around their members", async function()
+{
+  const r = await semanticToXml(PAGE, { hints: "ask" });
+  const b = boxesOf(r.xml);
+  const at = function(id) { return absolute(b, id); };
+
+  assert.ok(!r.error, r.error);
+  assert.equal(r.stats.grid, "page");
+  assert.equal(r.stats.through, 0);
+
+  // rows and columns hold over the whole page, across frames
+  assert.equal(at("web1").y, at("web2").y);
+  assert.equal(at("app").y, at("db").y);
+  assert.equal(at("web1").x, at("app").x, "one column through both subnets");
+  assert.equal(at("cdn").x, at("web2").x, "and through the frame's border");
+  assert.equal(at("web2").x, at("db").x);
+  assert.ok(at("users").y < at("cdn").y && at("cdn").y < at("web1").y && at("web1").y < at("app").y);
+  assert.ok(at("db").x < at("mail").x);
+
+  // frames around their members, nested ones inside their parent, and
+  // nothing else in them
+  assert.ok(inside(at("web1"), at("pub")) && inside(at("web2"), at("pub")));
+  assert.ok(inside(at("app"), at("priv")) && inside(at("db"), at("priv")));
+  assert.ok(inside(at("pub"), at("vpc")) && inside(at("priv"), at("vpc")));
+  assert.ok(apart(at("pub"), at("priv")));
+  assert.ok(apart(at("mail"), at("vpc")) && apart(at("cdn"), at("vpc")));
+  assert.equal(at("pub").w, at("priv").w, "frames over the same columns are as wide as each other");
+  assert.doesNotMatch(r.xml, /\b(row|col)=\d/);
+
+  // the same description every time
+  assert.equal((await semanticToXml(PAGE, { hints: "ask" })).xml, r.xml);
+});
+
+test("a node in the block of a group it isn't in moves out, and a node without a cell falls back to a grid per group", async function()
+{
+  // the mail provider in the corner of the VPC's block: rows 3 to 4, columns 1 to 3
+  const d = JSON.parse(JSON.stringify(PAGE));
+
+  d.nodes.find(function(n) { return n.id === "web2"; }).col = 3;
+  Object.assign(d.nodes.find(function(n) { return n.id === "mail"; }), { row: 3, col: 2 });
+
+  const r = await semanticToXml(d, { hints: "ask" });
+  const b = boxesOf(r.xml);
+  const at = function(id) { return absolute(b, id); };
+
+  assert.ok(!r.error, r.error);
+  assert.equal(r.stats.grid, "page");
+  assert.ok(inside(at("web1"), at("pub")) && inside(at("web2"), at("pub")));
+  assert.ok(apart(at("mail"), at("vpc")), "outside the frame");
+  assert.ok(at("mail").y + at("mail").h <= at("vpc").y, "by the shortest way: above it");
+  assert.equal(at("mail").x + at("mail").w / 2, at("cdn").x + at("cdn").w / 2, "in its column");
+
+  // a node without a cell
+  const open = JSON.parse(JSON.stringify(PAGE));
+
+  delete open.nodes[0].row;
+  assert.equal((await semanticToXml(open, { hints: "ask" })).stats.grid, "group");
+
+  // two nodes of different groups in one cell: one of them is the stranger
+  const shared = JSON.parse(JSON.stringify(PAGE));
+
+  Object.assign(shared.nodes.find(function(n) { return n.id === "app"; }), { row: 3, col: 2 });
+
+  const f = await semanticToXml(shared, { hints: "ask" });
+  const fb = boxesOf(f.xml);
+
+  assert.equal(f.stats.grid, "page");
+  assert.ok(inside(absolute(fb, "app"), absolute(fb, "priv")) && inside(absolute(fb, "web2"), absolute(fb, "pub")));
+  assert.ok(apart(absolute(fb, "pub"), absolute(fb, "priv")));
+  assert.ok(apart(absolute(fb, "app"), absolute(fb, "web2")));
+
+  // without "ask", the cells are those of each group's own grid, as before
+  assert.equal((await semanticToXml(PAGE)).stats.grid, "group");
+});
+
+test("lanes are bands of the page's grid: rows, or columns when the model turns it", async function()
+{
+  const r = await semanticToXml(PAGE_LANES, { hints: "ask" });
+  const b = boxesOf(r.xml);
+  const at = function(id) { return absolute(b, id); };
+
+  assert.ok(!r.error, r.error);
+  assert.equal(r.stats.grid, "page");
+
+  for (const lane of ["cust", "shop", "wh"])
+  {
+    assert.match(b.get(lane).style, /horizontal=0/, "lanes as rows have their title on the left");
+    assert.equal(at(lane).w, at("cust").w);
+    assert.equal(at(lane).x, 0);
+  }
+
+  assert.equal(at("shop").y, at("cust").y + at("cust").h, "the lanes touch");
+  assert.equal(at("wh").y, at("shop").y + at("shop").h);
+  assert.ok(at("shop").h > at("cust").h, "a lane with two rows is higher");
+  assert.equal(at("order").x + at("order").w / 2, at("check").x + at("check").w / 2, "a step handed over stays in its column");
+  assert.equal(at("bill").x, at("cancel").x);
+  assert.equal(at("bill").x, at("pick").x);
+  assert.equal(at("ship").x, at("e").x);
+  assert.ok(inside(at("check"), at("shop")) && inside(at("cancel"), at("shop")) && inside(at("pick"), at("wh")));
+
+  // turned: the same cells with rows and columns swapped
+  const turned = JSON.parse(JSON.stringify(PAGE_LANES));
+
+  turned.nodes.forEach(function(n)
+  {
+    const row = n.row;
+
+    n.row = n.col;
+    n.col = row;
+  });
+
+  const t = await semanticToXml(turned, { hints: "ask" });
+  const tb = boxesOf(t.xml);
+  const tat = function(id) { return absolute(tb, id); };
+
+  assert.equal(t.stats.grid, "page");
+
+  for (const lane of ["cust", "shop", "wh"])
+  {
+    assert.doesNotMatch(tb.get(lane).style, /horizontal=0/);
+    assert.equal(tat(lane).h, tat("cust").h);
+    assert.equal(tat(lane).y, 0);
+  }
+
+  assert.equal(tat("shop").x, tat("cust").x + tat("cust").w);
+  assert.equal(tat("order").y + tat("order").h / 2, tat("check").y + tat("check").h / 2);
+  assert.ok(tat("s").y < tat("order").y && tat("order").y < tat("e").y);
+
+  // seven steps in lanes as rows would be shown at half their size: the
+  // pass turns them into columns, every hand-over still straight
+  const steps = function(count)
+  {
+    const d = { type: "flowchart", groups: [{ id: "a", label: "Sales" }, { id: "b", label: "Support" }, { id: "c", label: "Billing" }], nodes: [], edges: [] };
+
+    for (let i = 1; i <= count; i++)
+    {
+      d.nodes.push({ id: "n" + i, label: "Step number " + i, group: "abc".charAt(i % 3), row: (i % 3) + 1, col: i });
+
+      if (i > 1)
+      {
+        d.edges.push({ from: "n" + (i - 1), to: "n" + i });
+      }
+    }
+
+    return d;
+  };
+
+  const l = await semanticToXml(steps(7), { hints: "ask" });
+  const lb = boxesOf(l.xml);
+
+  assert.equal(l.stats.grid, "page");
+  assert.doesNotMatch(lb.get("a").style, /horizontal=0/, "lanes as columns");
+  assert.ok(absolute(lb, "a").x < absolute(lb, "b").x && absolute(lb, "b").x < absolute(lb, "c").x, "in the order of their rows");
+  assert.ok(absolute(lb, "n1").y < absolute(lb, "n2").y && absolute(lb, "n2").y < absolute(lb, "n7").y, "the steps run down");
+  assert.ok(l.stats.width < 800, "as wide as the chat frame: " + l.stats.width);
+
+  // but not when the chat would cut the columns off at the bottom
+  const tall = await semanticToXml(steps(14), { hints: "ask" });
+
+  assert.match(boxesOf(tall.xml).get("a").style, /horizontal=0/, "fourteen steps stay in rows");
+
+  // lanes that share rows and columns can't be bands
+  const mixed = JSON.parse(JSON.stringify(PAGE_LANES));
+
+  Object.assign(mixed.nodes.find(function(n) { return n.id === "e"; }), { row: 3, col: 4 });
+  assert.equal((await semanticToXml(mixed, { hints: "ask" })).stats.grid, "group");
+});
+
 test("the compact XML of a description has no positions and uses the shorthands of the XML path", function()
 {
   const xml = compactXml(normalizeSpec(SHOP).diagram, { flow: false, links: false }).xml;
@@ -384,5 +603,14 @@ test("the description stays within the limit for every way of offering hints, an
   assert.equal(schema.properties.direction, undefined, "models set a direction without need when it is offered");
   assert.deepEqual(schema.properties.type.enum, SUPPORTED_TYPES);
   assert.equal(describeSchema(SUPPORTED_TYPES, { hints: false }).properties.nodes.items.properties.row, undefined);
+
+  // asked for: a cell per node in one grid, none for groups
+  const asked = describeSchema(SUPPORTED_TYPES, { hints: "ask" });
+
+  assert.match(asked.properties.nodes.items.properties.row.description, /one grid for the whole diagram/);
+  assert.ok(asked.properties.nodes.items.properties.col != null);
+  assert.equal(asked.properties.groups.items.properties.row, undefined);
+  assert.ok(schema.properties.groups.items.properties.row != null);
+  assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /one grid for the whole diagram/);
   assert.equal(describeSchema(["er"]).properties.groups, undefined);
 });
