@@ -10081,12 +10081,13 @@ function appendOpenUrl(content, rendersInline, hidden, data, type, postLayout, l
  * The note that ends every create_diagram result: the user sees the diagram
  * itself, so the reply after it can be short.
  *
- * Without it the model summarized the diagram it had just drawn, in 400 to
- * 2,300 tokens: 5 to 25 s after the diagram until the answer ended, when
- * the user had long seen the diagram (`claude -p`, November 2026). It stays
- * the last block, after the link and any warnings, and leaves room for what
- * the user asked for, for redrawing, and for the reference's offer of a
- * next step. Only where the client is known to render the app does it say
+ * Without it the model summarized the diagram the user was looking at:
+ * with a client that renders the app, the median answer after the diagram
+ * shrank from 408 to 115 output tokens with Sonnet and from 605 to 97 with
+ * Opus, and ended 1.3 and 4.3 s sooner (`claude -p`, November 2026, see
+ * AGENTS.md). It stays the last block, after the link and any warnings,
+ * and leaves room for what the user asked for, for redrawing, and for the
+ * reference's offer of a next step. Only where the client is known to render the app does it say
  * that the user sees the diagram in the chat; elsewhere the link may be how
  * they see it (appendOpenUrl), and the reply is short besides that link.
  *
