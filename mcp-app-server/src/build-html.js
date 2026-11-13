@@ -14,8 +14,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildHtml, processAppBundle } from "./shared.js";
+import { buildHtml, processAppBundle, SEMANTIC_TYPES_ON } from "./shared.js";
 import { readReference } from "./references.js";
+import { bundleSemanticEngine } from "./semantic-bundle.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -145,7 +146,10 @@ if (drawioBaseUrl)
 // worker can echo it in every tool response.
 const buildId = getBuildId() + ((inlined.length > 0) ? "+local-" + inlined.join("+") : "");
 console.log(`Build ID: ${buildId}`);
-const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId, viewerJs, libavoidJs, drawioBaseUrl });
+// The semantic engine for the viewer's preview, once create_semantic_diagram
+// is offered (a type in SEMANTIC_TYPES_ON; the Worker offers the default).
+const semanticJs = SEMANTIC_TYPES_ON.length > 0 ? bundleSemanticEngine() : null;
+const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId, viewerJs, libavoidJs, drawioBaseUrl, semanticJs });
 const outPath = path.join(__dirname, "generated-html.js");
 
 fs.writeFileSync(outPath,
