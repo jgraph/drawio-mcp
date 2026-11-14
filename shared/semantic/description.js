@@ -119,36 +119,6 @@ export function describeTool(types, options)
 }
 
 /**
- * The size rule of the types offered, as the model reads it, or null when
- * none of them has one: "architecture and network: at most 18 nodes".
- *
- * @param {string[]} types - the types offered
- * @param {Object<string, number>} maxNodes - MAX_NODES of index.js
- * @returns {string|null}
- */
-export function describeSizeRule(types, maxNodes)
-{
-  const byMax = new Map();
-
-  for (const t of types)
-  {
-    if (maxNodes != null && maxNodes[t] != null)
-    {
-      byMax.set(maxNodes[t], (byMax.get(maxNodes[t]) || []).concat([t]));
-    }
-  }
-
-  const parts = [];
-
-  byMax.forEach(function(names, max)
-  {
-    parts.push(names.join(" and ") + ": at most " + max + " nodes");
-  });
-
-  return parts.length > 0 ? parts.join("; ") : null;
-}
-
-/**
  * The tool's input schema (JSON Schema): the keys of the description with
  * what each one means.
  *

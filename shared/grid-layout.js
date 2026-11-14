@@ -67,6 +67,16 @@ const TURN_MARGIN = 0.1;
 const TURN_MARGIN_PAGE = 0.2;
 const TURN_MARGIN_FLOW = 0.03;
 
+// A preview that lays out a description again each time it grows keeps the
+// way it has shown the page (`keepTurned`): the other way round has to show
+// it at a scale this much larger (at 80 % of its size instead of 50 %), in
+// place of the margins above. Without it, the lanes of a growing diagram
+// turned with every partial that tipped the balance, in 6 of 20 streamed
+// dev descriptions more than once, and 10 of 15 flowcharts without lanes;
+// with it 2 (a page that falls back to one grid per lane) and none. 0.2
+// still let 5 flowcharts turn more than once (shared/semantic/AGENTS.md).
+const KEEP_MARGIN = 0.3;
+
 // How much more of the frame a page has to fill before its boxes are made
 // narrower (140 px instead of 160 px at 16 px text).
 const DENSE_MARGIN = 0.02;
@@ -3454,6 +3464,8 @@ function layoutPage(graph, options, stats)
   }
 
   const policies = (ctx.grid === "page") ? ["", "turned"] : (nested ? ["", "vh", "hv", "v", "h"] : [""]);
+  // the way the page was shown before, for a preview (one grid for the page only)
+  const kept = (ctx.grid === "page" && typeof options.keepTurned === "boolean") ? (options.keepTurned ? "turned" : "") : null;
   let best = null;
   let size = null;
 
@@ -3491,9 +3503,12 @@ function layoutPage(graph, options, stats)
       // A turned page is never shown cut off, so it is widened at any scale.
       const widened = ctx.grid === "page" && isCut(whole, ctx.frame) &&
         (policy === "turned" || canWiden(whole, ctx.frame));
-      const score = (widened ? fit(whole, ctx.frame) : shown(whole, ctx.frame)) -
-        0.05 * (edges.length > 0 ? length / edges.length / 200 : 0) -
+      // A preview keeps what it has shown: then only the other way round
+      // pays, KEEP_MARGIN, in place of the margin for turning.
+      const turnCost = (kept != null) ? (policy !== kept ? KEEP_MARGIN : 0) :
         (policy === "turned" ? (isPool ? TURN_MARGIN : (ctx.mode === "flow" ? TURN_MARGIN_FLOW : TURN_MARGIN_PAGE)) : 0);
+      const score = (widened ? fit(whole, ctx.frame) : shown(whole, ctx.frame)) -
+        0.05 * (edges.length > 0 ? length / edges.length / 200 : 0) - turnCost;
 
       if (policy === "turned" && isCut(whole, ctx.frame) && !widened)
       {
@@ -3612,14 +3627,18 @@ function layoutPage(graph, options, stats)
  *
  * @param {string} xml - mxGraphModel or mxfile XML
  * @param {{all?: boolean, direction?: "vertical"|"horizontal", mode?: "flow"|"tiers",
- *   frame?: {width: number, height: number}, hints?: boolean|"page", route?: boolean}} [options] -
+ *   frame?: {width: number, height: number}, hints?: boolean|"page", route?: boolean,
+ *   keepTurned?: boolean}} [options] -
  *   all: also lay out pages that are placed already; direction: where the
  *   flow runs (default: whichever is shown larger in the frame); mode: how
  *   children without hints are placed (default: flow when the page has
  *   decisions or lanes, else tiers); frame: the size the diagram is shown in;
  *   hints: false ignores `row=` and `col=`, "page" reads them as the cells of
  *   one grid for the whole page (default: of the grid of each container);
- *   route: false leaves the edges as they are
+ *   route: false leaves the edges as they are; keepTurned: how a preview showed
+ *   the page before (true: rows and columns swapped, stats.policy "turned"),
+ *   kept unless the other way shows it KEEP_MARGIN larger (one grid for the
+ *   page only)
  * @returns {{xml: string, changed: number, stats: object}}
  */
 export function gridLayoutDiagram(xml, options)

@@ -8,10 +8,16 @@
 //
 // Per description, one line of JSON and a row in preview.json: what the
 // preview drew at every step and how long one layout took, which way the
-// lanes lay at every step (r: rows, c: columns) and how often they turned,
-// whether the streamed diagram ends with the same cells as the result alone,
+// diagram lay at every step, with the whole input and with the result (lanes
+// r: rows, c: columns, read from where two lanes are; a flowchart without
+// lanes t: turned, n: as written, from the viewer's semanticShownTurned and,
+// for the result, the engine's own layout) and how often it turned, whether
+// the streamed diagram ends with the same cells as the result alone,
 // whether the model is told that the diagram came from its description, what
-// the layout check found, and script errors. <tag>-preview-streaming.png,
+// the layout check found, and script errors. A description the size rule
+// refused (<tag>-refused.json from run.mjs) is shown the same way, and the
+// row says what the frame shows instead of the diagram (`shown`: a note or
+// an error). <tag>-preview-streaming.png,
 // <tag>-preview-input.png and <tag>-preview-result.png show the frame half
 // way, with the whole input and with the result.
 //
@@ -21,7 +27,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { APP_SERVER, require, parseArgs, outDir, connectStdio, readJson } from "./lib/common.mjs";
+import { pathToFileURL } from "node:url";
+import { APP_SERVER, REPO, require, parseArgs, outDir, connectStdio, readJson } from "./lib/common.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
@@ -59,7 +66,8 @@ console.log("types: " + offered.join(", ") + " | description " + tool.descriptio
 
 const files = fs.readdirSync(out).filter(function(f)
 {
-  if (!f.endsWith("-diagram.json") || f.endsWith("-edit-diagram.json") || (match != null && !match.test(f)))
+  if (!(f.endsWith("-diagram.json") || f.endsWith("-refused.json")) || f.endsWith("-edit-diagram.json") ||
+    (match != null && !match.test(f)))
   {
     return false;
   }
@@ -161,14 +169,18 @@ function sleep(ms)
   return new Promise(function(resolve) { setTimeout(resolve, ms); });
 }
 
-// What the viewer shows: the cells of its graph, which way the first lane
-// lies, the time of the last layout and whether it knows of the description.
+// What the viewer shows: the cells of its graph, which way its lanes lie
+// (two lanes of one parent side by side are columns, one under the other
+// rows) or, without lanes, which way the preview laid out the page, the time
+// of the last layout and whether it knows of the description.
 function viewerState()
 {
   var cells = (typeof streamGraph !== "undefined" && streamGraph != null) ? streamGraph.getModel().cells : null;
   var vertices = 0;
   var edges = 0;
   var lanes = "";
+  var firstLane = {};
+  var anyLane = false;
 
   for (var id in cells)
   {
@@ -185,8 +197,25 @@ function viewerState()
 
     if (lanes === "" && cell.vertex && /^swimlane/.test(cell.style || "") && cell.geometry != null)
     {
-      lanes = (cell.geometry.width >= cell.geometry.height) ? "r" : "c";
+      var parent = cell.parent ? cell.parent.id : "";
+      var first = firstLane[parent];
+
+      anyLane = true;
+
+      if (first == null)
+      {
+        firstLane[parent] = cell.geometry;
+      }
+      else
+      {
+        lanes = (Math.abs(cell.geometry.y - first.y) > Math.abs(cell.geometry.x - first.x)) ? "r" : "c";
+      }
     }
+  }
+
+  if (!anyLane && vertices > 0 && typeof semanticShownTurned !== "undefined" && semanticShownTurned != null)
+  {
+    lanes = semanticShownTurned ? "t" : "n";
   }
 
   return { engine: typeof DrawioSemantic !== "undefined", viewer: typeof GraphViewer !== "undefined",
@@ -195,10 +224,11 @@ function viewerState()
     described: (typeof shownFromDescription !== "undefined") ? shownFromDescription : null };
 }
 
-// The model as drawn: parent, terminals, geometry, waypoints and style of every cell.
+// The model as drawn: parent, terminals, geometry, waypoints and style of
+// every cell; none where the frame shows an error or a note instead.
 function viewerCells()
 {
-  var cells = streamGraph.getModel().cells;
+  var cells = (typeof streamGraph !== "undefined" && streamGraph != null) ? streamGraph.getModel().cells : {};
   var result = {};
 
   for (var id in cells)
@@ -214,6 +244,26 @@ function viewerCells()
   return result;
 }
 
+// How the server lays out a flowchart without lanes (t: turned, n: as
+// written), which the viewer's result doesn't say: the engine as the tool
+// handler runs it.
+const engine = await import(pathToFileURL(path.join(REPO, "shared", "semantic", "index.js")).href);
+
+async function resultTurned(a)
+{
+  const r = await engine.semanticToXml(a, { hints: "ask" });
+
+  return (r.stats != null && r.stats.grid === "page") ? (r.stats.turned ? "t" : "n") : "";
+}
+
+// How often a sequence of orientations changes, steps without one skipped.
+function changes(list)
+{
+  const known = list.filter(function(l) { return l !== ""; });
+
+  return known.filter(function(l, i) { return i > 0 && l !== known[i - 1]; }).length;
+}
+
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bench-chrome-"));
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
   args: ["--no-sandbox", "--disable-gpu", "--window-size=1280,1000"], userDataDir: profile });
@@ -221,7 +271,7 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 async function show(file, streamed)
 {
   const d = readJson(path.join(out, file));
-  const tag = file.replace("-diagram.json", "");
+  const tag = file.replace(/-diagram\.json$|\.json$/, "");
   const res = await server.call("tools/call", { name: "create_semantic_diagram", arguments: d.arguments });
   const page = await browser.newPage();
   const errors = [];
@@ -292,11 +342,12 @@ async function show(file, streamed)
 
     await page.evaluate(function(r) { window.__notify("ui/notifications/tool-result", r); }, res.result);
 
-    // the viewer's update for the model follows the rendering; a second one may follow the first
+    // the viewer's update for the model follows the rendering; a second one
+    // may follow the first. An error has no diagram, so no update follows.
     let context = [];
     const t1 = Date.now();
 
-    while (Date.now() - t1 < 30000)
+    while (res.result.isError !== true && Date.now() - t1 < 30000)
     {
       await sleep(500);
       context = await page.evaluate(function() { return window.__ctx; });
@@ -315,16 +366,31 @@ async function show(file, streamed)
     const found = /Layout check of the diagram as rendered \((\d+) problem/.exec(told);
     const final = await frame.evaluate(viewerState);
     const cells = await frame.evaluate(viewerCells);
+    // the result of a flowchart without lanes doesn't go through the preview
+    const atResult = (final.lanes === "t" || final.lanes === "n") ? await resultTurned(d.arguments) : final.lanes;
+    const shown = streamed ? lanes.concat([input.lanes, atResult]) : [];
+    const beforeResult = shown.slice(0, -1).filter(function(l) { return l !== ""; });
 
     if (streamed)
     {
+      await sleep(res.result.isError === true ? 600 : 0);
       await element.screenshot({ path: path.join(out, tag + "-preview-result.png") });
     }
 
-    return { cells: cells, row: { tag: tag, error: res.result.isError === true,
-      steps: steps.join(" "), lanes: lanes.join(""),
-      turns: lanes.filter(function(l, i) { return i > 0 && l !== "" && lanes[i - 1] !== "" && l !== lanes[i - 1]; }).length,
-      lanesResult: final.lanes, previewMs: preview.ms, engine: preview.engine,
+    // what the frame shows in place of a diagram
+    const shownInstead = await frame.evaluate(function()
+    {
+      var e = document.getElementById("error");
+
+      return (e != null && e.style.display === "block") ? (e.classList.contains("notice") ? "note: " : "error: ") +
+        e.textContent : null;
+    });
+
+    return { cells: cells, row: { tag: tag, error: res.result.isError === true, shown: shownInstead,
+      steps: steps.join(" "), lanes: lanes.join("") + (streamed ? " " + (input.lanes || "-") + " " + (atResult || "-") : ""),
+      withLanes: /[rc]/.test(lanes.join("") + atResult), turns: changes(shown),
+      turnedAtResult: beforeResult.length > 0 && atResult !== "" && beforeResult[beforeResult.length - 1] !== atResult,
+      lanesResult: atResult, previewMs: preview.ms, engine: preview.engine,
       input: input.vertices + "v/" + input.edges + "e", result: final.vertices + "v/" + final.edges + "e",
       described: /laid out from your description|your description laid out/.test(told),
       contextUpdates: context.length, issues: found ? Number(found[1]) : (/no problems found/.test(told) ? 0 : null),
@@ -384,8 +450,14 @@ console.log("\n" + rows.length + " descriptions" +
   ", result alone " + count(function(r) { return r.resultAlone.described; }) +
   " | layout-check findings " + rows.reduce(function(sum, r) { return sum + (r.issues || 0); }, 0) +
   ", result alone " + rows.reduce(function(sum, r) { return sum + (r.resultAlone.issues || 0); }, 0) +
-  " | lanes turned while streaming " + rows.reduce(function(sum, r) { return sum + (r.turns || 0); }, 0) +
+  " | with lanes, turned more than once " + count(function(r) { return r.withLanes && r.turns > 1; }) + " of " +
+  count(function(r) { return r.withLanes; }) + ", at the result " + count(function(r) { return r.withLanes && r.turnedAtResult; }) +
+  " | without lanes, turned more than once " + count(function(r) { return r.withLanes === false && r.turns > 1; }) + " of " +
+  count(function(r) { return r.withLanes === false; }) + ", at the result " +
+  count(function(r) { return r.withLanes === false && r.turnedAtResult; }) +
   " | script errors " + rows.reduce(function(sum, r) { return sum + (r.errors || []).length + (r.resultAlone.errors || []).length; }, 0) +
   " | layout ms, median " + (times.length > 0 ? times[Math.floor(times.length / 2)] : "-") +
   ", max " + (times.length > 0 ? times[times.length - 1] : "-") +
+  " | refused " + count(function(r) { return r.error === true; }) + ", shown as a note " +
+  count(function(r) { return r.error === true && /^note: /.test(r.shown || ""); }) +
   " | failed " + count(function(r) { return r.failed != null; }));

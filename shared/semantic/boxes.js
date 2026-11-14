@@ -707,7 +707,7 @@ export function compactXml(d, kind)
  * expanded, the edges filed, every cell on the grid, the edges routed.
  *
  * @param {string} xml
- * @param {{direction?: string, mode?: string, hints?: boolean|"page"}} [options]
+ * @param {{direction?: string, mode?: string, hints?: boolean|"page", keepTurned?: boolean}} [options]
  * @returns {{xml: string, stats: object}}
  */
 export function placeCompactXml(xml, options)
@@ -724,7 +724,7 @@ function layout(d, ctx, kind)
   const place = function(compact)
   {
     return placeCompactXml(compact.xml, { direction: d.direction || null, mode: kind.flow ? "flow" : "tiers",
-      hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false });
+      hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false, keepTurned: ctx.keepTurned });
   };
   let compact = compactXml(d, kind);
   let r = place(compact);
