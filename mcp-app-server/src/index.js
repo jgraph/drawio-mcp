@@ -11,7 +11,8 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { readReference } from "./references.js";
-import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState } from "./shared.js";
+import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState, resolveSemanticTypes } from "./shared.js";
+import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
 
@@ -177,12 +178,27 @@ const iconServiceUrl = resolveIconServiceUrl(process.env.DRAWIO_ICON_SERVICE_URL
 // in the tool server. buildHtml throws below unless it is an http(s) URL.
 const drawioBaseUrl = process.env.DRAWIO_BASE_URL;
 
+// The semantic diagram types create_semantic_diagram offers: unset, the ones
+// switched on in shared.js (SEMANTIC_TYPES_ON, none yet, so the tool isn't
+// listed); DRAWIO_SEMANTIC_TYPES=on offers the types that passed the blind
+// judgement (flowcharts and swimlanes), a comma-separated list the types it
+// names (er, architecture, network, flowchart, swimlane: to try one, or for
+// the bench), "off" none. With a type offered, the viewer gets the engine
+// for its preview while a description streams in.
+const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
+const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+
+if (semanticTypes.length > 0)
+{
+  console.error("Semantic diagram types: " + semanticTypes.join(", "));
+}
+
 // Pre-build the HTML once. The buildId is baked into the HTML so the
 // iframe exposes it via window.__DRAWIO_BUILD (visible in DevTools).
 // `let` — the daily libavoid version check rebuilds it in place (each
 // /mcp request creates its McpServer from the current value).
 let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl });
+  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl, semanticJs });
 
 // --- Sessions ---
 
@@ -286,7 +302,7 @@ async function startStreamableHTTPServer()
       {
         libavoidScriptUrls = urls;
         html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl });
+          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl, semanticJs });
         console.log("libavoid CDN versions changed; HTML rebuilt");
       }
     }
@@ -347,6 +363,7 @@ async function startStreamableHTTPServer()
       iconServiceUrl,
       buildId,
       drawioBaseUrl,
+      semanticTypes,
       uiSession: session != null ? uiSessionFor(session) : null,
     });
 
@@ -400,7 +417,7 @@ async function startStreamableHTTPServer()
 
 async function startStdioServer()
 {
-  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl }).connect(new StdioServerTransport());
+  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl, semanticTypes }).connect(new StdioServerTransport());
 }
 
 async function main()
