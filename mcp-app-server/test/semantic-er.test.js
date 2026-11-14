@@ -9,6 +9,7 @@ import { textWidth } from "../../shared/semantic/text-width.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
 import { snapWaypoints } from "../../shared/edge-waypoints.js";
 import { repairDiagramXml } from "../../shared/repair-xml.js";
+import { expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 
 // The semantic engine (shared/semantic): the model describes a diagram's
 // content and the engine lays it out. These tests cover the ER type: reading
@@ -166,6 +167,28 @@ test("normalizeSpec forgives common slips and says what it dropped", function()
   assert.equal(n.diagram.edges[0].from, "a");
   assert.equal(n.diagram.edges[0].kind, "one-to-many");
   assert.equal(n.warnings.length, 3, n.warnings.join("\n"));
+});
+
+test("nodes and edges as JSON text are read as JSON, and JSON cut off while it streams as nothing yet", function()
+{
+  const nodes = JSON.stringify(LIBRARY.nodes);
+  const n = normalizeSpec({ type: "er", nodes: nodes, edges: JSON.stringify(LIBRARY.edges) });
+
+  assert.equal(n.error, null);
+  assert.deepEqual(n.diagram.nodes.map(function(x) { return x.id; }), ["authors", "books", "publishers", "members", "loans"]);
+  assert.equal(n.diagram.edges.length, 4);
+  assert.deepEqual(n.warnings, []);
+
+  // the viewer's preview gets the text as it streams in
+  for (const cut of [1, 2, 20, nodes.length - 1])
+  {
+    assert.deepEqual(normalizeSpec({ type: "er", nodes: nodes.slice(0, cut) }).diagram.nodes, [], nodes.slice(0, cut));
+  }
+
+  // one object, and rows that only start with a bracket
+  assert.deepEqual(normalizeSpec({ type: "er", nodes: JSON.stringify({ id: "a" }) }).diagram.nodes.map(function(x) { return x.id; }), ["a"]);
+  assert.deepEqual(normalizeSpec({ type: "er", nodes: [{ id: "a", fields: "[legacy] id|name" }] }).diagram.nodes[0].fields,
+    ["[legacy] id", "name"]);
 });
 
 test("an unsupported type, no nodes or no JSON fail with a message the model can act on", async function()
@@ -368,6 +391,24 @@ test("a junction table is drawn in the data color", async function()
   assert.equal(fill("students"), "#EEF4FF");
 });
 
+test("every role of the theme colors a table, also those the XML shorthand doesn't know", async function()
+{
+  const roles = { note: "#FFF9DB", retry: "#FFF0E5", success: "#E7F6EC", error: "#FDECEC", unknown: "#EEF4FF" };
+  const r = await semanticToXml({ type: "er", nodes: Object.keys(roles).map(function(role)
+  {
+    return { id: role, fields: ["PK " + role + "_id"], role: role };
+  }) });
+  const cells = cellsOf(r.xml);
+
+  for (const role of Object.keys(roles))
+  {
+    const style = cells.find(function(c) { return c.id === role; }).style;
+
+    assert.equal(styleValue(style, "fillColor"), roles[role], role);
+    assert.doesNotMatch(style, /(^|;)role=/);
+  }
+});
+
 test("the layout is deterministic and the server's repairs find nothing to change", async function()
 {
   const a = await semanticToXml(LIBRARY);
@@ -380,6 +421,8 @@ test("the layout is deterministic and the server's repairs find nothing to chang
   assert.equal(new Set(ids).size, ids.length, "cell ids are unique");
   assert.doesNotMatch(a.xml, /<!--/);
   assert.equal(repairDiagramXml(a.xml).xml, a.xml);
+  assert.doesNotMatch(a.xml, /\srows="/, "the table shorthand is expanded");
+  assert.equal(expandDiagramShorthand(a.xml).xml, a.xml);
   assert.equal(normalizeDiagram(a.xml).xml, a.xml);
   assert.equal(snapWaypoints(a.xml).xml, a.xml);
 });
@@ -411,6 +454,50 @@ test("all tables share one width, rows are one height, and nothing overlaps", as
   }
 
   assert.ok(r.stats.width <= 800 && r.stats.height <= 800, "fits the chat frame: " + r.stats.width + "x" + r.stats.height);
+});
+
+test("tables are drawn as the table shorthand expands them, primary keys bold", async function()
+{
+  const r = await semanticToXml(LIBRARY);
+  const cells = cellsOf(r.xml);
+  const byId = new Map(cells.map(function(c) { return [c.id, c]; }));
+  const books = byId.get("books");
+  const pk = byId.get("books.book_id");
+  const fk = byId.get("books.author_id");
+
+  assert.match(books.style, /^swimlane;fontStyle=1;childLayout=stackLayout;/);
+  assert.equal(styleValue(books.style, "startSize"), "26");
+  assert.equal(pk.value, "&lt;b&gt;PK book_id&lt;/b&gt;");
+  assert.equal(fk.value, "FK author_id");
+  assert.equal(pk.parent, "books");
+});
+
+test("a relation between tables side by side in one row is a straight line", async function()
+{
+  // the key is the first row of authors, the reference the third of books:
+  // books moves up against authors so that the two rows meet
+  const pair = { type: "er", nodes: [
+    { id: "authors", label: "Authors", fields: ["PK author_id", "name"] },
+    { id: "books", label: "Books", fields: ["PK book_id", "title", "FK author_id"] }],
+  edges: [{ from: "authors", to: "books", kind: "one-to-many" }] };
+  const r = await semanticToXml(pair);
+  const edge = edgesOf(r.xml)[0];
+
+  assert.equal(r.stats.bends, 0);
+  assert.doesNotMatch(r.xml, /<Array as="points">/);
+  assert.equal(edge.source, "authors.author_id");
+  assert.equal(edge.target, "books.author_id");
+
+  const top = {};
+  const re = /<mxCell id="(authors|books)"[^>]*><mxGeometry x="[\d.]+" y="([\d.]+)"/g;
+  let m;
+
+  while ((m = re.exec(r.xml)) != null)
+  {
+    top[m[1]] = +m[2];
+  }
+
+  assert.equal(top.authors - top.books, 2 * 26, "the key row and the reference row are at one height");
 });
 
 test("a chain and a star of tables are drawn without crossings or lines on each other", async function()
@@ -500,6 +587,43 @@ test("a large schema without ELK goes on the grid in bounded time", async functi
   assert.equal(r.error, null);
   assert.equal(r.stats.layout, "grid");
   assert.equal(edgesOf(r.xml).length, 49);
-  // about 0.1 s; it took 40 s while every swap was routed
+  // it took 40 s while every swap of every round was routed
   assert.ok(Date.now() - t0 < 5000, "took " + (Date.now() - t0) + " ms");
+});
+
+test("a large schema without ELK stays on the grid and takes bounded time", async function()
+{
+  // a tree of 60 tables with a second reference in most: without a limit,
+  // the routed search tried every swap of every round (24 tables took 6 s)
+  const nodes = [];
+  const edges = [];
+
+  for (let i = 0; i < 60; i++)
+  {
+    const parent = Math.floor((i - 1) / 2);
+    const other = (i * 7) % Math.max(1, i);
+    const fields = ["PK t" + i + "_id", "name"];
+
+    if (i > 0)
+    {
+      fields.push("FK t" + parent + "_id");
+      edges.push({ from: "t" + parent, to: "t" + i, kind: "one-to-many" });
+    }
+
+    if (i > 3 && other !== parent)
+    {
+      fields.push("FK t" + other + "_id");
+      edges.push({ from: "t" + other, to: "t" + i, kind: "one-to-many" });
+    }
+
+    nodes.push({ id: "t" + i, label: "Table " + i, fields: fields });
+  }
+
+  const t0 = Date.now();
+  const r = await semanticToXml({ type: "er", nodes: nodes, edges: edges });
+
+  assert.equal(r.error, null);
+  assert.equal(r.stats.layout, "grid");
+  assert.equal(edgesOf(r.xml).length, edges.length);
+  assert.ok(Date.now() - t0 < 10000, "took " + (Date.now() - t0) + " ms");
 });

@@ -64,3 +64,5 @@ The semantic tool only offers a diagram type (`describeTool` in `shared/semantic
 Both sides are drawn in the calm theme with the same font rule (14 px up to 12 shapes, 16 above). Where the median font sizes of a pair still differ by 2 px or more, the judgement says more about text size than about layout: the report counts those pairs separately and the gate leaves them out. Time and tokens alone don't switch a type on, and neither does a judgement of the prompts a layout was developed on.
 
 A judge model is one opinion. `pairs.mjs` writes a page of pairs for a person to judge blind (`node pairs.mjs --a today --b semantic-rows --count 20`): `pairs/index.html` shows each pair in random order as A and B with the prompt, the choices are kept in the page and exported as JSON, and `pairs/key.json` says which side was which.
+
+Switching it on means adding it to `SEMANTIC_TYPES_ON` in `mcp-app-server/src/shared.js`, which lists `create_semantic_diagram` in the app server; until then `DRAWIO_SEMANTIC_TYPES=er` offers a type in the Node app server only.

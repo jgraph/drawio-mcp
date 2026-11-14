@@ -59,7 +59,15 @@ function str(v)
   return (v == null) ? "" : String(v).trim();
 }
 
-function list(v)
+// The start of JSON text: a list of objects, strings or lists, or an object.
+const JSON_START = /^\s*(?:\[\s*(?:[{"\[\]]|$)|\{\s*(?:["}]|$))/;
+
+// A list: an array, one item, or a string with `|` or line breaks between
+// the items. A string that is JSON (models send `nodes` and `edges` as JSON
+// text, which the app server parses too) is read as JSON; one that starts
+// like JSON but doesn't parse is still being streamed into the viewer, and
+// counts as empty rather than as one item named after its text.
+export function readList(v)
 {
   if (v == null || v === "")
   {
@@ -73,6 +81,23 @@ function list(v)
 
   if (typeof v === "string")
   {
+    if (/^\s*[\[{]/.test(v))
+    {
+      try
+      {
+        const parsed = JSON.parse(v);
+
+        return Array.isArray(parsed) ? parsed : readList(parsed);
+      }
+      catch (e)
+      {
+        if (JSON_START.test(v))
+        {
+          return [];
+        }
+      }
+    }
+
     return v.split(/\s*[|\n]\s*/).filter(function(s) { return s !== ""; });
   }
 
@@ -85,6 +110,20 @@ function ordinal(v)
   const n = (v == null || v === "" || typeof v === "boolean") ? NaN : Number(v);
 
   return (Number.isFinite(n) && n >= 0 && n <= 1000) ? n : null;
+}
+
+/**
+ * A type as the engine reads it: any case, aliases (`erd`, `schema`) mapped
+ * to their type. Not checked against TYPES.
+ *
+ * @param {*} value - the `type` of a description
+ * @returns {string}
+ */
+export function typeName(value)
+{
+  const type = str(value).toLowerCase();
+
+  return TYPE_ALIASES[type] || type;
 }
 
 function fieldText(f)
@@ -141,8 +180,7 @@ export function normalizeSpec(input, options)
     return { diagram: null, warnings: warnings, error: "The diagram must be an object with a type." };
   }
 
-  let type = str(spec.type).toLowerCase();
-  type = TYPE_ALIASES[type] || type;
+  const type = typeName(spec.type);
 
   if (TYPES.indexOf(type) < 0)
   {
@@ -163,8 +201,8 @@ export function normalizeSpec(input, options)
 
   // `lanes` is read as groups of the kind lane; a lane or a group may be
   // just its name.
-  const groupList = list(spec.groups).map(function(g) { return { g: g, lane: false }; })
-    .concat(list(spec.lanes).map(function(g) { return { g: g, lane: true }; }));
+  const groupList = readList(spec.groups).map(function(g) { return { g: g, lane: false }; })
+    .concat(readList(spec.lanes).map(function(g) { return { g: g, lane: true }; }));
 
   for (const entry of groupList)
   {
@@ -195,7 +233,7 @@ export function normalizeSpec(input, options)
   const nodes = [];
   const nodeIds = new Set();
 
-  for (const n of list(spec.nodes))
+  for (const n of readList(spec.nodes))
   {
     const node = (n != null && typeof n === "object") ? n : { id: n };
     const id = str(node.id != null ? node.id : node.label);
@@ -224,14 +262,14 @@ export function normalizeSpec(input, options)
       group: groupIds.has(group) ? group : "",
       row: hints ? ordinal(node.row) : null,
       col: hints ? ordinal(node.col != null ? node.col : node.column) : null,
-      fields: list(node.fields).map(fieldText).filter(function(s) { return s !== ""; }),
-      methods: list(node.methods).map(fieldText).filter(function(s) { return s !== ""; })
+      fields: readList(node.fields).map(fieldText).filter(function(s) { return s !== ""; }),
+      methods: readList(node.methods).map(fieldText).filter(function(s) { return s !== ""; })
     });
   }
 
   const edges = [];
 
-  for (const e of list(spec.edges))
+  for (const e of readList(spec.edges))
   {
     if (e == null || typeof e !== "object")
     {

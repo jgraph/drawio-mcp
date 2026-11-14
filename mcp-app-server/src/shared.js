@@ -18,6 +18,9 @@ import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import { createIconResolver } from "../../shared/icon-resolver.js";
 import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
+import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES } from "../../shared/semantic/index.js";
+import { describeTool as describeSemanticTool } from "../../shared/semantic/description.js";
+import { readList as readSemanticList, typeName as semanticTypeName } from "../../shared/semantic/spec.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -90,6 +93,7 @@ export function editorLinkBase(drawioBaseUrl)
  * @param {string[]} [options.libavoidUrls] - The two libavoid script URLs in load order (pure-JS router bundle, routing core), typically ETag-versioned (libavoid-versions.js) so a draw.io release busts the browser cache immediately. Defaults to the plain CDN URLs; ignored when libavoidJs inlines a local build.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Exposed as window.__DRAWIO_BUILD in the iframe.
  * @param {string} [options.drawioBaseUrl] - The draw.io editor "Open in draw.io" opens (DRAWIO_BASE_URL, see editorLinkBase). Exposed as window.__DRAWIO_EDITOR_URL in the iframe; pass the same value to createServer.
+ * @param {string} [options.semanticJs] - The semantic engine as a classic script (bundleSemanticEngine in src/semantic-bundle.js), inlined so the viewer lays out a create_semantic_diagram description while it streams. Pass it when that tool is offered; without it the diagram shows when the result arrives.
  * @returns {string} Self-contained HTML string.
  */
 export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
@@ -97,6 +101,10 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
   var viewerJs = (options && options.viewerJs) || null;
   var elkJs = (options && options.elkJs) || null;
   var libavoidJs = (options && options.libavoidJs) || null;
+  // The semantic engine as a classic script (src/semantic-bundle.js), only
+  // when create_semantic_diagram is offered: the preview while a
+  // description streams in.
+  var semanticJs = (options && options.semanticJs) || null;
   var buildId = (options && options.buildId) || "unknown";
   // The URL comes from the environment: never let it close the script element
   var editorUrlJs = JSON.stringify(editorLinkBase(options && options.drawioBaseUrl)).replace(/</g, "\\u003C");
@@ -651,6 +659,12 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
     ${mermaidJs
       ? '<script>' + mermaidJs + '<\/script>'
       : '<script src="https://viewer.diagrams.net/js/mermaid/drawio-mermaid.min.js"><\/script>'
+    }
+    ${semanticJs
+      ? '<!-- The semantic engine (shared/semantic, bundled by src/semantic-bundle.js): defines\n' +
+        '         DrawioSemantic, which lays out a create_semantic_diagram description while it streams. -->\n' +
+        '    <script>' + semanticJs + '<\/script>'
+      : ''
     }
 
     <!-- MCP Apps SDK (inlined, exports stripped, App alias added) -->
@@ -8649,8 +8663,180 @@ function isXmlInMermaid(text)
   return text.trim().charAt(0) === '<' || diagramXmlStart(text) !== -1;
 }
 
+// --- Descriptions for create_semantic_diagram ---
+//
+// The arguments are a description (type, nodes, edges), not XML or Mermaid.
+// With the engine in the HTML (DrawioSemantic, options.semanticJs of
+// buildHtml), the partial description is laid out as it streams in and
+// merged like streaming XML: the ids follow the description, so tables that
+// move morph to their new place and new ones pop in. The engine lays out the
+// whole diagram each time, as a Mermaid re-parse does, so runs are spaced by
+// at least twice the last run's time. The result renders the final diagram.
+
+var semanticPending = null;
+var semanticTimer = null;
+var lastSemanticKey = null;
+var semanticRunMs = 0;
+// set by the result, which renders the diagram: no preview after it
+var semanticResultSeen = false;
+
+function isSemanticArgs(args)
+{
+  return args != null && args.xml == null && args.mermaid == null && args.nodes != null;
+}
+
+function handleSemanticPartial(args, now)
+{
+  if (typeof DrawioSemantic === 'undefined')
+  {
+    return;
+  }
+
+  semanticPending = args;
+
+  if (now)
+  {
+    if (semanticTimer != null)
+    {
+      clearTimeout(semanticTimer);
+      semanticTimer = null;
+    }
+
+    runSemanticPreview();
+  }
+  else if (semanticTimer == null)
+  {
+    semanticTimer = setTimeout(function()
+    {
+      semanticTimer = null;
+      runSemanticPreview();
+    }, Math.max(150, 2 * semanticRunMs));
+  }
+}
+
+function runSemanticPreview()
+{
+  var args = semanticPending;
+  semanticPending = null;
+
+  if (args == null || semanticResultSeen || !isDocumentLaidOut() || typeof Graph === 'undefined' ||
+      typeof mxUtils === 'undefined')
+  {
+    return;
+  }
+
+  var key = null;
+
+  try
+  {
+    key = JSON.stringify(args);
+  }
+  catch (e)
+  {
+    return;
+  }
+
+  if (key === lastSemanticKey)
+  {
+    return;
+  }
+
+  lastSemanticKey = key;
+  var t0 = Date.now();
+
+  DrawioSemantic.semanticToXml(args, {}).then(function(r)
+  {
+    semanticRunMs = Date.now() - t0;
+
+    if (r.xml != null && !semanticResultSeen)
+    {
+      mergeSemanticXml(expandDiagramShorthand(r.xml).xml);
+    }
+  }).catch(function(_e)
+  {
+    // A description cut off mid-way can't always be laid out: the next
+    // partial or the result will be.
+  });
+}
+
+function mergeSemanticXml(xml)
+{
+  try
+  {
+    var xmlNode = mxUtils.parseXml(xml).documentElement;
+    // laid out whole each time, like a Mermaid re-parse: the camera follows
+    // the batch, not the last cell
+    streamMode = 'mermaid';
+
+    if (!streamingInitialized)
+    {
+      streamingInitialized = true;
+      lastFinalizedKey = null;
+      containerEl.innerHTML = "";
+      containerEl.classList.add("streaming");
+
+      var graphDiv = document.createElement("div");
+      graphDiv.style.width = "100%";
+      graphDiv.style.height = "100%";
+      graphDiv.style.overflow = "hidden";
+      containerEl.appendChild(graphDiv);
+
+      loadingEl.style.display = "none";
+      containerEl.style.display = "block";
+
+      streamGraph = new Graph(graphDiv);
+      streamGraph.setEnabled(false);
+      // No-op mxGraph's internal pan, as for streaming XML: the camera is
+      // the SVG's CSS transform.
+      streamGraph.panGraph = function() {};
+      streamGraph.setTooltips(false);
+      streamGraph.foldingEnabled = false;
+      streamPendingEdges = [];
+    }
+
+    if (streamGraph == null)
+    {
+      return;
+    }
+
+    var prevIds = getModelCellIds(streamGraph.getModel());
+    streamPendingEdges = streamMergeXmlDelta(streamGraph, streamPendingEdges, xmlNode);
+    var newIds = findNewCellIds(streamGraph.getModel(), prevIds);
+
+    // a table whose id was cut off in the previous partial ("boo" before
+    // "books") is gone in this one
+    removeOrphanCells(streamGraph, collectCellIdsFromXml(xmlNode));
+
+    var topNewIds = filterTopLevelCellIds(streamGraph, newIds);
+    trackRecentCells(filterVertexCellIds(streamGraph, topNewIds));
+
+    if (topNewIds.length > 0)
+    {
+      queueCellAnimation(streamGraph, topNewIds);
+    }
+
+    if (pendingAnimCellIds.length > 0 && animDebounceTimer == null)
+    {
+      queueCellAnimation(streamGraph, []);
+    }
+
+    streamFollowNewCells(streamGraph);
+  }
+  catch (e)
+  {
+    // Keep the last good graph on screen; the next run may succeed.
+  }
+}
+
 app.ontoolinputpartial = function(params)
 {
+  if (params && isSemanticArgs(params.arguments))
+  {
+    handleSemanticPartial(params.arguments, false);
+
+    return;
+  }
+
   // Mermaid streaming
   var partialMermaid = params.arguments && params.arguments.mermaid;
 
@@ -8840,6 +9026,15 @@ app.ontoolinput = function(params)
   var args = (params && params.arguments) || {};
   var mermaidText = args.mermaid;
 
+  // A whole description: the preview shows all of it until the result,
+  // which went through the server's passes, renders the diagram.
+  if (isSemanticArgs(args))
+  {
+    handleSemanticPartial(args, true);
+
+    return;
+  }
+
   // For Mermaid, direction is derived from the flowchart code; for XML, from
   // the optional direction field. resolvePostLayout maps elk to vertical or
   // horizontalFlow accordingly and passes other algorithms through.
@@ -8917,6 +9112,16 @@ app.ontoolinput = function(params)
 
 app.ontoolresult = function(result)
 {
+  // No description preview after this: the result is the diagram.
+  semanticResultSeen = true;
+  semanticPending = null;
+
+  if (semanticTimer != null)
+  {
+    clearTimeout(semanticTimer);
+    semanticTimer = null;
+  }
+
   // Cancel pending ontoolinput render — tool result is authoritative
   if (pendingToolInputTimer != null)
   {
@@ -10365,6 +10570,128 @@ function isMermaidSource(text)
 }
 
 /**
+ * The passes every XML diagram goes through before the payload goes anywhere
+ * (create_diagram after the repair and the shorthand expansion, and
+ * create_semantic_diagram).
+ *
+ * @param {string} xml - draw.io XML
+ * @returns {string}
+ */
+function finishDiagramXml(xml)
+{
+  // Repair the model: edges to the nearest common ancestor of their
+  // terminals (LLM XML parks them on the layer, which renders fine but lays
+  // out wrong — ELK reads an edge in the frame of the node containing it, so
+  // a connector between two cells inside one container escapes it,
+  // jgraph/drawio-mcp#64), a geometry for edges written without one (they
+  // don't render at all), and containers grown around children they would
+  // clip. Same repairs as the desktop CLI's --normalize; doing them here
+  // keeps the layout pass free of hierarchy side effects, and the
+  // open-in-draw.io URL carries the corrected diagram too.
+  xml = normalizeDiagram(xml).xml;
+  // A waypoint less than 3 px off a fixed connection point's line is moved
+  // onto it: off by a pixel, the router adds a jog of that size at the
+  // shape, and an arrowhead on it points along the side.
+  xml = snapWaypoints(xml).xml;
+  // Edges end at labels outside the shape (labelPerimeter=1, as on icons
+  // from draw.io's sidebar): a connection from below ends under the icon's
+  // name instead of crossing it. New cells only - draw.io keeps existing
+  // diagrams as they are.
+  xml = addLabelPerimeters(xml).xml;
+  // Edge labels: the label gap (the line stops at the text, no white box),
+  // and on straight horizontal edges the label sits just above the line
+  // where it fits.
+  xml = fitEdgeLabels(xml).xml;
+
+  return xml;
+}
+
+/**
+ * The semantic diagram types create_semantic_diagram offers by default: a
+ * type is switched on only once a blind judgement of rendered images rates
+ * its layouts at least equal to the XML models place themselves
+ * (bench/README.md). None yet, so the tool isn't listed.
+ */
+export const SEMANTIC_TYPES_ON = [];
+
+/**
+ * The semantic types to offer from a comma-separated list
+ * (DRAWIO_SEMANTIC_TYPES): the supported ones, in the order given. Unset,
+ * the default; empty or "off", none.
+ *
+ * @param {string|undefined} value
+ * @returns {string[]}
+ */
+export function resolveSemanticTypes(value)
+{
+  if (value == null)
+  {
+    return SEMANTIC_TYPES_ON.slice();
+  }
+
+  var out = [];
+
+  String(value).split(",").forEach(function(t)
+  {
+    t = t.trim().toLowerCase();
+
+    if (SEMANTIC_SUPPORTED_TYPES.indexOf(t) >= 0 && out.indexOf(t) < 0)
+    {
+      out.push(t);
+    }
+  });
+
+  return out;
+}
+
+// A list in a description read as the engine reads it (readList in
+// shared/semantic/spec.js), so the call doesn't fail on what the viewer's
+// preview already draws: its JSON text, one item alone, items as one string
+// with `|` between them, and null for none. JSON text that doesn't parse
+// goes on as written, and fails.
+function jsonList(value)
+{
+  if (value == null)
+  {
+    return undefined;
+  }
+
+  if (typeof value === "string" && /^\s*[\[{]/.test(value))
+  {
+    try
+    {
+      JSON.parse(value);
+    }
+    catch (e)
+    {
+      return value;
+    }
+  }
+
+  return readSemanticList(value);
+}
+
+// The nodes as a list; a node may be its id alone, as the engine reads it.
+function nodeList(value)
+{
+  var nodes = jsonList(value);
+
+  return Array.isArray(nodes) ? nodes.map(function(n)
+  {
+    return (typeof n === "string" || typeof n === "number") ? { id: String(n) } : n;
+  }) : nodes;
+}
+
+// null for an optional value the model leaves empty.
+function optional(schema)
+{
+  return z.preprocess(function(value)
+  {
+    return (value === null) ? undefined : value;
+  }, schema.optional());
+}
+
+/**
  * Create a new MCP server instance with the create_diagram tool + UI resource.
  *
  * @param {string} html - The pre-built, self-contained HTML string.
@@ -10376,13 +10703,15 @@ function isMermaidSource(text)
  * @param {string|null} [options.iconServiceUrl] - Base URL of the draw.io icon service used to supplement sparse search_shapes results (default: icons.diagrams.net). Pass null to disable icon supplementation.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
  * @param {string} [options.drawioBaseUrl] - The draw.io editor the link for clients without an MCP Apps UI opens (DRAWIO_BASE_URL, see editorLinkBase), added to the CSP's connect and redirect domains. The same value as buildHtml's, which sets "Open in draw.io".
+ * @param {string[]} [options.semanticTypes] - The semantic diagram types create_semantic_diagram offers (default SEMANTIC_TYPES_ON); without any, the tool isn't registered. The engine runs without ELK here, so ER schemas of more than 16 tables go on the grid too, whose search stops at a work limit.
  * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize (clientUiState "renders"), `hidden` whether it declared it but is known not to render (clientUiState "hidden"), and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
  * @returns {McpServer}
  */
 export function createServer(html, options = {})
 {
   const { domain, xmlReference = "", mermaidReference = "", shapeIndex = null,
-    iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null } = options;
+    iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null,
+    semanticTypes = SEMANTIC_TYPES_ON } = options;
   const linkBase = editorLinkBase(drawioBaseUrl);
   // The version clients see in serverInfo is the package version, so it moves
   // with each release instead of drifting from package.json/server.json.
@@ -10585,31 +10914,7 @@ export function createServer(html, options = {})
 
       normalizedXml = icons.xml;
 
-      // Repair the model before the payload goes anywhere: edges to the
-      // nearest common ancestor of their terminals (LLM XML parks them on the
-      // layer, which renders fine but lays out wrong — ELK reads an edge in
-      // the frame of the node containing it, so a connector between two cells
-      // inside one container escapes it, jgraph/drawio-mcp#64), a geometry
-      // for edges written without one (they don't render at all), and
-      // containers grown around children they would clip. Same repairs as the
-      // desktop CLI's --normalize; doing them here keeps the layout pass free
-      // of hierarchy side effects, and the open-in-draw.io URL carries the
-      // corrected diagram too.
-      normalizedXml = normalizeDiagram(normalizedXml).xml;
-      // A waypoint less than 3 px off a fixed connection point's line is
-      // moved onto it: off by a pixel, the router adds a jog of that size at
-      // the shape, and an arrowhead on it points along the side.
-      normalizedXml = snapWaypoints(normalizedXml).xml;
-
-      // Edges end at labels outside the shape (labelPerimeter=1, as on
-      // icons from draw.io's sidebar): a connection from below ends under
-      // the icon's name instead of crossing it. New cells only - draw.io
-      // keeps existing diagrams as they are.
-      normalizedXml = addLabelPerimeters(normalizedXml).xml;
-      // Edge labels: the label gap (the line stops at the text, no white
-      // box), and on straight horizontal edges the label sits just above
-      // the line where it fits.
-      normalizedXml = fitEdgeLabels(normalizedXml).xml;
+      normalizedXml = finishDiagramXml(normalizedXml);
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };
       if (postLayout) xmlPayload.postLayout = postLayout;
@@ -10661,6 +10966,86 @@ export function createServer(html, options = {})
       return { content: content };
     }
   );
+
+  // ── create_semantic_diagram (only with a semantic type switched on) ────────
+
+  var semanticOffered = semanticTypes.filter(function(t)
+  {
+    return SEMANTIC_SUPPORTED_TYPES.indexOf(t) >= 0;
+  });
+
+  if (semanticOffered.length > 0)
+  {
+    registerAppTool(
+      server,
+      "create_semantic_diagram",
+      {
+        title: "Create Diagram from a Description",
+        // Built from the types switched on (shared/semantic/description.js).
+        description: describeSemanticTool(semanticOffered),
+        inputSchema:
+        {
+          // any case and the engine's aliases (erd, schema); a type that
+          // isn't offered goes on as written, so the error quotes it
+          type: z.preprocess(function(value)
+          {
+            var name = semanticTypeName(value);
+
+            return (semanticOffered.indexOf(name) >= 0) ? name : value;
+          }, z.enum(semanticOffered)).describe("The diagram type."),
+          title: optional(z.string()).describe("A title shown above the diagram."),
+          nodes: z.preprocess(nodeList, z.array(z.object({}).passthrough()))
+            .describe("The nodes, each with an id and a label; the fields the type takes are in the description."),
+          edges: z.preprocess(jsonList, z.array(z.object({}).passthrough()).optional())
+            .describe("The edges, each with from and to (node ids)."),
+        },
+        annotations:
+        {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+        _meta:
+        {
+          ui: { resourceUri },
+          "openai/toolInvocation/invoking": "Creating diagram...",
+          "openai/toolInvocation/invoked": "Diagram ready.",
+        },
+      },
+      async function(args)
+      {
+        // Laid out headless and deterministic (shared/semantic), then the
+        // same passes as create_diagram's XML. The result is the XML, as
+        // create_diagram's, so the model has it in context for changes.
+        var r = await semanticToXml(args, {});
+
+        if (r.error != null)
+        {
+          var failed = [{ type: "text", text: r.error }];
+
+          if (r.warnings.length > 0)
+          {
+            failed.push({ type: "text", text: "WARNINGS:\n- " + r.warnings.join("\n- ") });
+          }
+
+          return { content: failed, isError: true };
+        }
+
+        var payload = { xml: absolutizeImageUrls(finishDiagramXml(r.xml)), _buildId: buildId };
+        var content = [{ type: "text", text: JSON.stringify(payload) }];
+
+        if (r.warnings.length > 0)
+        {
+          content.push({ type: "text", text: "WARNINGS (left out of the diagram):\n- " + r.warnings.join("\n- ") });
+        }
+
+        appendOpenUrl(content, await rendersInline(), hiddenUi(), payload.xml, "xml", null, linkBase);
+
+        return { content: content };
+      }
+    );
+  }
 
   // ── search_shapes tool (only registered when shapeIndex is provided) ───────
 
