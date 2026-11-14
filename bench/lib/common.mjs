@@ -146,9 +146,10 @@ export function median(values)
  * Starts an MCP server over stdio and returns call(method, params) and
  * close().
  */
-export async function connectStdio(command, args)
+export async function connectStdio(command, args, env)
 {
-  const child = spawn(command, args, { stdio: ["pipe", "pipe", "ignore"] });
+  const child = spawn(command, args, { stdio: ["pipe", "pipe", "ignore"],
+    env: env != null ? Object.assign({}, process.env, env) : process.env });
   const pending = new Map();
   let buf = "";
   let nextId = 1;

@@ -14,6 +14,7 @@ Variants (`run.mjs`):
 | `both` | one server with the app server's three tools and `create_semantic_diagram`, to see which one the model picks |
 | `both-rule` | the same, with a sentence in the `create_diagram` description that sends architecture, cloud, network and swimlane-flowchart diagrams to the semantic tool |
 | `switch-on` | the app server itself with its switch on (`DRAWIO_SEMANTIC_TYPES`, `on` unless set): its own `create_semantic_diagram` for the types that passed the judgement next to `create_diagram`, as staging has it. Shows which tool a model picks per diagram type and that the server's tool takes what models send |
+| `xml-grid` | the app server with the grid pass for XML (`DRAWIO_SEMANTIC_TYPES=xml-grid`): `create_diagram` alone, whose description and XML reference ask for a cell per shape (`row=1;col=2;`) instead of a position; the server places a diagram of cells with the semantic engine's grid pass. `render.mjs` draws it with the same switch |
 
 ## Setup
 

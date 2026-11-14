@@ -37,13 +37,17 @@
 //                  (DRAWIO_SEMANTIC_TYPES, "on" unless set): its own
 //                  create_semantic_diagram for the types that passed the
 //                  judgement next to create_diagram, as staging has it
+//   xml-grid       the app server with the grid pass for XML
+//                  (DRAWIO_SEMANTIC_TYPES=xml-grid): create_diagram alone,
+//                  which asks for a cell per shape instead of a position and
+//                  places a diagram of cells on the server
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { BENCH, APP_SERVER, parseArgs, outDir, loadPrompts, selectKeys, runTag, pool, round } from "./lib/common.mjs";
 
-const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on"];
+const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on", "xml-grid"];
 const SEMANTIC_TOOL = "create_semantic_diagram";
 
 const args = parseArgs(process.argv.slice(2));
@@ -73,7 +77,20 @@ fs.mkdirSync(out, { recursive: true });
 // The app server itself: as it is, or with its own semantic tool switched on.
 function usesAppServer(variant)
 {
-  return variant === "today" || variant === "mermaid" || variant === "switch-on";
+  return variant === "today" || variant === "mermaid" || variant === "switch-on" || variant === "xml-grid";
+}
+
+// The app server's switch for a variant (DRAWIO_SEMANTIC_TYPES), as a deploy
+// sets it: the baseline is create_diagram alone, whatever the shell or the
+// server's default has. render.mjs draws the diagram with the same switch.
+function switchOf(variant)
+{
+  if (variant === "switch-on")
+  {
+    return process.env.DRAWIO_SEMANTIC_TYPES || "on";
+  }
+
+  return variant === "xml-grid" ? "xml-grid" : "off";
 }
 
 function usesSemanticServer(variant)
@@ -128,9 +145,7 @@ function mcpConfig(variant, tag)
   {
     server = { type: "stdio", command: process.execPath, args: [APP_SERVER, "--stdio"] };
 
-    // the switch as a deploy sets it; the other variants are the baseline,
-    // create_diagram alone, whatever the shell or the server's default has
-    server.env = { DRAWIO_SEMANTIC_TYPES: variant === "switch-on" ? (process.env.DRAWIO_SEMANTIC_TYPES || "on") : "off" };
+    server.env = { DRAWIO_SEMANTIC_TYPES: switchOf(variant) };
   }
 
   const file = path.join(out, tag + "-mcp.json");
@@ -307,7 +322,7 @@ function saveDiagram(file, variant, call)
   if (call)
   {
     fs.writeFileSync(path.join(out, file), JSON.stringify({ tool: shortName(call.name), arguments: call.input,
-      hints: hintsOf(variant) }, null, 1));
+      hints: hintsOf(variant), switch: usesAppServer(variant) ? switchOf(variant) : undefined }, null, 1));
   }
 }
 

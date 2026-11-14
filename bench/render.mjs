@@ -13,6 +13,10 @@
 // The diagrams of edit turns (<tag>-edit-diagram.json, run.mjs --edits) are
 // rendered the same way, as <tag>-edit-inline.png and so on.
 //
+// A diagram is drawn by the app server with the switch its run had (the
+// `switch` its diagram file names, run.mjs): the grid pass for XML
+// (xml-grid) places a diagram of cells there, as in the run.
+//
 // --routing viewer leaves the edges of semantic descriptions to the viewer
 // (create_diagram's routing: "libavoid") instead of the engine's own router,
 // to compare the two on the same placements.
@@ -92,6 +96,23 @@ function pngSize(buf)
 
 const server = await connectStdio(process.execPath, [APP_SERVER, "--stdio"]);
 const app = await server.call("resources/read", { uri: "ui://drawio/mcp-app.html" });
+// the servers with a switch of their own, by its value
+const switched = new Map();
+
+async function serverFor(value)
+{
+  if (value == null || value === "off")
+  {
+    return server;
+  }
+
+  if (!switched.has(value))
+  {
+    switched.set(value, await connectStdio(process.execPath, [APP_SERVER, "--stdio"], { DRAWIO_SEMANTIC_TYPES: value }));
+  }
+
+  return switched.get(value);
+}
 const appHtml = app.result.contents[0].text;
 const elk = newElk();
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bench-chrome-"));
@@ -130,7 +151,8 @@ async function render(f)
     engine = { warnings: r.warnings, stats: r.stats };
   }
 
-  const res = await server.call("tools/call", { name: "create_diagram", arguments: input });
+  const res = await (await serverFor(d.tool === "create_diagram" ? d.switch : null)).call("tools/call",
+    { name: "create_diagram", arguments: input });
   const page = await browser.newPage();
 
   try
@@ -237,4 +259,5 @@ console.log(files.length - failed + " of " + files.length + " diagrams rendered"
 
 await browser.close();
 server.close();
+switched.forEach(function(s) { s.close(); });
 fs.rmSync(profile, { recursive: true, force: true });
