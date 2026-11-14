@@ -33,13 +33,17 @@
 //                  description that sends architecture, cloud, network and
 //                  swimlane-flowchart diagrams to the semantic tool
 //                  (BENCH_FORMAT_RULE=1, which `both` also passes on when set)
+//   switch-on      the app server itself with its switch on
+//                  (DRAWIO_SEMANTIC_TYPES, "on" unless set): its own
+//                  create_semantic_diagram for the types that passed the
+//                  judgement next to create_diagram, as staging has it
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { BENCH, APP_SERVER, parseArgs, outDir, loadPrompts, selectKeys, runTag, pool, round } from "./lib/common.mjs";
 
-const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule"];
+const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on"];
 const SEMANTIC_TOOL = "create_semantic_diagram";
 
 const args = parseArgs(process.argv.slice(2));
@@ -66,14 +70,20 @@ for (const v of variants)
 
 fs.mkdirSync(out, { recursive: true });
 
+// The app server itself: as it is, or with its own semantic tool switched on.
+function usesAppServer(variant)
+{
+  return variant === "today" || variant === "mermaid" || variant === "switch-on";
+}
+
 function usesSemanticServer(variant)
 {
-  return variant !== "today" && variant !== "mermaid";
+  return !usesAppServer(variant);
 }
 
 function offersBoth(variant)
 {
-  return variant === "both" || variant === "both-rule";
+  return variant === "both" || variant === "both-rule" || variant === "switch-on";
 }
 
 function formatRule(variant)
@@ -89,7 +99,7 @@ function mcpConfig(variant, tag)
   {
     const env = { BENCH_RUN_DIR: out, BENCH_TAG: tag, NODE_PATH: process.env.NODE_PATH || "" };
 
-    for (const name of ["SEMANTIC_TYPES", "SEMANTIC_RESULT", "SEMANTIC_HINTS"])
+    for (const name of ["SEMANTIC_TYPES", "SEMANTIC_RESULT", "SEMANTIC_HINTS", "SEMANTIC_PARTS"])
     {
       if (process.env[name])
       {
@@ -117,6 +127,10 @@ function mcpConfig(variant, tag)
   else
   {
     server = { type: "stdio", command: process.execPath, args: [APP_SERVER, "--stdio"] };
+
+    // the switch as a deploy sets it; the other variants are the baseline,
+    // create_diagram alone, whatever the shell or the server's default has
+    server.env = { DRAWIO_SEMANTIC_TYPES: variant === "switch-on" ? (process.env.DRAWIO_SEMANTIC_TYPES || "on") : "off" };
   }
 
   const file = path.join(out, tag + "-mcp.json");
@@ -284,7 +298,8 @@ function hintsOf(variant)
     return false;
   }
 
-  return (variant === "semantic-rows" || process.env.SEMANTIC_HINTS === "ask") ? "ask" : true;
+  // the app server's own tool asks for the cells (SEMANTIC_HINTS in its src/shared.js)
+  return (variant === "semantic-rows" || variant === "switch-on" || process.env.SEMANTIC_HINTS === "ask") ? "ask" : true;
 }
 
 function saveDiagram(file, variant, call)
@@ -400,7 +415,8 @@ function runCase(variant, key, model, rep)
       }
 
       const s = Object.assign({ variant: variant, key: key, type: p.type, split: p.split, size: p.size, model: model,
-        repeat: rep, tag: tag, formatRule: offersBoth(variant) ? formatRule(variant) : undefined, timedOut: timedOut || undefined,
+        repeat: rep, tag: tag, formatRule: usesSemanticServer(variant) && offersBoth(variant) ? formatRule(variant) : undefined,
+        timedOut: timedOut || undefined,
         // seconds until the first answer was complete (as before: "wall"), and of the whole session
         wallSecs: f.endSecs != null ? f.endSecs : round((Date.now() - t0) / 1000, 2),
         sessionSecs: round((Date.now() - t0) / 1000, 2) }, f,

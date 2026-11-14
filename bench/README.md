@@ -6,13 +6,14 @@ Variants (`run.mjs`):
 
 | Variant | What the model gets |
 |---|---|
-| `today` | the app server as it is: the model picks XML or Mermaid from the `create_diagram` description, fetches the reference and places the shapes |
+| `today` | the app server without the semantic tool: the model picks XML or Mermaid from the `create_diagram` description, fetches the reference and places the shapes |
 | `mermaid` | the same, with "Use Mermaid." after the prompt |
 | `semantic` | `semantic-server.mjs`: one tool, `create_semantic_diagram`, the model describes the diagram and the engine in `shared/semantic` lays it out. Placement hints (`row`, `col`) are offered as optional |
 | `semantic-auto` | the same without placement hints: not in the description or the schema, and ignored by the engine |
 | `semantic-rows` | the same with the hints asked for: the model gives every node its cell (a row and a column) in one grid for the whole diagram, the engine sizes the cells, draws the frames of the groups around their members and routes the lines |
 | `both` | one server with the app server's three tools and `create_semantic_diagram`, to see which one the model picks |
 | `both-rule` | the same, with a sentence in the `create_diagram` description that sends architecture, cloud, network and swimlane-flowchart diagrams to the semantic tool |
+| `switch-on` | the app server itself with its switch on (`DRAWIO_SEMANTIC_TYPES`, `on` unless set): its own `create_semantic_diagram` for the types that passed the judgement next to `create_diagram`, as staging has it. Shows which tool a model picks per diagram type and that the server's tool takes what models send |
 
 ## Setup
 
@@ -65,4 +66,8 @@ Both sides are drawn in the calm theme with the same font rule (14 px up to 12 s
 
 A judge model is one opinion. `pairs.mjs` writes a page of pairs for a person to judge blind (`node pairs.mjs --a today --b semantic-rows --count 20`): `pairs/index.html` shows each pair in random order as A and B with the prompt, the choices are kept in the page and exported as JSON, and `pairs/key.json` says which side was which.
 
-Switching it on means adding it to `SEMANTIC_TYPES_ON` in `mcp-app-server/src/shared.js`, which lists `create_semantic_diagram` in the app server; until then `DRAWIO_SEMANTIC_TYPES=er` offers a type in the Node app server only.
+A type that passed goes into `SEMANTIC_TYPES_READY` in `mcp-app-server/src/shared.js` (flowcharts and swimlanes so far): the app server then offers it with `DRAWIO_SEMANTIC_TYPES=on`, in the Node server at startup and in the Worker at build time, which is how staging tests it. After that test it moves to `SEMANTIC_TYPES_ON`, which lists `create_semantic_diagram` for everybody. `DRAWIO_SEMANTIC_TYPES=er` offers any other type for trying it out. The `switch-on` variant runs prompts against the app server with the switch on.
+
+The wording of the tool description is measured the same way: `SEMANTIC_PARTS` (a list out of `placement`, `groups`, `completeness`; `none` for none of them, unset for the default) tells `semantic-server.mjs` which parts of the description are in their later wording (`PARTS` in `shared/semantic/description.js`), so one part can be judged against the same `today` diagrams without the others.
+
+`preview.mjs` checks the app server's tool in the viewer, which `render.mjs` doesn't (it draws descriptions with the engine and shows them as XML): the app server with the switch on, and every saved description of an offered type shown twice in headless Chrome, the result alone and with the arguments streamed in first, as a host hands them over while the model writes them (`node preview.mjs --chrome /path/to/chrome --match 'semantic-rows-(lanes|flow)'`). It reports, per description and in `preview.json`, what the preview drew at every step and how long a layout took, how often the lanes turned while the diagram grew, whether the streamed diagram ends with the same cells as the result alone, whether the model is told that the diagram came from its description, the layout check's findings and script errors.

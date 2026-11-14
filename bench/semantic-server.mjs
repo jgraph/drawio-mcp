@@ -16,9 +16,10 @@
 //
 // Env: BENCH_RUN_DIR, BENCH_TAG, SEMANTIC_TYPES (comma-separated, default:
 // every supported type), SEMANTIC_HINTS (off: placement hints are neither
-// described nor used), SEMANTIC_RESULT (xml), SEMANTIC_REPLY_NOTE (off: no
-// request for a short reply after the result), BENCH_WITH_APP,
-// BENCH_FORMAT_RULE.
+// described nor used), SEMANTIC_PARTS (the parts of the description in their
+// later wording, see description.js), SEMANTIC_RESULT (xml),
+// SEMANTIC_REPLY_NOTE (off: no request for a short reply after the result),
+// BENCH_WITH_APP, BENCH_FORMAT_RULE.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -26,7 +27,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { APP_SERVER, newElk } from "./lib/common.mjs";
 import { semanticToXml, SUPPORTED_TYPES } from "../shared/semantic/index.js";
-import { describeTool, describeSchema } from "../shared/semantic/description.js";
+import { describeTool, describeSchema, PARTS, PARTS_KEPT } from "../shared/semantic/description.js";
 
 const TOOL = "create_semantic_diagram";
 const FORMAT_RULE = " For architecture, cloud, network and swimlane-flowchart diagrams, use " + TOOL + " instead.";
@@ -40,6 +41,10 @@ const runDir = process.env.BENCH_RUN_DIR || ".";
 const tag = process.env.BENCH_TAG || "run";
 const types = (process.env.SEMANTIC_TYPES || SUPPORTED_TYPES.join(",")).split(",");
 const hints = process.env.SEMANTIC_HINTS === "ask" ? "ask" : process.env.SEMANTIC_HINTS !== "off";
+// SEMANTIC_PARTS: the parts of the description in their later wording, to
+// measure them one by one ("none" for the earlier wording of all of them);
+// unset, the ones that measurement kept, as the app server has them
+const parts = process.env.SEMANTIC_PARTS ? process.env.SEMANTIC_PARTS.split(",").filter(function(p) { return PARTS.includes(p); }) : PARTS_KEPT;
 const resultXml = process.env.SEMANTIC_RESULT === "xml";
 const replyNote = process.env.SEMANTIC_REPLY_NOTE !== "off";
 const withApp = process.env.BENCH_WITH_APP === "1";
@@ -49,7 +54,9 @@ let count = 0;
 
 function tool()
 {
-  return { name: TOOL, description: describeTool(types, { hints: hints }), inputSchema: describeSchema(types, { hints: hints }) };
+  const options = { hints: hints, parts: parts };
+
+  return { name: TOOL, description: describeTool(types, options), inputSchema: describeSchema(types, options) };
 }
 
 function send(msg)
@@ -74,7 +81,7 @@ async function callTool(args)
 
   const warnings = r.warnings || [];
   fs.writeFileSync(path.join(runDir, tag + "-call" + n + ".json"), JSON.stringify({ arguments: args,
-    xml: r.xml, error: r.error, warnings: warnings, stats: r.stats, hints: hints }, null, 1));
+    xml: r.xml, error: r.error, warnings: warnings, stats: r.stats, hints: hints, parts: parts }, null, 1));
 
   if (r.error != null || r.xml == null)
   {
@@ -107,7 +114,9 @@ const listRequests = new Set();
 
 function startApp()
 {
-  app = spawn(process.execPath, [APP_SERVER, "--stdio"], { stdio: ["pipe", "pipe", "ignore"] });
+  // its own semantic tool stays off, whatever the shell has set: this server adds the one that is measured
+  app = spawn(process.execPath, [APP_SERVER, "--stdio"], { stdio: ["pipe", "pipe", "ignore"],
+    env: Object.assign({}, process.env, { DRAWIO_SEMANTIC_TYPES: "off" }) });
 
   readline.createInterface({ input: app.stdout }).on("line", function(line)
   {
