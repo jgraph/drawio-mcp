@@ -2389,11 +2389,38 @@ function placeOnPage(content, lanes, ctx, turned, room)
     y += rowH[r] + (r < rows - 1 ? rowGap[r] : bottom[r]);
   }
 
-  // A lane diagram that a change made taller is made wider at its end, where
-  // the lanes reach: the chat then shows it whole without moving a step.
-  if (ctx.keep != null && ctx.keepWidth > 0 && bands != null && x + rim.right < ctx.keepWidth)
+  // A change that made the page tall enough to be cut off: the page is made
+  // as wide as asked for (ctx.keepWidth) without moving a shape against
+  // another, so the chat shows it whole. A lane diagram is made wider at its
+  // end, where the lanes reach; on any other page the columns move together,
+  // to the middle of the wider page, with the gaps beside them, so the lines
+  // run where they did. The chat fits the diagram again, which hides a shift
+  // that every shape shares, and the layout of the result is written
+  // without it (`shift`).
+  let shift = 0;
+  let padRight = 0;
+
+  if (ctx.keep != null && ctx.keepWidth > 0 && x + rim.right < ctx.keepWidth)
   {
-    rim.right += ctx.keepWidth - (x + rim.right);
+    const more = ctx.keepWidth - (x + rim.right);
+
+    if (bands != null)
+    {
+      rim.right += more;
+    }
+    else
+    {
+      shift = Math.floor(more / 2);
+      padRight = more - shift;
+
+      for (let c = 0; c < cols; c++)
+      {
+        colX[c] += shift;
+      }
+
+      x += shift;
+      rim.right += padRight;
+    }
   }
 
   const width = Math.ceil(x + rim.right);
@@ -2479,8 +2506,8 @@ function placeOnPage(content, lanes, ctx, turned, room)
 
   for (let g = 0; g <= cols; g++)
   {
-    const from = (g === 0) ? ((bands != null && bands.rows) ? LANE_TITLE : 0) : colX[g - 1] + colW[g - 1] + (bands == null ? right[g - 1] : 0);
-    const to = (g === cols) ? width : colX[g] - (bands == null ? left[g] : 0);
+    const from = (g === 0) ? ((bands != null && bands.rows) ? LANE_TITLE : shift) : colX[g - 1] + colW[g - 1] + (bands == null ? right[g - 1] : 0);
+    const to = (g === cols) ? width - padRight : colX[g] - (bands == null ? left[g] : 0);
 
     vz.push({ from: from, to: to });
   }
@@ -2530,7 +2557,7 @@ function placeOnPage(content, lanes, ctx, turned, room)
 
   return { width: width, height: height, grid: { cols: cols, rows: rows, leaves: leaves, frames: frames,
     bands: bands != null, colX: colX, colW: colW, rowY: rowY, rowH: rowH, vz: vz, hz: hz, px: px, py: py, zone: zone,
-    colValues: colValues, rowValues: rowValues } };
+    colValues: colValues, rowValues: rowValues, shift: shift } };
 }
 
 /**
@@ -3655,27 +3682,29 @@ function layoutPage(graph, options, stats)
 
   size = place(best.policy);
 
-  // Cut off at the bottom: wider, until it is shown whole. On a change only
-  // a lane diagram is, at its end, where the lanes reach: made wider across,
-  // every step would move.
+  // Cut off at the bottom: wider, until it is shown whole. On a change the
+  // columns keep their width and the page is made wider around them
+  // (ctx.keepWidth in placeOnPage): made wider across, every step would move.
   if (ctx.grid === "page")
   {
     const whole = { width: size.width, height: size.height + around };
 
-    if (best.kept)
+    if (isCut(whole, ctx.frame) && (best.policy === "turned" || canWiden(whole, ctx.frame)))
     {
-      if (isPool && isCut(whole, ctx.frame) && canWiden(whole, ctx.frame))
+      const width = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
+
+      if (best.kept)
       {
-        ctx.keepWidth = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
+        ctx.keepWidth = width;
         size = place(best.policy);
         ctx.keepWidth = 0;
       }
-    }
-    else if (isCut(whole, ctx.frame) && (best.policy === "turned" || canWiden(whole, ctx.frame)))
-    {
-      ctx.minWidth = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
-      size = place(best.policy);
-      ctx.minWidth = 0;
+      else
+      {
+        ctx.minWidth = width;
+        size = place(best.policy);
+        ctx.minWidth = 0;
+      }
     }
   }
 
@@ -3683,17 +3712,19 @@ function layoutPage(graph, options, stats)
   // shared/semantic/keep.js): the orientation, the spacing, the sizes of the
   // kinds of boxes, and the center and size of every column and row by the
   // model's number for it. Not rounded here: the text rounds down, so what
-  // is read back never pushes a row or column further than it was.
+  // is read back never pushes a row or column further than it was. Without
+  // the shift of a page made wider on a change: the next change makes it as
+  // wide as it then needs.
   if (ctx.grid === "page" && ctx.page != null)
   {
     const grid = ctx.page.grid;
-    const axis = function(values, at, sizes)
+    const axis = function(values, at, sizes, shift)
     {
-      return values.map(function(m, i) { return { m: m, c: at[i] + sizes[i] / 2, s: sizes[i] }; });
+      return values.map(function(m, i) { return { m: m, c: at[i] - shift + sizes[i] / 2, s: sizes[i] }; });
     };
 
     stats.keep = { policy: best.policy, tight: ctx.tight === true, dense: dense, kept: best.kept === true,
-      x: axis(grid.colValues, grid.colX, grid.colW), y: axis(grid.rowValues, grid.rowY, grid.rowH),
+      x: axis(grid.colValues, grid.colX, grid.colW, grid.shift || 0), y: axis(grid.rowValues, grid.rowY, grid.rowH, 0),
       kinds: Array.from(kindSizes || []).map(function(e) { return { key: e[0], w: e[1].w, h: e[1].h }; }) };
   }
   else

@@ -20,12 +20,16 @@
 // shapes' font size, `id` a hash of the type and the title (a layout is
 // only used for a diagram with the same type and title), `w` the digits of
 // the numbers of that axis (2, or 3 where a column of a page made wide is
-// 1296 px or more), a column or row is 1 + 2w characters (twice the step
-// from the model's number before it, the step of its center in px, its size
-// in px), a kind six (a hash of its key, its width and height), and `check`
-// a hash of everything before it, so a text the model didn't copy exactly
-// is not used. A layout that doesn't fit the format (a number too large)
-// isn't written.
+// 1296 px or more), a column or row is its number and 2w characters (the
+// step of its center in px, its size in px), a kind six (a hash of its key,
+// its width and height), and `check` a hash of everything before it, so a
+// text the model didn't copy exactly is not used. The number is one digit,
+// twice the step from the number before it (from 0 for the first), or,
+// where that step isn't 0.5 to 17.5 (a first number of 0 or more than 17, a
+// gap of more than 17), a 0 and three digits with twice the number itself:
+// so every number the description takes (0 to 1000, in halves) is written.
+// A layout that doesn't fit the format (a size too large, a number between
+// halves) isn't written.
 
 export const KEEP_VERSION = "1";
 
@@ -104,11 +108,13 @@ function axisDigits(entries, width)
   // instead of a pixel further on.
   for (const e of entries)
   {
-    const dm = fixed(Math.round((e.m - m) * 2), 1);
+    const twice = e.m * 2;
+    const step = twice - m * 2;
+    const dm = (step >= 1 && step < 36) ? fixed(step, 1) : (fixed(twice, 3) != null ? "0" + fixed(twice, 3) : null);
     const dc = fixed(Math.floor(e.c) - c, width);
     const s = fixed(Math.floor(e.s), width);
 
-    if (dm == null || dc == null || s == null)
+    if (!Number.isInteger(twice) || dm == null || dc == null || s == null)
     {
       return null;
     }
@@ -144,23 +150,33 @@ function readAxis(text)
   let m = 0;
   let c = 0;
 
-  if ((width !== 2 && width !== 3) || (text.length - 1) % (1 + 2 * width) !== 0)
+  if (width !== 2 && width !== 3)
   {
     return null;
   }
 
-  for (let i = 1; i < text.length; i += 1 + 2 * width)
+  for (let i = 1; i < text.length; i += 2 * width)
   {
     const dm = read(text, i, 1);
-    const dc = read(text, i + 1, width);
-    const s = read(text, i + 1 + width, width);
+    // a 0: twice the number itself follows, larger than the one before
+    const twice = (dm === 0) ? read(text, i + 1, 3) : NaN;
 
-    if (isNaN(dm) || isNaN(dc) || isNaN(s) || dm === 0)
+    if (dm === 0 && (isNaN(twice) || (out.length > 0 && twice <= m * 2)))
     {
       return null;
     }
 
-    m += dm / 2;
+    i += (dm === 0) ? 4 : 1;
+
+    const dc = read(text, i, width);
+    const s = read(text, i + width, width);
+
+    if (isNaN(dm) || isNaN(dc) || isNaN(s))
+    {
+      return null;
+    }
+
+    m = (dm === 0) ? twice / 2 : m + dm / 2;
     c += dc;
     out.push({ m: m, c: c, s: s });
   }

@@ -180,6 +180,34 @@ test("the layout is a short text that reads back as it was written", function()
   assert.notEqual(keepId("swimlane", "Refund"), keepId("flowchart", "Refund"));
 });
 
+test("every number a description takes for a cell is written and read back", function()
+{
+  const diagram = { type: "flowchart", title: "Numbers" };
+  const axis = function(numbers)
+  {
+    return numbers.map(function(m, i) { return { m: m, c: 80 + 200 * i, s: 160 }; });
+  };
+
+  // from 0, a first number of 18 or more, gaps of more than 17, halves, up to 1000
+  for (const numbers of [[0, 1, 2], [0], [18, 19], [1, 20, 21], [0.5, 40.5, 41], [1, 999.5, 1000], [36, 1000]])
+  {
+    const keep = { policy: "", tight: false, dense: false, x: axis(numbers), y: axis(numbers.slice().reverse().map(function(n)
+    {
+      return 1000 - n;
+    })), kinds: [] };
+    const text = encodeKeep(keep, Object.assign({ font: 14 }, diagram));
+    const back = decodeKeep(text, diagram);
+
+    assert.equal(back.error, null, numbers.join(",") + ": " + text);
+    assert.deepEqual(back.keep.x, keep.x, text);
+    assert.deepEqual(back.keep.y, keep.y, text);
+  }
+
+  // a number between halves can't be written: no layout rather than a wrong one
+  assert.equal(encodeKeep({ policy: "", tight: false, dense: false, x: axis([1, 1.25]), y: axis([1]), kinds: [] },
+    Object.assign({ font: 14 }, diagram)), null);
+});
+
 test("a layout that wasn't copied exactly, or is another diagram's, is not used", function()
 {
   const text = encodeKeep({ policy: "", tight: false, dense: false, x: [{ m: 1, c: 80, s: 160 }], y: [{ m: 1, c: 30, s: 60 }],
@@ -210,6 +238,87 @@ test("a description drawn with its own layout is drawn as before", async functio
     assert.deepEqual(moved(first.xml, again.xml, Array.from(positions(first.xml).keys())), [], d.title + " " + d.nodes.length);
     assert.equal(again.layout, first.layout);
   }
+});
+
+test("a diagram numbered from 0 or with gaps keeps its layout", async function()
+{
+  const d = changed(LANES, { nodes: LANES.nodes.map(function(n)
+  {
+    return Object.assign({}, n, { row: n.row - 1, col: (n.col === 3) ? 25 : n.col - 1 });
+  }) });
+  const first = await draw(d);
+  const again = await draw(changed(d, { layout: first.layout }));
+
+  assert.ok(typeof first.layout === "string", String(first.layout));
+  assert.deepEqual(again.warnings, []);
+  assert.equal(again.stats.kept, true);
+  assert.equal(again.xml, first.xml);
+});
+
+// A flowchart without lanes: n steps down one column, with a check beside
+// the second one.
+function steps(n)
+{
+  const nodes = [{ id: "check", label: "Is the order complete?", kind: "decision", row: 2, col: 2 }];
+  const edges = [{ from: "s2", to: "check" }];
+
+  for (let i = 1; i <= n; i++)
+  {
+    nodes.push({ id: "s" + i, label: "Step " + i + " of the order", kind: (i === 1) ? "start" : (i === n ? "end" : "step"),
+      row: i, col: 1 });
+
+    if (i > 1)
+    {
+      edges.push({ from: "s" + (i - 1), to: "s" + i });
+    }
+  }
+
+  return { type: "flowchart", title: "Order", nodes: nodes, edges: edges };
+}
+
+// Whether the chat would show a page of the size in stats cut off at the
+// bottom (isCut in shared/grid-layout.js, frame 736 x 664).
+function cutOff(stats)
+{
+  const whole = Math.min(736 / stats.width, 664 / stats.height, 1);
+
+  return whole < 0.75 && Math.min(736 / stats.width, 0.75) > whole * 1.05;
+}
+
+test("a page without lanes that a change makes too tall is made wider, and its shapes move together", async function()
+{
+  const first = await draw(steps(8));
+  const more = steps(12);
+  const fresh = await draw(more);
+  const kept = await draw(changed(more, { layout: first.layout }));
+  const ids = ["check"].concat(steps(8).nodes.slice(1, 8).map(function(n) { return n.id; }));
+  const a = positions(first.xml);
+  const b = positions(kept.xml);
+
+  assert.equal(cutOff(first.stats), false);
+  assert.equal(cutOff(fresh.stats), false);
+  assert.equal(kept.stats.kept, true);
+  // shown whole like the same description laid out anew, not cut off
+  assert.equal(cutOff(kept.stats), false, kept.stats.width + " x " + kept.stats.height);
+  assert.ok(kept.stats.width > first.stats.width * 1.5, kept.stats.width + " " + first.stats.width);
+
+  // one shift for all of them, across and down, so none moves against another
+  const dx = b.get("s1").x - a.get("s1").x;
+  const dy = b.get("s1").y - a.get("s1").y;
+
+  assert.ok(dx > 100, "shift " + dx);
+
+  for (const id of ids)
+  {
+    assert.ok(Math.abs(b.get(id).x - a.get(id).x - dx) <= 1 && Math.abs(b.get(id).y - a.get(id).y - dy) <= 1, id);
+    assert.equal(b.get(id).w, a.get(id).w, id);
+  }
+
+  // the layout of the result is without the shift: drawn again with it, the
+  // page is the same, and the next change starts from where the steps are
+  const again = await draw(changed(more, { layout: kept.layout }));
+
+  assert.equal(again.xml, kept.xml);
 });
 
 test("a step added at the end moves nothing that was there, the lanes grow", async function()
