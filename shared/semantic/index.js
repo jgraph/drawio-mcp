@@ -40,6 +40,37 @@ export { TYPES };
  */
 export const MAX_NODES = { architecture: 18, network: 18 };
 
+/**
+ * The size rule for flowcharts without lanes (no node in a group): above
+ * this, the large flowchart of the held-out prompts lost against XML the
+ * model placed itself, Opus's 1 of 8 judgements under the floor of the
+ * turn-on rule. Its descriptions had 25 to 34 nodes, those of the normal
+ * one 17 to 21; on the dev prompts 16 to 21 (one of 27) and, for the large
+ * one, 31 to 36. The prompts call 25 to 35 elements large (bench/README.md).
+ * Lane diagrams of that size win, so they have no limit.
+ */
+export const MAX_NODES_WITHOUT_LANES = { flowchart: 24, swimlane: 24 };
+
+/**
+ * The size rule for a description read by normalizeSpec: the most nodes it
+ * is drawn with, or null for no limit.
+ *
+ * @param {{type: string, nodes: Array<{group: string}>}} d
+ * @returns {{max: number, lanes: boolean}|null} lanes: false for the rule
+ *   of flowcharts without lanes
+ */
+function sizeLimit(d)
+{
+  if (MAX_NODES[d.type] != null)
+  {
+    return { max: MAX_NODES[d.type], lanes: true };
+  }
+
+  const inLane = d.nodes.some(function(n) { return n.group !== ""; });
+
+  return (MAX_NODES_WITHOUT_LANES[d.type] != null && !inLane) ? { max: MAX_NODES_WITHOUT_LANES[d.type], lanes: false } : null;
+}
+
 /** The types this engine lays out (the rest of TYPES is planned). */
 export const SUPPORTED_TYPES = Object.keys(LAYOUTS);
 
@@ -52,17 +83,21 @@ function now()
  * Turns a semantic description into draw.io XML.
  *
  * @param {object|string} input - the description (FORMAT.md) or its JSON text
- * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean|"ask"}} [options] -
+ * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean|"ask", route?: boolean,
+ *   sizeRule?: boolean, keepTurned?: boolean}} [options] -
  *   elk: an optional ELK instance (`new ELK()` from elkjs, or the global ELK
  *   in the browser), used for large schemas; hints: false ignores the
  *   placement hints (row, col) of the description, "ask" reads them as the
  *   cells of one grid for the whole diagram (what the description asks for
  *   with describeTool's "ask"), anything else as cells in each group's grid;
  *   sizeRule: true refuses a diagram with more nodes than MAX_NODES allows
- *   for its type (the error says so, and `tooLarge` has the numbers), for a
- *   caller whose model can draw the diagram another way
+ *   for its type, or MAX_NODES_WITHOUT_LANES for a flowchart without lanes
+ *   (the error says so, and `tooLarge` has the numbers), for a caller whose
+ *   model can draw the diagram another way; keepTurned: how a preview showed
+ *   the diagram before (stats.turned), kept unless the other way round is
+ *   clearly better (shared/grid-layout.js, KEEP_MARGIN)
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
- *   stats: object|null, tooLarge?: {type: string, nodes: number, max: number}}>}
+ *   stats: object|null, tooLarge?: {type: string, nodes: number, max: number, lanes?: false}}>}
  */
 export async function semanticToXml(input, options)
 {
@@ -90,12 +125,18 @@ export async function semanticToXml(input, options)
     return { xml: null, error: "The diagram has no nodes.", warnings: n.warnings, stats: null };
   }
 
-  if (opts.sizeRule === true && MAX_NODES[d.type] != null && d.nodes.length > MAX_NODES[d.type])
+  const limit = (opts.sizeRule === true) ? sizeLimit(d) : null;
+
+  if (limit != null && d.nodes.length > limit.max)
   {
+    // a swimlane diagram without lanes is a flowchart, as the description says
     return { xml: null, warnings: n.warnings, stats: null,
-      tooLarge: { type: d.type, nodes: d.nodes.length, max: MAX_NODES[d.type] },
-      error: "This " + d.type + " diagram has " + d.nodes.length + " nodes; from a description, " + d.type +
-        " diagrams are drawn with up to " + MAX_NODES[d.type] + "." };
+      tooLarge: limit.lanes ? { type: d.type, nodes: d.nodes.length, max: limit.max } :
+        { type: d.type, nodes: d.nodes.length, max: limit.max, lanes: false },
+      error: limit.lanes ? "This " + d.type + " diagram has " + d.nodes.length + " nodes; from a description, " + d.type +
+        " diagrams are drawn with up to " + limit.max + "." :
+        "This flowchart has " + d.nodes.length + " nodes and no lanes; from a description, flowcharts without lanes " +
+        "are drawn with up to " + limit.max + " nodes." };
   }
 
   if (entry.needsElk && (opts.elk == null || typeof opts.elk.layout !== "function"))
@@ -104,7 +145,7 @@ export async function semanticToXml(input, options)
   }
 
   const r = await entry.layout(d, { elk: opts.elk, hints: opts.hints === "ask" ? "ask" : opts.hints !== false,
-    route: opts.route !== false });
+    route: opts.route !== false, keepTurned: typeof opts.keepTurned === "boolean" ? opts.keepTurned : undefined });
   // er.js writes tables in the shorthand the app server expands; boxes.js
   // returns XML that went through that expansion already
   const xml = (r.xml != null) ? r.xml : expandDiagramShorthand(writeModel(r.cells)).xml;

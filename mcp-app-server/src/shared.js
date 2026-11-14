@@ -18,7 +18,7 @@ import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import { createIconResolver } from "../../shared/icon-resolver.js";
 import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
-import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES, MAX_NODES as SEMANTIC_MAX_NODES } from "../../shared/semantic/index.js";
+import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES, MAX_NODES as SEMANTIC_MAX_NODES, MAX_NODES_WITHOUT_LANES as SEMANTIC_MAX_NODES_WITHOUT_LANES } from "../../shared/semantic/index.js";
 import { describeTool as describeSemanticTool, describeSchema as describeSemanticSchema, describeSizeRule as describeSemanticSizeRule, DESCRIBED_BY as SEMANTIC_DESCRIBED_BY } from "../../shared/semantic/description.js";
 import { readList as readSemanticList, typeName as semanticTypeName, fieldText as semanticFieldText } from "../../shared/semantic/spec.js";
 import pkg from "../package.json" with { type: "json" };
@@ -8709,6 +8709,12 @@ var lastSemanticKey = null;
 var semanticRunMs = 0;
 // set by the result, which renders the diagram: no preview after it
 var semanticResultSeen = false;
+// How the preview has shown the page so far (rows and columns swapped or
+// not), kept by the next layout unless the other way round is clearly
+// better (KEEP_MARGIN in shared/grid-layout.js): the engine decides for each
+// partial on its own, and the lanes of a growing diagram turned up to five
+// times. Undefined until the first layout on one grid for the page.
+var semanticShownTurned = undefined;
 
 function isSemanticArgs(args)
 {
@@ -8815,13 +8821,21 @@ function runSemanticPreview()
   lastSemanticKey = key;
   var t0 = Date.now();
 
-  // as the server lays it out: row and col are cells of one grid for the page
-  DrawioSemantic.semanticToXml(args, { hints: ${JSON.stringify(SEMANTIC_HINTS)} }).then(function(r)
+  // as the server lays it out: row and col are cells of one grid for the
+  // page, and a description above the size rule, which the server will
+  // refuse, isn't drawn on (the model is sent to create_diagram)
+  DrawioSemantic.semanticToXml(args, { hints: ${JSON.stringify(SEMANTIC_HINTS)}, sizeRule: true,
+    keepTurned: semanticShownTurned }).then(function(r)
   {
     semanticRunMs = Date.now() - t0;
 
     if (r.xml != null && !semanticResultSeen)
     {
+      if (r.stats != null && r.stats.grid === 'page')
+      {
+        semanticShownTurned = r.stats.turned === true;
+      }
+
       // icons by name come as paths of the draw.io site, as in the result
       mergeSemanticXml(expandDiagramShorthand(absolutizeImageUrls(r.xml)).xml);
     }
@@ -10909,7 +10923,7 @@ function semanticInputSchema(offered)
 {
   var schema = describeSemanticSchema(offered, { hints: SEMANTIC_HINTS });
   var props = schema.properties;
-  var sizeRule = describeSemanticSizeRule(offered, SEMANTIC_MAX_NODES);
+  var sizeRule = describeSemanticSizeRule(offered, SEMANTIC_MAX_NODES, SEMANTIC_MAX_NODES_WITHOUT_LANES);
   // a list is described where the measured schema describes it, and not otherwise
   var describe = function(zodSchema, prop)
   {

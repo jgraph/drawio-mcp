@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer, buildHtml, resolveSemanticTypes, SEMANTIC_TYPES_ON, SEMANTIC_TYPES_READY } from "../src/shared.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "../src/semantic-bundle.js";
-import { semanticToXml, MAX_NODES } from "../../shared/semantic/index.js";
+import { semanticToXml, MAX_NODES, MAX_NODES_WITHOUT_LANES } from "../../shared/semantic/index.js";
 import { describeSchema } from "../../shared/semantic/description.js";
 import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import { createIconResolver } from "../../shared/icon-resolver.js";
@@ -295,8 +295,10 @@ test("the switch offers flowcharts and swimlanes, with the schema the benchmark 
   const listed = plainSchema(tool.inputSchema);
   const measured = plainSchema(describeSchema(types, { hints: "ask" }));
 
-  // the server's own words on the two keys the bench's schema doesn't describe
-  assert.equal(listed.properties.type.description, "The diagram type.");
+  // the server's own words on the two keys the bench's schema doesn't describe,
+  // with the size rule for flowcharts without lanes
+  assert.equal(listed.properties.type.description,
+    "The diagram type. flowchart without lanes: at most 24 nodes; draw larger ones with create_diagram.");
   delete listed.properties.type.description;
   delete listed.properties.title.description;
   assert.deepEqual(listed, measured);
@@ -499,7 +501,8 @@ test("an architecture diagram above the size rule is sent to create_diagram", as
 
   // the model reads the rule before it writes the description
   assert.equal(tool.inputSchema.properties.type.description,
-    "The diagram type. architecture and network: at most 18 nodes; draw larger ones with create_diagram.");
+    "The diagram type. architecture and network: at most 18 nodes; flowchart without lanes: at most 24 nodes; " +
+    "draw larger ones with create_diagram.");
 
   const call = function(type, count)
   {
@@ -518,10 +521,85 @@ test("an architecture diagram above the size rule is sent to create_diagram", as
     assert.equal(drawn.isError, undefined, type + ": " + JSON.stringify(drawn.content).slice(0, 300));
   }
 
-  // no rule for the types that are judged at least equal at every size
-  const flow = await call("flowchart", 30);
+  await client.close();
+});
 
-  assert.equal(flow.isError, undefined, JSON.stringify(flow.content).slice(0, 300));
+// ── The size rule for flowcharts without lanes ───────────────────────────────
+
+// a chain of steps, in lanes of six when `lanes` is true
+function steps(count, lanes)
+{
+  const nodes = [];
+  const edges = [];
+
+  for (let i = 1; i <= count; i++)
+  {
+    nodes.push({ id: "n" + i, label: "Step " + i, kind: "step", group: lanes ? "l" + Math.ceil(i / 6) : undefined,
+      row: Math.ceil(i / 6), col: ((i - 1) % 6) + 1 });
+
+    if (i > 1)
+    {
+      edges.push({ from: "n" + (i - 1), to: "n" + i });
+    }
+  }
+
+  const groups = [];
+
+  for (let l = 1; lanes && l <= Math.ceil(count / 6); l++)
+  {
+    groups.push({ id: "l" + l, label: "Lane " + l, kind: "lane" });
+  }
+
+  return { nodes: nodes, edges: edges, groups: groups };
+}
+
+test("a flowchart without lanes above 24 nodes is refused, with lanes it is drawn", async function()
+{
+  const max = MAX_NODES_WITHOUT_LANES.flowchart;
+
+  assert.equal(max, 24);
+  assert.equal(MAX_NODES_WITHOUT_LANES.swimlane, max);
+
+  for (const type of ["flowchart", "swimlane"])
+  {
+    const large = Object.assign({ type: type }, steps(max + 1, false));
+    const refused = await semanticToXml(large, { hints: "ask", sizeRule: true });
+
+    assert.equal(refused.xml, null, type);
+    assert.deepEqual(refused.tooLarge, { type: type, nodes: max + 1, max: max, lanes: false });
+    assert.match(refused.error, /This flowchart has 25 nodes and no lanes; .* up to 24 nodes\./);
+    assert.equal((await semanticToXml(large, { hints: "ask" })).error, null, "drawn without the rule");
+    assert.equal((await semanticToXml(Object.assign({ type: type }, steps(max, false)),
+      { hints: "ask", sizeRule: true })).error, null, type + " of 24");
+  }
+
+  // a lane diagram of that size won its judgements: no limit
+  const lanes = await semanticToXml(Object.assign({ type: "swimlane" }, steps(36, true)), { hints: "ask", sizeRule: true });
+
+  assert.equal(lanes.error, null);
+  assert.equal(lanes.tooLarge, undefined);
+});
+
+test("the switch on sends a large flowchart without lanes to create_diagram", async function()
+{
+  const client = await connect({ semanticTypes: ["flowchart", "swimlane"] });
+  const call = function(count, lanes)
+  {
+    return client.callTool({ name: "create_semantic_diagram", arguments: Object.assign({ type: "flowchart" }, steps(count, lanes)) });
+  };
+
+  const refused = await call(25, false);
+
+  assert.equal(refused.isError, true);
+  assert.match(refused.content[0].text, /has 25 nodes and no lanes; .* up to 24 nodes\. Draw this one with create_diagram instead/);
+
+  for (const c of [[24, false], [30, true]])
+  {
+    const drawn = await call(c[0], c[1]);
+
+    assert.equal(drawn.isError, undefined, c.join(" ") + ": " + JSON.stringify(drawn.content).slice(0, 300));
+  }
+
   await client.close();
 });
 
@@ -571,7 +649,8 @@ test("the engine comes after the script whose globals it reads, and the preview 
     assert.ok(at >= 0 && at < engine, name);
   }
 
-  assert.match(html, /DrawioSemantic\.semanticToXml\(args, \{ hints: "ask" \}\)/);
+  // with the server's size rule, and the way it has shown the page so far
+  assert.match(html, /DrawioSemantic\.semanticToXml\(args, \{ hints: "ask", sizeRule: true,\s+keepTurned: semanticShownTurned \}\)/);
 });
 
 test("the Worker offers the types its HTML was built for", async function()

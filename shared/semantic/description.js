@@ -120,21 +120,42 @@ export function describeTool(types, options)
 
 /**
  * The size rule of the types offered, as the model reads it, or null when
- * none of them has one: "architecture and network: at most 18 nodes".
+ * none of them has one: "architecture and network: at most 18 nodes;
+ * flowchart without lanes: at most 24 nodes".
  *
  * @param {string[]} types - the types offered
  * @param {Object<string, number>} maxNodes - MAX_NODES of index.js
+ * @param {Object<string, number>} [maxWithoutLanes] - MAX_NODES_WITHOUT_LANES
+ *   of index.js, named by the type that describes them (a swimlane diagram
+ *   without lanes is a flowchart)
  * @returns {string|null}
  */
-export function describeSizeRule(types, maxNodes)
+export function describeSizeRule(types, maxNodes, maxWithoutLanes)
 {
   const byMax = new Map();
+  const add = function(max, name)
+  {
+    const names = byMax.get(max) || [];
+
+    if (names.indexOf(name) < 0)
+    {
+      byMax.set(max, names.concat([name]));
+    }
+  };
 
   for (const t of types)
   {
     if (maxNodes != null && maxNodes[t] != null)
     {
-      byMax.set(maxNodes[t], (byMax.get(maxNodes[t]) || []).concat([t]));
+      add(maxNodes[t], t);
+    }
+  }
+
+  for (const t of types)
+  {
+    if (maxWithoutLanes != null && maxWithoutLanes[t] != null)
+    {
+      add(maxWithoutLanes[t], (DESCRIBED_BY[t] || t) + " without lanes");
     }
   }
 
