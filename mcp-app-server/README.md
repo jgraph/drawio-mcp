@@ -39,7 +39,7 @@ The `create_diagram` description tells the model to call this once per format be
 
 A second way to draw flowcharts and swimlane diagrams, still being tested. The model describes what the diagram contains: the steps with their kind (start, step, decision, end, …), the lanes, the transitions, and a row and a column for every step in one grid. It never writes coordinates, sizes or styles. The server lays the description out, routes the lines and styles it in the calm theme. Writing a description is quicker than placing every shape as XML: on the benchmark's held-out prompts, with the switch on, Sonnet took a median of 17 s to the diagram instead of 63 s, and Opus 56 s instead of 339 s. In blind judgements on the same prompts, the diagrams won about two thirds of the comparisons with the XML the models placed themselves (Sonnet 27 of 36, Opus 23 of 36; [`bench/README.md`](../bench/README.md)).
 
-The diagram is shown like one from `create_diagram`, with the same viewer, toolbar, "Open in draw.io" and layout check, and the viewer draws it while the description streams in. To change the diagram, the model sends the whole description again with the change and the same ids.
+The diagram is shown like one from `create_diagram`, with the same viewer, toolbar, "Open in draw.io" and layout check, and the viewer draws it while the description streams in. To change the diagram, the model sends the whole description again with the change, the same ids and the `layout` of the last result, a short text that keeps the shapes the change doesn't touch in place (the server stores nothing).
 
 The tool is off by default. Without the switch, `tools/list` is exactly as before. `DRAWIO_SEMANTIC_TYPES` turns it on:
 
