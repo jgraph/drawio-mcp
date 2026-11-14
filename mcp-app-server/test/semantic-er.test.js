@@ -107,6 +107,40 @@ test("parseField reads keys in front, behind and in parentheses", function()
   assert.equal(parseField("price: decimal").pk, false);
 });
 
+test("a word in parentheses is a reference only as table.column or on a column marked FK", function()
+{
+  assert.equal(parseField("FK owner (person)").ref, "person");
+  assert.equal(parseField("buyer (customers.id)").ref, "customers");
+  assert.equal(parseField("buyer (customers.id)").fk, true);
+
+  for (const note of ["order_status (enum)", "email (unique)", "note (text)"])
+  {
+    assert.equal(parseField(note).ref, "", note);
+    assert.equal(parseField(note).fk, false, note);
+  }
+
+  // a reference to no table of the schema is dropped; the FK marker stays
+  const none = function() { return false; };
+  assert.equal(parseField("status -> enum", none).fk, false);
+  assert.equal(parseField("FK owner (person)", none).ref, "");
+  assert.equal(parseField("FK owner (person)", none).fk, true);
+});
+
+test("a type or note in parentheses doesn't take the relation or make a junction table", async function()
+{
+  const r = await semanticToXml({ type: "er", nodes: [
+    { id: "orders", label: "Orders", fields: ["PK order_id", "total"] },
+    { id: "items", label: "Items", fields: ["PK item_id", "order_status (enum)", "order_id"] },
+    { id: "a", label: "A", fields: ["PK a_id"] },
+    { id: "b", label: "B", fields: ["PK b_id"] },
+    { id: "ab", label: "AB", fields: ["PK id", "FK a_id", "FK b_id", "note (text)"] }],
+  edges: [{ from: "orders", to: "items", kind: "one-to-many" }] });
+  const cells = cellsOf(r.xml);
+
+  assert.equal(edgesOf(r.xml)[0].target, "items.order_id");
+  assert.equal(styleValue(cells.find(function(c) { return c.id === "ab"; }).style, "fillColor"), "#EEF4FF");
+});
+
 test("normalizeSpec forgives common slips and says what it dropped", function()
 {
   const n = normalizeSpec(JSON.stringify({
@@ -188,6 +222,34 @@ test("a relation given from the child side and explicit cardinalities still find
   assert.equal(styleValue(e.style, "endArrow"), "ERzeroToOne");
 });
 
+test("the row a relation names says which table holds the key when the multiplicities don't", async function()
+{
+  const tables = [
+    { id: "customers", label: "Customers", fields: ["PK customer_id", "name"] },
+    { id: "orders", label: "Orders", fields: ["PK order_id", "FK buyer", "total"] }];
+  const relation = async function(edge)
+  {
+    const r = await semanticToXml({ type: "er", nodes: tables, edges: [edge] });
+    const e = edgesOf(r.xml)[0];
+
+    return [e.source, e.target, styleValue(e.style, "startArrow"), styleValue(e.style, "endArrow")].join(" ");
+  };
+  const expected = "customers.customer_id orders.buyer ERmandOne ERmany";
+
+  assert.equal(await relation({ from: "orders", to: "customers", fromField: "buyer" }), expected);
+  assert.equal(await relation({ from: "customers", to: "orders", toField: "buyer" }), expected);
+  assert.equal(await relation({ from: "orders", to: "customers", fromField: "buyer", toField: "customer_id" }), expected);
+
+  const one = await semanticToXml({ type: "er", nodes: [
+    { id: "person", label: "Person", fields: ["PK id", "name"] },
+    { id: "passport", label: "Passport", fields: ["PK id", "FK owner", "number"] }],
+  edges: [{ from: "passport", to: "person", kind: "one-to-one", fromField: "owner" }] });
+  const e = edgesOf(one.xml)[0];
+
+  assert.equal(e.source, "person.id");
+  assert.equal(e.target, "passport.owner");
+});
+
 test("multiplicities are read from numbers, words and the kind", async function()
 {
   const tables = [
@@ -205,6 +267,17 @@ test("multiplicities are read from numbers, words and the kind", async function(
   assert.equal(await markers({ fromCard: "one", toCard: "zero or more" }), "a.a_id ERmandOne ERzeroToMany");
   assert.equal(await markers({ fromCard: "zero or one", toCard: "1..*" }), "a.a_id ERzeroToOne ERoneToMany");
   assert.equal(await markers({}), "a.a_id ERmandOne ERmany");
+  assert.equal(await markers({ fromCard: "one and only one", toCard: "zero or many" }), "a.a_id ERmandOne ERzeroToMany");
+  assert.equal(await markers({ fromCard: "Exactly one", toCard: "(1,n)" }), "a.a_id ERmandOne ERoneToMany");
+  assert.equal(await markers({ fromCard: "(0,1)", toCard: "N" }), "a.a_id ERzeroToOne ERmany");
+
+  // one it can't read is left to the foreign key, with a warning
+  const odd = await semanticToXml({ type: "er", nodes: tables, edges: [{ from: "a", to: "b", fromCard: "lots", toCard: "0..*" }] });
+  const e = edgesOf(odd.xml)[0];
+  assert.equal([e.source, e.target, styleValue(e.style, "startArrow"), styleValue(e.style, "endArrow")].join(" "),
+    "a.a_id b.a_id ERmandOne ERzeroToMany");
+  assert.equal(odd.warnings.length, 1);
+  assert.match(odd.warnings[0], /fromCard "lots"/);
 
   const back = await semanticToXml({ type: "er", nodes: tables, edges: [{ from: "b", to: "a", kind: "many-to-one" }] });
   assert.equal(edgesOf(back.xml)[0].source, "a.a_id");
@@ -261,6 +334,22 @@ test("a reference to its own table runs from the key to the other row", async fu
 
   assert.equal(e.source, "categories.category_id");
   assert.equal(e.target, "categories.parent_category_id");
+
+  // a foreign key that doesn't name the table, not one to another table
+  const staff = await semanticToXml({ type: "er", nodes: [
+    { id: "departments", label: "Departments", fields: ["PK department_id", "name"] },
+    { id: "employees", label: "Employees", fields: ["PK id", "FK department_id", "FK manager_id", "name"] },
+    { id: "categories", label: "Categories", fields: ["PK category_id", "name", "parent_id"] }],
+  edges: [
+    { from: "departments", to: "employees", kind: "one-to-many" },
+    { from: "employees", to: "employees", kind: "one-to-many" },
+    { from: "categories", to: "categories", kind: "one-to-many" }] });
+  const byId = Object.fromEntries(edgesOf(staff.xml).map(function(x) { return [x.id, x]; }));
+
+  assert.equal(byId["employees-departments"].target, "employees.department_id");
+  assert.equal(byId["employees-employees"].source, "employees.id");
+  assert.equal(byId["employees-employees"].target, "employees.manager_id");
+  assert.equal(byId["categories-categories"].target, "categories.parent_id");
 });
 
 test("a junction table is drawn in the data color", async function()
@@ -391,4 +480,26 @@ test("a schema over 16 tables is laid out by ELK when it is available", { skip: 
 
   const grid = await semanticToXml({ type: "er", nodes: nodes, edges: edges });
   assert.equal(grid.stats.layout, "grid");
+});
+
+test("a large schema without ELK goes on the grid in bounded time", async function()
+{
+  const nodes = [{ id: "hub", label: "Hub", fields: ["PK hub_id", "name"] }];
+  const edges = [];
+
+  for (let i = 1; i < 50; i++)
+  {
+    const parent = (i < 4) ? "hub" : "t" + Math.floor(i / 3);
+    nodes.push({ id: "t" + i, label: "Table " + i, fields: ["PK t" + i + "_id", "FK " + parent + "_id", "value"] });
+    edges.push({ from: parent, to: "t" + i, kind: "one-to-many" });
+  }
+
+  const t0 = Date.now();
+  const r = await semanticToXml({ type: "er", nodes: nodes, edges: edges });
+
+  assert.equal(r.error, null);
+  assert.equal(r.stats.layout, "grid");
+  assert.equal(edgesOf(r.xml).length, 49);
+  // about 0.1 s; it took 40 s while every swap was routed
+  assert.ok(Date.now() - t0 < 5000, "took " + (Date.now() - t0) + " ms");
 });

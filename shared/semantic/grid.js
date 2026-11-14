@@ -138,6 +138,130 @@ function improve(cellOf, objective, cells)
   return { cellOf: cellOf.slice(0, n), cost: cost };
 }
 
+// improve() by the link costs alone, with the same swaps in the same order: a
+// swap changes only the costs of the two boxes' links, so only those are
+// summed for each one tried, which keeps large schemas fast.
+function improveByLinks(cellOf, links, cols, cells)
+{
+  const n = cellOf.length;
+  const boxAt = new Array(cells).fill(-1);
+  const linksOf = Array.from({ length: n }, function() { return []; });
+
+  for (const l of links)
+  {
+    linksOf[l.a].push(l);
+
+    if (l.b !== l.a)
+    {
+      linksOf[l.b].push(l);
+    }
+  }
+
+  cellOf.forEach(function(c, i) { boxAt[c] = i; });
+
+  // the cost of the links of boxes i and j (-1: an empty cell), each once
+  const local = function(i, j)
+  {
+    let c = 0;
+
+    if (i >= 0)
+    {
+      for (const l of linksOf[i])
+      {
+        c += linkCost(cellOf[l.a], cellOf[l.b], cols);
+      }
+    }
+
+    if (j >= 0)
+    {
+      for (const l of linksOf[j])
+      {
+        if (l.a !== i && l.b !== i)
+        {
+          c += linkCost(cellOf[l.a], cellOf[l.b], cols);
+        }
+      }
+    }
+
+    return c;
+  };
+
+  let cost = totalCost(cellOf, links, cols);
+
+  for (let round = 0; round < 200; round++)
+  {
+    let best = null;
+
+    for (let p = 0; p < cells; p++)
+    {
+      for (let q = p + 1; q < cells; q++)
+      {
+        const i = boxAt[p];
+        const j = boxAt[q];
+
+        if (i < 0 && j < 0)
+        {
+          continue;
+        }
+
+        const before = local(i, j);
+
+        if (i >= 0)
+        {
+          cellOf[i] = q;
+        }
+
+        if (j >= 0)
+        {
+          cellOf[j] = p;
+        }
+
+        const c = cost - before + local(i, j);
+
+        if (i >= 0)
+        {
+          cellOf[i] = p;
+        }
+
+        if (j >= 0)
+        {
+          cellOf[j] = q;
+        }
+
+        if (c < cost - 1e-9 && (best == null || c < best.c - 1e-9))
+        {
+          best = { p: p, q: q, c: c };
+        }
+      }
+    }
+
+    if (best == null)
+    {
+      break;
+    }
+
+    const i = boxAt[best.p];
+    const j = boxAt[best.q];
+
+    if (i >= 0)
+    {
+      cellOf[i] = best.q;
+    }
+
+    if (j >= 0)
+    {
+      cellOf[j] = best.p;
+    }
+
+    boxAt[best.p] = j;
+    boxAt[best.q] = i;
+    // summed in full, as improve() does
+    cost = totalCost(cellOf, links, cols);
+  }
+
+  return { cellOf: cellOf.slice(0, n), cost: cost };
+}
+
 function degrees(n, links)
 {
   const d = new Array(n).fill(0);
@@ -239,7 +363,7 @@ export function placeOnGrid(n, links, cols, refine)
 
   for (const s of starts)
   {
-    const r = improve(s.slice(), byLinks, cells);
+    const r = improveByLinks(s.slice(), links, cols, cells);
 
     if (best == null || r.cost < best.cost - 1e-9)
     {

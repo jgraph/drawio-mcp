@@ -59,7 +59,8 @@ function send(msg)
 
 async function callTool(args)
 {
-  count++;
+  // taken before the await, so calls that overlap keep a record each
+  const n = ++count;
   let r;
 
   try
@@ -72,7 +73,7 @@ async function callTool(args)
   }
 
   const warnings = r.warnings || [];
-  fs.writeFileSync(path.join(runDir, tag + "-call" + count + ".json"), JSON.stringify({ arguments: args,
+  fs.writeFileSync(path.join(runDir, tag + "-call" + n + ".json"), JSON.stringify({ arguments: args,
     xml: r.xml, error: r.error, warnings: warnings, stats: r.stats, hints: hints }, null, 1));
 
   if (r.error != null || r.xml == null)
