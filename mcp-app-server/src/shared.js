@@ -16,6 +16,8 @@ import { addLabelPerimeters, fitEdgeLabels } from "../../shared/label-perimeter.
 import { snapWaypoints } from "../../shared/edge-waypoints.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
+import { createIconResolver } from "../../shared/icon-resolver.js";
+import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -663,6 +665,37 @@ ${absolutizeImageUrls.toString()}
 // so that the diagram draws the same from the raw tool input while it streams.
 ${createDiagramShorthand.toString()}
 var expandDiagramShorthand = createDiagramShorthand().expand;
+
+// --- Icons by name (shared/icon-resolver.js) ---
+// \`icon=aws lambda\` in a style becomes the official icon while the XML
+// streams in, as the server does for the result. The icons that are data URIs
+// (some Google Cloud ones) stay on the server and show as a placeholder here
+// until the result arrives.
+${createIconResolver.toString()}
+var ICON_TABLE = ${JSON.stringify(ICON_TABLE)};
+var iconResolver = null;
+
+function expandIcons(xml)
+{
+  if (typeof xml !== 'string' || !/(^|[;"'\\s])icon\\s*=/i.test(xml))
+  {
+    return xml;
+  }
+
+  try
+  {
+    if (iconResolver == null)
+    {
+      iconResolver = createIconResolver(ICON_TABLE);
+    }
+
+    return iconResolver.applyToXml(xml).xml;
+  }
+  catch (e)
+  {
+    return xml;
+  }
+}
 
 // --- XML healing for partial/streaming XML ---
 
@@ -8618,7 +8651,7 @@ app.ontoolinputpartial = function(params)
     return;
   }
 
-  healedXml = expandDiagramShorthand(absolutizeImageUrls(healedXml), { partial: true }).xml;
+  healedXml = absolutizeImageUrls(expandIcons(expandDiagramShorthand(healedXml, { partial: true }).xml));
 
   // Update loading text during streaming
   if (loadingEl.style.display !== 'none')
@@ -8790,7 +8823,9 @@ app.ontoolinput = function(params)
 
   try
   {
-    finalizeStreamingView(xml, layoutOpts);
+    // Table rows and roles first, then icons by name, in the server's order
+    // (finalizeStreamingView expands the shorthand again, which changes nothing).
+    finalizeStreamingView(expandIcons(expandDiagramShorthand(xml).xml), layoutOpts);
   }
   catch (e)
   {
@@ -9731,6 +9766,36 @@ export function processElkBundle(raw)
 
 // ── Diagram validation ───────────────────────────────────────────────────────
 
+var iconResolver = null;
+
+/** The resolver for `icon=` names, built on first use (~10 ms). */
+export function getIconResolver()
+{
+  if (iconResolver == null)
+  {
+    iconResolver = createIconResolver(ICON_TABLE, ICON_DATA);
+  }
+
+  return iconResolver;
+}
+
+/**
+ * Warnings for `icon=` names that matched no icon: the cell keeps its style
+ * and renders as a plain rectangle, so the model should rename it or search.
+ */
+export function unresolvedIconWarnings(unresolved)
+{
+  return unresolved.map(function(u)
+  {
+    return "icon=" + u.name + (u.id != null ? " (cell " + u.id + ")" : "") + " matched no icon" +
+      (u.container ? " for a container: only AWS groups (icon=aws vpc, aws private subnet, aws account, " +
+        "aws region, aws auto scaling group, …) can hold other shapes; style other containers yourself" :
+        ": name the provider and the service as the provider calls it (icon=aws lambda, " +
+        "icon=azure functions, icon=gcp pub sub, icon=kubernetes pod), or call search_shapes and use its style") +
+      ". It renders as a plain rectangle.";
+  });
+}
+
 /**
  * Validate draw.io XML and return errors/warnings.
  * Uses regex-based extraction — no XML parser needed.
@@ -10291,8 +10356,8 @@ export function createServer(html, options = {})
         "Whenever the user asks for draw.io XML or no Mermaid, use XML for the rest of the conversation.\n\n" +
         "**Call `get_drawio_reference` before your first diagram in a conversation**, once per format, with the format you chose: " +
         "\"mermaid\" has the syntax for every type (a misspelled header renders blank), \"xml\" the styles, layout grid, edges, " +
-        "containers, layers and dark mode. Call `search_shapes` first for industry icons (AWS, Azure, GCP, Cisco, Kubernetes, " +
-        "P&ID, electrical) or logos.\n\n" +
+        "containers, layers and dark mode. For AWS, Azure, GCP and Kubernetes icons write `icon=aws lambda` in the style; " +
+        "call `search_shapes` first for other industry icons (Cisco, P&ID, electrical) or logos.\n\n" +
         "XML essentials: <mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>…</root></mxGraphModel>. " +
         "Every cell has a unique id. Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
         "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
@@ -10430,6 +10495,14 @@ export function createServer(html, options = {})
       direction = direction || leaked.direction;
       routing = routing || leaked.routing;
 
+      // Icons by name: `icon=aws lambda` in a vertex style becomes the style
+      // of the official icon (shared/icon-resolver.js), before the passes
+      // below, which treat it like any icon (its label below it gets
+      // labelPerimeter, a VPC group grows around its children).
+      var icons = getIconResolver().applyToXml(normalizedXml);
+
+      normalizedXml = icons.xml;
+
       // Repair the model before the payload goes anywhere: edges to the
       // nearest common ancestor of their terminals (LLM XML parks them on the
       // layer, which renders fine but lays out wrong — ELK reads an edge in
@@ -10475,6 +10548,8 @@ export function createServer(html, options = {})
 
       // Validate and append warnings/errors so the LLM can self-correct
       var validation = validateDiagramXml(normalizedXml);
+
+      validation.warnings = validation.warnings.concat(unresolvedIconWarnings(icons.unresolved));
 
       if (validation.errors.length > 0 || validation.warnings.length > 0)
       {
