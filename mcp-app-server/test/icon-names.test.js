@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer, buildHtml } from "../src/shared.js";
+import { createServer, buildHtml, getIconResolver } from "../src/shared.js";
+import { expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 
 // `icon=aws lambda` in a vertex style stands for the official icon
 // (shared/icon-resolver.js, its cases in the tool server's
@@ -138,4 +139,45 @@ test("the viewer resolves names while the XML streams in, without the image data
   // Resolved XML, and XML without names, pass unchanged.
   assert.equal(context.expandIcons(expanded), expanded);
   assert.equal(context.expandIcons(diagram("")), diagram(""));
+});
+
+// Table rows and role styles (shared/diagram-shorthand.js) are expanded
+// before the icons, on the server and in the viewer: the other way round, a
+// cell with a role and an icon kept its role until after the icon, and the
+// role then put whiteSpace=wrap and its font color on the icon.
+const shorthandAndIcons = diagram(
+  '<mxCell id="t" value="Orders" rows="PK id|FK customer_id" vertex="1" parent="1">' +
+  '<mxGeometry x="40" y="40" as="geometry"/></mxCell>' +
+  '<mxCell id="fn" value="Handler" style="role=step;icon=aws lambda;" vertex="1" parent="1">' +
+  '<mxGeometry x="400" y="40" width="48" height="48" as="geometry"/></mxCell>');
+
+test("create_diagram expands table rows and roles, then icons by name", async function()
+{
+  const result = await client.callTool({ name: "create_diagram", arguments: { xml: shorthandAndIcons } });
+  const sent = JSON.parse(result.content[0].text).xml;
+
+  assert.doesNotMatch(sent, /\srows="|role=|icon=/);
+  assert.match(sent, /<mxCell id="t\.customer_id" value="FK customer_id"[^>]*parent="t"/);
+  assert.match(cellStyle(sent, "fn"), /shape=mxgraph\.aws4\.resourceIcon;resIcon=mxgraph\.aws4\.lambda;/);
+  assert.doesNotMatch(cellStyle(sent, "fn"), /whiteSpace=wrap/);
+});
+
+test("the viewer expands table rows and roles before icons, as the server does", function()
+{
+  const html = buildHtml("", "", "", {});
+  const start = html.indexOf("function createDiagramShorthand");
+  const end = html.indexOf("// --- XML healing");
+  const context = vm.createContext({});
+
+  assert.ok(start > 0 && end > start, "shorthand and icon blocks not found in the app HTML");
+  vm.runInContext(html.substring(start, end) +
+    "\nthis.expandDiagramShorthand = expandDiagramShorthand; this.expandIcons = expandIcons;", context);
+
+  const server = getIconResolver().applyToXml(expandDiagramShorthand(shorthandAndIcons).xml).xml;
+
+  assert.equal(context.expandIcons(context.expandDiagramShorthand(shorthandAndIcons).xml), server);
+  assert.match(html, /expandIcons\(expandDiagramShorthand\(healedXml, \{ partial: true \}\)\.xml\)/,
+    "the streaming path expands the shorthand before the icons");
+  assert.match(html, /finalizeStreamingView\(expandIcons\(expandDiagramShorthand\(xml\)\.xml\), layoutOpts\)/,
+    "the final tool input is expanded before the icons");
 });

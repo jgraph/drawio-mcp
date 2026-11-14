@@ -23,6 +23,21 @@ const DRAWIO_BASE_URL = process.env.DRAWIO_BASE_URL || "https://app.diagrams.net
 // no browser to open or it would open on the wrong machine (#94).
 const OPEN_BROWSER = !/^(off|none|0|false)$/i.test(process.env.DRAWIO_BROWSER || "");
 
+// The last paragraph of every open_drawio_* result: the user sees the diagram
+// in draw.io, so the reply after it can be short. Without it the model
+// described the diagram it had just drawn, which took longer than the user
+// needed to look at it. With DRAWIO_BROWSER=off the user has seen nothing
+// yet and the URL is the only way to the diagram, so the note says the user
+// opens it through the URL rather than that they see it: the app server
+// found that a note saying the user sees the diagram made a model leave the
+// link out. Result text only, so the tool definitions don't change. The app
+// server ends create_diagram's result the same way (appendAnswerNote).
+const ANSWER_NOTE = (OPEN_BROWSER ? "The user sees the diagram in draw.io" :
+  "The user opens the diagram in draw.io through this URL") +
+  ", so don't describe or list what it shows. " +
+  "Once you're done drawing, reply in at most two sentences besides the URL unless the user asked " +
+  "for an explanation: for example what you assumed or changed.";
+
 // Mermaid defaults version of the diagrams created from #create=type:mermaid
 // links: draw.io converts them with Mermaid 12's defaults (ELK layout,
 // redux-color theme, neo look for most types) and stores the version in the
@@ -1160,7 +1175,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) =>
           text: `Draw.io Editor URL:\n${url}\n\n` +
             (OPEN_BROWSER ? "The diagram has been opened in your default browser." :
               "No browser was opened (DRAWIO_BROWSER=off): give the user this URL, which opens the diagram in draw.io.") +
-            (notes.length > 0 ? "\n\n" + notes.join("\n") : ""),
+            (notes.length > 0 ? "\n\n" + notes.join("\n") : "") +
+            "\n\n" + ANSWER_NOTE,
         },
       ],
     };
