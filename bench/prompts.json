@@ -1,0 +1,164 @@
+{
+  "er": {
+    "type": "er", "split": "dev", "size": "normal",
+    "prompt": "Draw an ER diagram for a library system: books, authors (many-to-many with books), members, loans, reservations, branches, and the copies of books that each branch holds. Show primary and foreign keys.",
+    "edit": "Add a fines table: a fine belongs to one loan and one member and has an amount and a paid flag."
+  },
+  "er-clinic": {
+    "type": "er", "split": "dev", "size": "normal",
+    "prompt": "Draw an ER diagram for a veterinary clinic: owners, pets (each pet has one owner), vets, appointments between a pet and a vet, treatments given at an appointment, medications (many-to-many with treatments, with the dose), and invoices for appointments. Show primary and foreign keys.",
+    "edit": "Add a species table that every pet references, and rename vets to veterinarians."
+  },
+  "er-shop": {
+    "type": "er", "split": "dev", "size": "normal",
+    "prompt": "Draw an ER diagram for an online shop: customers, addresses, orders, order items, products, categories (a category can have a parent category), suppliers, reviews and payments. Show primary and foreign keys.",
+    "edit": "Add a shipments table between orders and addresses: an order has one or more shipments, each sent to one address, with a carrier and a tracking number."
+  },
+  "class": {
+    "type": "class", "split": "dev", "size": "normal",
+    "prompt": "Draw a UML class diagram for an e-commerce domain: Customer, Address, Order, OrderLine, Product, Category, an abstract Payment with CreditCardPayment and PayPalPayment subclasses, and Shipment. Show attributes, key methods and multiplicities.",
+    "edit": "Add a BankTransferPayment subclass of Payment with an iban attribute, and a Coupon class that an Order can have at most one of."
+  },
+  "sequence": {
+    "type": "sequence", "split": "dev", "size": "normal",
+    "prompt": "Draw a sequence diagram of the OAuth 2.0 authorization code flow with PKCE between User, Browser SPA, Authorization Server and Resource API, including the token refresh when the access token has expired.",
+    "edit": "Add the case that the refresh token has expired too: the Authorization Server answers with an error and the Browser SPA sends the User back to the login."
+  },
+
+  "aws": {
+    "type": "architecture", "split": "dev", "size": "normal",
+    "prompt": "Draw an AWS architecture diagram for a web shop: users reach CloudFront and an Application Load Balancer; inside a VPC with two availability zones, an ECS Fargate service for the API in private subnets, an RDS PostgreSQL primary with a standby replica, and ElastiCache Redis; static assets in S3; orders go to an SQS queue processed by a Lambda function that sends emails through SES. Use the official AWS icons.",
+    "edit": "Add AWS WAF between CloudFront and the Application Load Balancer, and a DynamoDB table that the Lambda function writes order events to."
+  },
+  "azure-web": {
+    "type": "architecture", "split": "dev", "size": "normal",
+    "prompt": "Draw an Azure architecture diagram for a customer portal: users reach Azure Front Door, which forwards to an App Service web app; the web app calls an API built with Azure Functions; both sit in a virtual network with a web subnet and an API subnet. The API reads and writes an Azure SQL Database, stores documents in Blob Storage and puts jobs on a Service Bus queue that a second Function app processes. Secrets come from Key Vault and all components send telemetry to Application Insights. Use the official Azure icons.",
+    "edit": "Add Azure Cache for Redis between the API and the Azure SQL Database, and move the second Function app into a new subnet called worker subnet."
+  },
+  "k8s-shop": {
+    "type": "architecture", "split": "dev", "size": "normal",
+    "prompt": "Draw an architecture diagram of a web shop running on Kubernetes, without a cloud provider: users reach an Ingress controller; a namespace called shop holds the frontend, the catalog service, the cart service and the order service, plus Redis for the cart, a PostgreSQL database for orders and catalog, and RabbitMQ, to which the order service publishes events that a notification service consumes; a namespace called monitoring holds Prometheus, which scrapes all services, and Grafana, which reads from Prometheus.",
+    "edit": "Add a payment service to the shop namespace between the order service and an external payment gateway outside the cluster, and rename the notification service to email service."
+  },
+  "office-network": {
+    "type": "architecture", "split": "dev", "size": "normal",
+    "prompt": "Draw a network diagram of a small office: the internet connects to a firewall and then to a core router; the router feeds two switches, one for the office floor and one for the server room. The office floor switch connects four desktop PCs, a network printer and a Wi-Fi access point with laptops and smartphones on it; the server room switch connects a file server, an application server and a NAS for backups. A web server sits in a DMZ behind the firewall.",
+    "edit": "Add a second Wi-Fi access point for guests on the office floor switch with two guest laptops, and put a mail server next to the web server in the DMZ."
+  },
+  "aws-serverless": {
+    "type": "architecture", "split": "dev", "size": "normal",
+    "prompt": "Draw an AWS serverless architecture for a photo sharing app: the mobile app signs users in through Cognito and calls API Gateway; API Gateway invokes three Lambda functions, one for uploads, one for the feed and one for comments; uploads go to an S3 bucket, and an S3 event starts a Step Functions workflow that creates thumbnails with a fourth Lambda function and detects labels with Rekognition; metadata, feed and comments are stored in DynamoDB; new comments are published to EventBridge, which triggers SNS push notifications. Use the official AWS icons.",
+    "edit": "Add CloudFront in front of the S3 bucket for serving the photos to the mobile app, and an SQS queue between EventBridge and SNS."
+  },
+  "aws-large": {
+    "type": "architecture", "split": "dev", "size": "large",
+    "prompt": "Draw a detailed AWS architecture diagram of a three-tier production platform. Users resolve the domain with Route 53 and reach CloudFront, which is protected by AWS WAF and serves static files from an S3 bucket; dynamic requests go to an Application Load Balancer. The VPC spans two availability zones; each zone has a public subnet with a NAT gateway, a private application subnet with EKS worker nodes running the web and the API workloads, and a private data subnet. The data subnets hold an Aurora PostgreSQL writer in the first zone and a reader in the second, and an ElastiCache Redis cluster. The API publishes jobs to an SQS queue consumed by a Lambda function that writes to a DynamoDB table and sends alerts through SNS. Images are pulled from ECR, deployments run through CodePipeline, secrets are in Secrets Manager and logs and metrics go to CloudWatch. Use the official AWS icons.",
+    "edit": "Add a bastion host in the public subnet of the first availability zone, and an OpenSearch domain in the data subnets that the API writes search documents to."
+  },
+  "streaming-large": {
+    "type": "architecture", "split": "dev", "size": "large",
+    "prompt": "Draw a detailed architecture diagram of a video streaming platform built from microservices. TV, web and mobile apps reach a CDN for the video segments and an API gateway for everything else; the gateway checks tokens with an identity service that has its own user database. Behind the gateway run six services: profile, catalog, playback, recommendation, billing and search; profile, catalog, playback and billing each have their own database, the recommendation service reads a feature store and the search service an OpenSearch index. All six services publish and consume events through a NATS message bus; a transcoding worker consumes upload events, reads the originals from an object storage and writes the segments to a second bucket that the CDN serves. The billing service calls an external payment provider. An OpenTelemetry collector receives traces and metrics from all services and forwards them to Prometheus and Tempo, and Grafana shows dashboards from both. Code is built in GitHub Actions, images are pushed to a container registry and Flux deploys them to the cluster.",
+    "edit": "Add a watch-history service with its own database that consumes playback events from the message bus, and an alert manager that Prometheus sends alerts to."
+  },
+  "gcp-large": {
+    "type": "architecture", "split": "dev", "size": "large",
+    "prompt": "Draw a detailed Google Cloud architecture diagram of a company platform with a shared VPC. Customers reach a global external Application Load Balancer protected by Cloud Armor; staff in the head office connect through Cloud VPN. The host project holds the shared VPC with Cloud NAT, the VPN gateway and Cloud DNS. A first service project holds two Cloud Run services (a shop frontend and a partner portal) and a Cloud Functions function for image resizing; a second service project holds a GKE cluster with a checkout service and an inventory service, and a subnet for Private Service Connect endpoints. The data services are Cloud SQL for PostgreSQL, Firestore, a Cloud Storage bucket and Memorystore for Redis; the services exchange messages through Pub/Sub. Secrets are in Secret Manager, identities in Cloud Identity, images in Artifact Registry, and Cloud Logging with Cloud Monitoring collects logs and metrics from everything. Use the official Google Cloud icons.",
+    "edit": "Add Apigee between the load balancer and the GKE cluster, and a BigQuery dataset that a Dataflow job fills from Pub/Sub."
+  },
+  "gcp-analytics": {
+    "type": "architecture", "split": "held-out", "size": "normal",
+    "prompt": "Draw a Google Cloud architecture diagram for an analytics product: users reach Cloud Load Balancing, which routes to two Cloud Run services, a web frontend and an ingestion API; the ingestion API publishes events to Pub/Sub; a Dataflow job reads from Pub/Sub, writes raw files to Cloud Storage and aggregated rows to BigQuery; the web frontend reads account data from Cloud SQL and reports from BigQuery; analysts use Looker Studio on top of BigQuery. Use the official Google Cloud icons.",
+    "edit": "Add Memorystore for Redis as a cache between the web frontend and BigQuery, and a Cloud Scheduler job that triggers a third Cloud Run service for nightly exports to Cloud Storage."
+  },
+  "azure-aks": {
+    "type": "architecture", "split": "held-out", "size": "normal",
+    "prompt": "Draw an Azure architecture diagram of a microservices application on AKS: users sign in with Microsoft Entra ID and reach an Application Gateway, which forwards to an AKS cluster running an orders service, an inventory service and a shipping service; the services pull their images from Azure Container Registry; orders are stored in Cosmos DB, inventory uses Azure Cache for Redis, and the services exchange events through Event Hubs; Azure Monitor collects logs and metrics from the cluster. Use the official Azure icons.",
+    "edit": "Add an Azure Functions app that consumes the events from Event Hubs and writes invoices to Blob Storage, and rename the shipping service to delivery service."
+  },
+  "three-tier": {
+    "type": "architecture", "split": "held-out", "size": "normal",
+    "prompt": "Draw an architecture diagram of a classic three-tier web application, with plain boxes and no cloud provider: browsers and a mobile app reach a CDN and then a load balancer; the load balancer distributes requests to two web servers; the web servers call two application servers; the application servers use a primary database with a read replica, a cache and an object storage for uploads, and put long-running jobs on a message queue that a background worker processes. Group the components into a presentation tier, an application tier and a data tier.",
+    "edit": "Add a search service with its own search index to the application and data tiers, called by the application servers, and a second background worker."
+  },
+  "branch-network": {
+    "type": "architecture", "split": "held-out", "size": "normal",
+    "prompt": "Draw a network diagram of a company with a headquarters and a branch office connected by a site-to-site VPN over the internet. The headquarters has a firewall, a core switch, a directory server, a file server and an ERP server, and twenty workstations shown as one group. The branch office has a router with a built-in firewall, a switch, five workstations shown as one group, a printer and four IP phones shown as one group. Remote workers connect to the headquarters firewall through a client VPN.",
+    "edit": "Add a second branch office with a router, a switch and three workstations, connected to the headquarters by its own site-to-site VPN, and a backup server next to the file server."
+  },
+  "k8s-large": {
+    "type": "architecture", "split": "held-out", "size": "large",
+    "prompt": "Draw a detailed architecture diagram of an event-driven microservices platform on Kubernetes. Web and mobile clients reach an API gateway, which authenticates requests against an auth service backed by its own user database. Behind the gateway run six services: customer, catalog, order, payment, shipping and notification; customer, catalog, order, payment and shipping each have their own database. The services exchange events through Kafka, with a schema registry beside it; the catalog service also indexes products in Elasticsearch, the order service caches in Redis, and the notification service sends email through an external mail provider. Product images are in an object storage. Prometheus scrapes all services, Grafana shows dashboards from Prometheus and Jaeger collects traces. Code is built in GitLab CI, images are pushed to a container registry and Argo CD deploys them to the cluster.",
+    "edit": "Add a recommendation service with its own database that consumes order events from Kafka and is called by the catalog service, and move Redis so that both the order service and the customer service use it."
+  },
+  "azure-large": {
+    "type": "architecture", "split": "held-out", "size": "large",
+    "prompt": "Draw a detailed Azure hub-and-spoke architecture diagram of an enterprise application. Users reach Azure Front Door with a web application firewall; employees in the on-premises data center connect through a VPN gateway. The hub virtual network holds Azure Firewall, the VPN gateway and Azure Bastion. A first spoke virtual network holds an Application Gateway, two App Service web apps (a customer site and an admin site) and an Azure Functions app; a second spoke virtual network holds an AKS cluster with an orders service and a billing service, and a private endpoint subnet. The data services are an Azure SQL Database, Cosmos DB, a storage account and Azure Cache for Redis; the services exchange messages through Service Bus. Secrets are in Key Vault, identities in Microsoft Entra ID, images in Azure Container Registry, and Azure Monitor with a Log Analytics workspace collects logs from everything. Use the official Azure icons.",
+    "edit": "Add API Management between the Application Gateway and the AKS cluster, and an Event Grid topic that the billing service publishes to and the Azure Functions app subscribes to."
+  },
+
+  "swimlane": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": true,
+    "prompt": "Draw a flowchart with swimlanes for Customer, Web Shop, Payment Provider and Warehouse for an online order: the customer places the order, the shop checks stock (decision: in stock? if not, notify the customer and end), the payment is authorized (decision: approved? if not, retry up to 3 times, then cancel the order), the warehouse picks, packs and ships, and the customer receives the shipping confirmation.",
+    "edit": "Add a fraud check by the Payment Provider between the stock check and the payment authorization: if the check fails, the order is cancelled."
+  },
+  "lanes-hiring": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": true,
+    "prompt": "Draw a flowchart with swimlanes for Candidate, Recruiter, Hiring Manager and HR for a hiring process: the candidate applies, the recruiter screens the application (decision: qualified? if not, send a rejection and end), the recruiter schedules an interview, the hiring manager interviews the candidate and decides (decision: hire? if not, send a rejection and end), HR prepares the offer, the candidate decides (decision: offer accepted? if not, the recruiter reopens the position and the process ends), and HR starts the onboarding.",
+    "edit": "Add a technical assessment by the Hiring Manager between scheduling the interview and the interview itself: if the candidate fails it, a rejection is sent."
+  },
+  "lanes-incident": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": true,
+    "prompt": "Draw a flowchart with swimlanes for Monitoring System, On-call Engineer and Incident Manager for incident response: monitoring raises an alert and pages the on-call engineer (decision: acknowledged within 5 minutes? if not, escalate to the incident manager, who assigns a second engineer); the engineer assesses the severity (decision: major incident? if yes, the incident manager opens a status page entry and informs stakeholders); the engineer applies a fix and verifies it (decision: resolved? if not, go back to applying a fix); the incident manager closes the incident and schedules a postmortem.",
+    "edit": "Add a Customer Support lane: when the incident is major, customer support informs the affected customers, and again after the incident is closed."
+  },
+  "flow-password": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": false,
+    "prompt": "Draw a flowchart of a password reset: the user requests a reset and enters an email address (decision: account exists? if not, show the same neutral message and end); the system sends an email with a reset link; the user opens the link (decision: link expired? if yes, offer to send a new link and go back to sending the email); the user enters a new password (decision: meets the password rules? if not, show the rules and ask again); the system saves the password, signs out all sessions, sends a confirmation email and ends.",
+    "edit": "Add a step after opening the link where the user has to enter a code from the authenticator app: after three wrong codes, the account is locked and the process ends."
+  },
+  "flow-ci": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": false,
+    "prompt": "Draw a flowchart of a CI/CD pipeline: a commit is pushed, the linter runs (decision: lint passed? if not, notify the developer and end), unit tests run (decision: tests passed? if not, notify the developer and end), the image is built and deployed to staging, smoke tests run (decision: smoke tests passed? if not, roll back staging and notify the developer), a release manager approves (decision: approved? if not, end), the release is deployed to production and health checks run (decision: healthy? if not, roll back production and end with an alert), otherwise the release is announced.",
+    "edit": "Add a security scan of the image between the build and the staging deployment: if it finds critical issues, the developer is notified and the pipeline ends."
+  },
+  "lanes-purchase-large": {
+    "type": "swimlane", "split": "dev", "size": "large", "lanes": true,
+    "prompt": "Draw a detailed flowchart with swimlanes for Requester, Manager, Procurement, Supplier and Finance for a purchase-to-pay process: the requester creates a purchase request; the manager reviews it (decision: approved? if not, the requester is informed and the process ends); procurement checks whether a framework contract exists (decision: contract exists? if not, procurement asks three suppliers for quotes, the suppliers send quotes, and procurement selects one); procurement creates the purchase order; the supplier confirms the order, delivers the goods and sends the invoice; the requester checks the delivery (decision: complete and undamaged? if not, procurement files a complaint and the supplier sends a replacement, then the delivery is checked again); the requester confirms the goods receipt; finance matches invoice, order and goods receipt (decision: all three match? if not, finance clarifies with procurement and matches again); finance pays the invoice and archives the documents.",
+    "edit": "Add a budget check by Finance between the manager's approval and the contract check: if there is no budget, the request goes back to the manager, who can cancel it."
+  },
+  "flow-loan-large": {
+    "type": "swimlane", "split": "dev", "size": "large", "lanes": false,
+    "prompt": "Draw a detailed flowchart of how a bank handles an application for a consumer loan. The applicant submits the application; check the documents (decision: documents complete? if not, ask for the missing documents and wait; decision: received within 10 days? if not, close the application and end, otherwise check the documents again); verify the identity (decision: identity confirmed? if not, reject the application and end); get the credit score (decision: score above 700? if yes, approve automatically; otherwise decision: score above 600? if not, reject the application and end); for scores in between, a credit officer reviews income and debts (decision: debt ratio below 40 percent? if not, offer a lower amount; decision: applicant accepts the lower amount? if not, close the application and end); prepare the contract and send it for signature (decision: signed within 14 days? if not, send one reminder; decision: signed after the reminder? if not, withdraw the offer and end); check the payout account (decision: account at this bank? if yes, pay out immediately, otherwise order a transfer); send the confirmation, set up the repayment plan and end.",
+    "edit": "Add a fraud check after the identity is confirmed: if it finds a match on the fraud list, the application goes to the compliance team, who either clear it, after which it continues with the credit score, or reject it and end."
+  },
+  "lanes-support": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true,
+    "prompt": "Draw a flowchart with swimlanes for Customer, Support Agent, Engineering and Billing for a support ticket: the customer opens a ticket; the support agent classifies it (decision: billing question? if yes, billing checks the account, corrects the invoice and answers the customer); otherwise the agent searches the knowledge base (decision: known solution? if yes, the agent sends the solution); if not, the agent escalates to engineering, engineering reproduces the problem, fixes it and reports back, and the agent informs the customer; in every case the customer confirms (decision: solved? if not, the ticket is reopened and classified again) and the ticket is closed.",
+    "edit": "Add a step where the Support Agent asks the customer for logs before escalating to Engineering, and rename Engineering to Product Team."
+  },
+  "lanes-expense": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true,
+    "prompt": "Draw a flowchart with swimlanes for Employee, Manager and Finance for an expense claim: the employee submits the claim with receipts; the manager reviews it (decision: approved? if not, the employee corrects the claim and submits it again); finance checks the receipts (decision: receipts complete? if not, finance asks the employee for the missing receipts and checks again); finance checks the amount (decision: more than 1000? if yes, the manager's director approval is requested and the manager confirms it); finance books the claim and pays it with the next payroll; the employee receives a payment notice.",
+    "edit": "Add a Director lane and move the approval of claims over 1000 from the Manager to the Director; if the director declines, the employee is informed and the process ends."
+  },
+  "lanes-claim": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true,
+    "prompt": "Draw a flowchart with swimlanes for Policyholder, Claims Agent, Adjuster, Fraud Unit and Payments for an insurance claim: the policyholder reports the damage; the claims agent registers the claim and checks the cover (decision: covered? if not, the agent sends a rejection and the process ends); the adjuster inspects the damage and estimates the cost (decision: above 10000? if yes, the fraud unit reviews the claim, and if it finds fraud, the claim is rejected); the claims agent approves the payout; payments transfers the money; the policyholder receives the settlement letter.",
+    "edit": "Add a step where the Claims Agent requests missing documents from the Policyholder after registering the claim, and the Policyholder sends them before the cover is checked."
+  },
+  "flow-login": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false,
+    "prompt": "Draw a flowchart of a login with multi-factor authentication: the user enters username and password (decision: credentials correct? if not, count the failed attempt; decision: three failed attempts? if yes, lock the account, send an unlock email and end, otherwise ask again); when the credentials are correct, check the device (decision: trusted device? if yes, sign in directly); otherwise send a one-time code, the user enters it (decision: code valid? if not, allow one resend and ask again, then end with an error); offer to trust the device, create the session and show the dashboard.",
+    "edit": "Add a check after the credentials are correct whether the password has expired: if it has, the user must set a new password before the device check."
+  },
+  "flow-refund-large": {
+    "type": "swimlane", "split": "held-out", "size": "large", "lanes": false,
+    "prompt": "Draw a detailed flowchart of how an online shop handles a return. The customer requests a return; check the order date (decision: within 30 days? if not, reject the request and end); check the item type (decision: returnable item? if not, reject the request and end); ask for the reason (decision: item defective? if yes, send a prepaid label and offer a replacement; decision: replacement wanted? if yes, ship the replacement and end); for all other returns, send a return label and wait for the parcel (decision: parcel received within 14 days? if not, close the request and end); inspect the item (decision: item in original condition? if not, offer a partial refund; decision: customer accepts? if not, send the item back and end); check the payment method (decision: paid by card? if yes, refund to the card, otherwise issue store credit); send a confirmation email, update the stock and end.",
+    "edit": "Add a check before the return label is sent whether the order value is below 15: if it is, refund without asking for the item back and end."
+  },
+  "lanes-release-large": {
+    "type": "swimlane", "split": "held-out", "size": "large", "lanes": true,
+    "prompt": "Draw a detailed flowchart with swimlanes for Developer, CI System, QA and Operations for a software release: the developer opens a pull request; the CI system builds it and runs the tests (decision: build and tests green? if not, the developer fixes the code and the CI system builds again); a second developer reviews the code (decision: review approved? if not, back to fixing the code); the developer merges; the CI system builds a release candidate and deploys it to the test environment; QA runs the regression tests and the exploratory tests (decision: release quality reached? if not, QA files bugs and the developer fixes them, then a new release candidate is built); QA signs off; operations schedules the release window, deploys to production and monitors the error rate (decision: error rate normal? if not, operations rolls back and informs the developer); operations closes the release and the developer writes the release notes.",
+    "edit": "Add a Security lane: after QA signs off, security runs a penetration test, and only if it passes does Operations schedule the release window; otherwise the developer fixes the findings."
+  }
+}

@@ -458,6 +458,12 @@ test("a host that takes images gets the picture, the check and the XML when it d
   assert.equal(changed[3].text, "XML");
 
   assert.deepEqual(fns.modelContextContent(null, report, null), [{ type: "text", text: "clean" }]);
+
+  // drawn from a description (create_semantic_diagram): the model sent no XML
+  const described = fns.modelContextContent(img, report, null, true);
+
+  assert.equal(described[0].text, "The draw.io diagram as the user sees it now, as a PNG image (796 x 196 px), laid out from your description.");
+  assert.match(fns.modelContextContent(img, report, "XML", true)[0].text, /\(796 x 196 px\)\.$/);
 });
 
 test("images go only to hosts that declare them, and not to ChatGPT yet", function()
