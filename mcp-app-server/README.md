@@ -55,7 +55,7 @@ Where to set it:
 - **Docker**: `docker run --rm -e DRAWIO_SEMANTIC_TYPES=on -p 127.0.0.1:3001:3001 jgraph/drawio-mcp`
 - **Cloudflare Workers** read it when the HTML is built, before the upload, so set it in the shell that deploys: `DRAWIO_SEMANTIC_TYPES=on npm run deploy`. A deploy without the variable offers nothing.
 
-**Size rules.** A diagram above a type's limit gets an error that sends the model to `create_diagram`, so it draws the diagram as XML instead. The description of `type` names the limit, so the model knows it before it writes. The limits come from the blind judgements, where larger diagrams lost against the model's own XML:
+**Size rules.** A diagram above a type's limit gets an error that sends the model to `create_diagram`, so it draws the diagram as XML instead, and the frame of the refused call shows a short note in place of the diagram. The model isn't told the limits: when it knew them, it left steps out to stay under them. So it describes the whole diagram, and the size of that description decides. The limits come from the blind judgements, where larger diagrams lost against the model's own XML:
 
 - A flowchart without lanes (no step in a lane or group) is drawn with up to 24 steps. Diagrams with lanes have no limit.
 - Architecture and network diagrams (offered only by name) are drawn with up to 18 nodes.
