@@ -12,6 +12,13 @@
 // and `export { a, b };`. Anything else throws, so a new construct fails the
 // build and the test instead of the viewer.
 //
+// What the viewer has anyway isn't bundled a second time: the icon table
+// (most of the engine's size), its resolver and the shorthand expansion are
+// read from the page (VIEWER_GLOBALS), so the script must come after the one
+// that defines them. The table in the page is the one without the icons that
+// are data URIs, as for streaming XML: they show as a placeholder until the
+// result.
+//
 // Node only (fs): src/index.js and src/build-html.js read it at startup or
 // build time and pass the script to buildHtml as options.semanticJs.
 
@@ -21,6 +28,18 @@ import { fileURLToPath } from "node:url";
 
 const SHARED = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "shared");
 const ENTRY = path.join(SHARED, "semantic", "index.js");
+
+/**
+ * The shared modules the viewer's script defines as globals (buildHtml in
+ * shared.js), by their path under shared/, each as the expression that gives
+ * the module's exports.
+ */
+export const VIEWER_GLOBALS =
+{
+  "icon-table.js": "{ ICON_TABLE: ICON_TABLE, ICON_DATA: undefined }",
+  "icon-resolver.js": "{ createIconResolver: createIconResolver }",
+  "diagram-shorthand.js": "{ createDiagramShorthand: createDiagramShorthand, expandDiagramShorthand: expandDiagramShorthand }"
+};
 
 const IMPORT = /^import\s*\{([^}]*)\}\s*from\s*"(\.{1,2}\/[^"]+)";\s*$/;
 const EXPORT_DECL = /^export\s+(async\s+function|function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/;
@@ -98,18 +117,32 @@ function transform(file, key)
 /**
  * The engine as a classic script that defines the global DrawioSemantic.
  *
+ * @param {{externals?: Object<string, string>}} [options] - externals:
+ *   modules that aren't bundled, by their path under shared/, each with the
+ *   expression that gives its exports where the script runs (VIEWER_GLOBALS
+ *   for the viewer). Without it the script stands alone.
  * @returns {string}
  */
-export function bundleSemanticEngine()
+export function bundleSemanticEngine(options)
 {
+  const externals = (options != null && options.externals) || {};
   const key = function(file) { return path.relative(SHARED, file).split(path.sep).join("/"); };
   const done = new Map();
   const order = [];
+  const external = [];
 
   const visit = function(file, stack)
   {
     if (done.has(file))
     {
+      return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(externals, key(file)))
+    {
+      done.set(file, null);
+      external.push(file);
+
       return;
     }
 
@@ -132,6 +165,11 @@ export function bundleSemanticEngine()
   visit(ENTRY, []);
 
   const parts = ["var DrawioSemantic = (function()", "{", "\"use strict\";", "var __modules = {};"];
+
+  for (const file of external)
+  {
+    parts.push("__modules[" + JSON.stringify(key(file)) + "] = " + externals[key(file)] + ";");
+  }
 
   for (const file of order)
   {

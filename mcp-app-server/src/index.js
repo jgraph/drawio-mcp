@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { readReference } from "./references.js";
 import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState, resolveSemanticTypes } from "./shared.js";
-import { bundleSemanticEngine } from "./semantic-bundle.js";
+import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
 
@@ -180,11 +180,13 @@ const drawioBaseUrl = process.env.DRAWIO_BASE_URL;
 
 // The semantic diagram types create_semantic_diagram offers: unset, the ones
 // switched on in shared.js (SEMANTIC_TYPES_ON, none yet, so the tool isn't
-// listed); DRAWIO_SEMANTIC_TYPES=er offers ER schemas (to try it, or for the
-// bench), "off" none. With a type offered, the viewer gets the engine for
-// its preview while a description streams in.
+// listed); DRAWIO_SEMANTIC_TYPES=on offers the types that passed the blind
+// judgement (flowcharts and swimlanes), a comma-separated list the types it
+// names (er, architecture, network, flowchart, swimlane: to try one, or for
+// the bench), "off" none. With a type offered, the viewer gets the engine
+// for its preview while a description streams in.
 const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine() : null;
+const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {
