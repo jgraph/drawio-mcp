@@ -48,9 +48,15 @@ export function createIconResolver(table, data)
   // cell's: a fill color from a theme would repaint an AWS service tile.
   var ICON_KEYS = ["shape", "resIcon", "prIcon", "grIcon", "image", "fillColor", "strokeColor",
     "gradientColor", "gradientDirection", "grStroke", "aspect", "imageAspect", "editableCssRules"];
+  // The label color of an icon whose library writes a gray that is hard to
+  // read (isPale): the text color of the calm theme, the default of the
+  // shared references (shared/xml-reference.md, Color themes) and of the
+  // role styles (shared/diagram-shorthand.js).
+  var LABEL_COLOR = "#1B1F24";
   // An icon whose image the viewer doesn't have, while the XML streams in.
   var PLACEHOLDER_STYLE = "rounded=1;arcSize=16;fillColor=#F1F3F4;strokeColor=#DADCE0;" +
-    "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;";
+    "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;" +
+    "fontColor=" + LABEL_COLOR + ";";
   // No icon name is longer (the longest in the table has 59 characters), so
   // a longer one matches nothing and isn't ranked or kept.
   var MAX_NAME_LENGTH = 100;
@@ -97,6 +103,61 @@ export function createIconResolver(table, data)
     });
   }
 
+  /**
+   * Whether a label color from a library is hard to read on a white page: a
+   * gray with less than 4.5:1 contrast against white (WCAG AA for text), or
+   * any color with less than 3:1. The Google Cloud products (gcp2) write
+   * #999999 (2.8:1), AWS's VPC group #AAB7B8 (2.1:1) and its generic subnet
+   * #879196 (3.2:1). The colored labels of the other AWS groups, which match
+   * their borders (#D86613, 3.6:1), and the dark ones stay.
+   * @param {string} color - a value of fontColor
+   */
+  function isPale(color)
+  {
+    var match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(color).trim());
+
+    if (match == null)
+    {
+      return false;
+    }
+
+    var hex = match[1];
+
+    if (hex.length === 3)
+    {
+      hex = hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2);
+    }
+
+    var channels = [0, 2, 4].map(function(i)
+    {
+      return parseInt(hex.substring(i, i + 2), 16);
+    });
+    var weights = [0.2126, 0.7152, 0.0722];
+    var luminance = 0;
+
+    channels.forEach(function(value, i)
+    {
+      var c = value / 255;
+
+      luminance += weights[i] * ((c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    });
+
+    var contrast = 1.05 / (luminance + 0.05);
+    var gray = Math.max.apply(null, channels) - Math.min.apply(null, channels) <= 48;
+
+    return contrast < 3 || (gray && contrast < 4.5);
+  }
+
+  // The templates with a readable label color. A label color the cell
+  // writes itself still wins (applyToStyle).
+  var templates = table.templates.map(function(template)
+  {
+    return template.replace(/(^|;)fontColor=([^;]*)/, function(all, start, color)
+    {
+      return isPale(color) ? start + "fontColor=" + LABEL_COLOR : all;
+    });
+  });
+
   var GENERIC = GENERIC_WORDS.map(stem);
   var entries = table.icons.map(function(icon)
   {
@@ -115,7 +176,7 @@ export function createIconResolver(table, data)
       {
         return nameWords(name).join("");
       }),
-      template: table.templates[icon[3]],
+      template: templates[icon[3]],
       n: icon[4],
       c: icon[5],
       w: icon[6],
@@ -468,8 +529,9 @@ export function createIconResolver(table, data)
   }
 
   /**
-   * Replaces `icon=<name>` in a style with the icon's style. The cell's
-   * other keys stay and win, except the keys that make the icon
+   * Replaces `icon=<name>` in a style with the icon's style, whose label
+   * color is readable (isPale). The cell's other keys stay and win, except
+   * the keys that make the icon
    * (ICON_KEYS) and `whiteSpace` on an icon whose label sits outside it (the
    * name below an icon doesn't wrap at the icon's width). Style names
    * without a value (`rounded`, `ellipse`) are dropped.
