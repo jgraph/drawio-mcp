@@ -22,7 +22,7 @@ Output goes to `bench/out/` (ignored), `--out DIR` or `BENCH_OUT`.
 
 ## Prompts
 
-`prompts.json` has, per prompt: the `type` it measures, a `split` (`dev` or `held-out`), an optional `size` (`large`: 25 to 30 elements) and an `edit`, the follow-up request of the second turn. Layouts are developed on the `dev` prompts only; the `held-out` prompts decide whether a type is switched on, and nobody looks at their renders while changing a layout. Architecture, cloud and network have 12 prompts (6 and 6), swimlanes and flowcharts 12 (6 and 6); `--type`, `--split`, `--size` and `--prompts` select.
+`prompts.json` has, per prompt: the `type` it measures, a `split` (`dev` or `held-out`), an optional `size` (`large`: 25 to 35 elements) and an `edit`, the follow-up request of the second turn. Layouts are developed on the `dev` prompts only; the `held-out` prompts decide whether a type is switched on, and nobody looks at their renders while changing a layout. Architecture, cloud and network have 14 prompts (8 and 6), swimlanes and flowcharts 13 (7 and 6): the large diagrams lost every judgement of the third measurement, so three large `dev` prompts were added to develop on (a streaming platform, a Google Cloud landing zone, a loan flowchart without lanes). `--type`, `--split`, `--size` and `--prompts` select.
 
 ## Steps
 
@@ -58,7 +58,7 @@ Per run, `run.mjs` writes the timestamped stream (`<tag>.jsonl`), a summary (`<t
 The semantic tool only offers a diagram type (`describeTool` in `shared/semantic/description.js`) once its layouts are at least as good as what the model places itself today. `report.mjs` checks that per type, on the judgements of the inline images:
 
 - the semantic share on the **held-out** prompts is 0.5 or more (`--threshold`);
-- **every** prompt's share is 0.3 or more (`--floor`), so one prompt that always loses isn't hidden by the others;
+- **every** prompt's share is 0.3 or more (`--floor`), so one prompt that always loses isn't hidden by the others; both read on three runs per prompt (`run.mjs --repeats 3`), since a single run passed a type that three runs failed;
 - the layout check finds no more issues in the semantic diagrams than in today's.
 
 Both sides are drawn in the calm theme with the same font rule (14 px up to 12 shapes, 16 above). Where the median font sizes of a pair still differ by 2 px or more, the judgement says more about text size than about layout: the report counts those pairs separately and the gate leaves them out. Time and tokens alone don't switch a type on, and neither does a judgement of the prompts a layout was developed on.
