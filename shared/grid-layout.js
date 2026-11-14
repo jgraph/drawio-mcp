@@ -3567,7 +3567,17 @@ function layoutPage(graph, options, stats)
     geo.width = item.w;
     geo.height = item.h;
     geo.origAttrs = Object.assign({}, old != null ? old.origAttrs : null, { x: "0", y: "0" });
+
+    const unplaced = isUnplaced(item.cell);
+
     model.setGeometry(item.cell, geo);
+
+    // A shape with a size and no position that lands on 0, 0 has the same
+    // geometry by value, and its x and y still have to be written.
+    if (unplaced)
+    {
+      model.changedGeometry.add(item.cell);
+    }
 
     let changed = false;
 

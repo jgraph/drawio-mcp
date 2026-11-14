@@ -10,7 +10,10 @@
 // placed passes byte-identical, and so does a page that has positions for
 // some shapes and none for others: the shapes with a position stay where the
 // model put them, and the result names the ones without, which draw.io
-// doesn't draw.
+// doesn't draw. Text the pass puts above or below the diagram (a title, a
+// legend: a text of the layer with no edge and no children) doesn't count:
+// written with a position on a page of cells, it loses the position and goes
+// where the pass puts it.
 
 import { transformPages } from "../../shared/mx-xml.js";
 import { gridLayoutDiagram } from "../../shared/grid-layout.js";
@@ -27,13 +30,107 @@ function hasPosition(cell)
   return geo != null && geo.origAttrs != null && (geo.origAttrs.x != null || geo.origAttrs.y != null);
 }
 
+// As the grid pass reads a text: the style `text`, or neither fill nor stroke.
+function isText(style)
+{
+  var parts = String(style || "").split(";");
+  var first = null;
+  var map = {};
+
+  for (var i = 0; i < parts.length; i++)
+  {
+    var p = parts[i].trim();
+    var eq = p.indexOf("=");
+
+    if (p === "")
+    {
+      continue;
+    }
+
+    if (eq < 0)
+    {
+      first = (first == null) ? p : first;
+    }
+    else
+    {
+      map[p.substring(0, eq)] = p.substring(eq + 1);
+    }
+  }
+
+  return first === "text" || (map.strokeColor === "none" && map.fillColor === "none");
+}
+
+// The shapes of one page as the grid pass sees them (vertices, without edge
+// labels and without the rows of a table, which lays them out itself), the
+// ones without a position, and the texts with one that the pass would put
+// above or below the diagram.
+function pageShapes(graph)
+{
+  var model = graph.getModel();
+  var page = { vertices: 0, unplaced: [], floats: [] };
+  var texts = [];
+  var connected = new Set();
+
+  (function visit(cell, top)
+  {
+    for (var i = 0; i < model.getChildCount(cell); i++)
+    {
+      var child = model.getChildAt(cell, i);
+
+      if (model.isEdge(child))
+      {
+        connected.add(model.getTerminal(child, true));
+        connected.add(model.getTerminal(child, false));
+      }
+      else if (model.isVertex(child) && !(child.geometry != null && child.geometry.relative))
+      {
+        page.vertices++;
+
+        if (!hasPosition(child))
+        {
+          page.unplaced.push(String(child.id));
+        }
+        else if (top && model.getChildCount(child) === 0 && isText(child.style))
+        {
+          texts.push(child);
+        }
+
+        if (!/(^|;)\s*childLayout=/.test(String(child.style || "")))
+        {
+          visit(child, false);
+        }
+      }
+      else
+      {
+        // The root's children are the layers, whose shapes are the top level.
+        visit(child, cell === model.getRoot());
+      }
+    }
+  })(model.getRoot(), false);
+
+  page.floats = texts.filter(function(cell)
+  {
+    return !connected.has(cell);
+  });
+
+  return page;
+}
+
+// A page the pass lays out: shapes without a position, and the others only
+// texts it puts above or below the diagram.
+function isOpen(page)
+{
+  return page.unplaced.length > 0 && page.unplaced.length + page.floats.length === page.vertices;
+}
+
 /**
  * The shapes of every page as the grid pass sees them (vertices, without
  * edge labels and without the rows of a table, which lays them out itself),
- * and which of them have no position.
+ * which of them have no position, and which have one but are texts the pass
+ * puts above or below the diagram (a title, a legend).
  *
  * @param {string} xml - mxGraphModel or mxfile XML
- * @returns {{vertices: number, unplaced: string[]}[]} one entry per page
+ * @returns {{vertices: number, unplaced: string[], floats: string[]}[]} one entry per page
  */
 export function pagePlacement(xml)
 {
@@ -41,40 +138,53 @@ export function pagePlacement(xml)
 
   transformPages(xml, function(graph)
   {
-    var model = graph.getModel();
-    var page = { vertices: 0, unplaced: [] };
+    var page = pageShapes(graph);
 
-    (function visit(cell)
+    pages.push({ vertices: page.vertices, unplaced: page.unplaced, floats: page.floats.map(function(cell)
     {
-      for (var i = 0; i < model.getChildCount(cell); i++)
-      {
-        var child = model.getChildAt(cell, i);
-
-        if (model.isVertex(child) && !(child.geometry != null && child.geometry.relative))
-        {
-          page.vertices++;
-
-          if (!hasPosition(child))
-          {
-            page.unplaced.push(String(child.id));
-          }
-
-          if (!/(^|;)\s*childLayout=/.test(String(child.style || "")))
-          {
-            visit(child);
-          }
-        }
-        else if (!model.isEdge(child))
-        {
-          visit(child);
-        }
-      }
-    })(model.getRoot());
-
-    pages.push(page);
+      return String(cell.id);
+    }) });
   });
 
   return pages;
+}
+
+// The positions of the titles and legends on the pages the pass lays out,
+// taken away so the pass places them; their sizes stay.
+function freeFloats(xml)
+{
+  return transformPages(xml, function(graph)
+  {
+    var model = graph.getModel();
+    var page = pageShapes(graph);
+
+    if (!isOpen(page))
+    {
+      return;
+    }
+
+    page.floats.forEach(function(cell)
+    {
+      var geo = cell.geometry.clone();
+      var attrs = {};
+
+      for (var k in geo.origAttrs)
+      {
+        if (k !== "x" && k !== "y")
+        {
+          attrs[k] = geo.origAttrs[k];
+        }
+      }
+
+      geo.origAttrs = attrs;
+      geo.x = 0;
+      geo.y = 0;
+      model.setGeometry(cell, geo);
+      // A text written at 0, 0 is the same geometry by value, and its x and y
+      // still have to go.
+      model.changedGeometry.add(cell);
+    });
+  }).xml;
 }
 
 /**
@@ -102,7 +212,7 @@ export function layoutXmlOnGrid(xml)
       return;
     }
 
-    if (p.unplaced.length < p.vertices)
+    if (!isOpen(p))
     {
       mixed = mixed.concat(p.unplaced);
     }
@@ -124,7 +234,7 @@ export function layoutXmlOnGrid(xml)
   // As the engine does (placeCompactXml in shared/semantic/boxes.js): the
   // edges filed at the nearest common ancestor of their ends first, then one
   // grid for the page, as the semantic tool reads its cells.
-  var r = gridLayoutDiagram(normalizeDiagram(xml).xml, { hints: "page" });
+  var r = gridLayoutDiagram(normalizeDiagram(freeFloats(xml)).xml, { hints: "page" });
 
   return { xml: r.xml, laidOut: r.stats.pages, shapes: shapes, mixed: [], stats: r.stats };
 }

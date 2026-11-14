@@ -265,6 +265,80 @@ test("shapes without a position beside shapes with one: nothing moves, and the m
   assert.ok(!drawn.texts.some(function(t) { return /The server placed/.test(t); }));
 });
 
+test("a title and a legend written with a position don't keep a page of cells from being placed", async function()
+{
+  // Sonnet in the pilot run: every shape with its cell, the title and the
+  // legend with coordinates of their own
+  const xml = model([
+    "<mxCell id=\"title\" value=\"Shop on AKS\" style=\"text;html=1;fontSize=20;fontStyle=1;align=left;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"0\" y=\"0\" width=\"560\" height=\"30\" as=\"geometry\"/></mxCell>",
+    cell("a", "Order", "rounded=1;whiteSpace=wrap;html=1;row=1;col=1;"),
+    cell("b", "Pay", "rounded=1;whiteSpace=wrap;html=1;row=1;col=2;"),
+    edge("ab", "a", "b"),
+    "<mxCell id=\"legend\" value=\"Dashed = async\" style=\"text;html=1;fontSize=12;align=left;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"40\" y=\"640\" width=\"260\" height=\"20\" as=\"geometry\"/></mxCell>"
+  ]);
+
+  assert.deepEqual(pagePlacement(xml), [{ vertices: 4, unplaced: ["a", "b"], floats: ["title", "legend"] }]);
+
+  const r = layoutXmlOnGrid(xml);
+
+  assert.equal(r.laidOut, 1);
+  assert.deepEqual(r.mixed, []);
+
+  const g = geometries(r.xml);
+  // a y of 0 isn't written
+  const y = function(id)
+  {
+    const m = / y="([\d.]+)"/.exec(g.get(id));
+
+    return m ? Number(m[1]) : 0;
+  };
+
+  // the title above everything, the legend below, both with their height
+  assert.equal(y("title"), 0);
+  assert.match(g.get("title"), /height="30"/);
+  assert.ok(y("a") >= 30 && y("b") >= 30);
+  assert.ok(y("legend") > y("a") + 60);
+  assert.match(g.get("legend"), /height="20"/);
+
+  const drawn = await draw(xml, [XML_GRID]);
+
+  assert.ok(drawn.texts.some(function(t) { return /The server placed the 4 shapes/.test(t); }));
+  assert.ok(!drawn.texts.some(function(t) { return /(has|have) no position/.test(t); }));
+});
+
+test("a text with a position that is connected or inside a container still makes the page mixed", function()
+{
+  const linked = model([
+    "<mxCell id=\"t\" value=\"Note\" style=\"text;html=1;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"0\" y=\"0\" width=\"100\" height=\"20\" as=\"geometry\"/></mxCell>",
+    cell("a", "Order", "rounded=1;whiteSpace=wrap;html=1;row=1;col=1;"),
+    edge("ta", "t", "a")
+  ]);
+  const inside = model([
+    cell("zone", "Zone", "rounded=0;container=1;html=1;"),
+    "<mxCell id=\"t\" value=\"Note\" style=\"text;html=1;\" vertex=\"1\" parent=\"zone\"><mxGeometry x=\"10\" y=\"10\" width=\"100\" height=\"20\" as=\"geometry\"/></mxCell>",
+    cell("a", "Order", "rounded=1;whiteSpace=wrap;html=1;row=1;col=1;", "zone")
+  ]);
+
+  [linked, inside].forEach(function(xml)
+  {
+    const r = layoutXmlOnGrid(xml);
+
+    assert.equal(r.xml, xml);
+    assert.equal(r.laidOut, 0);
+    assert.ok(r.mixed.indexOf("a") >= 0);
+    assert.equal(r.mixed.indexOf("t"), -1);
+  });
+
+  // and a page placed by the model, texts and all, passes as it is
+  const placed = model([
+    "<mxCell id=\"t\" value=\"Title\" style=\"text;html=1;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"0\" y=\"0\" width=\"100\" height=\"20\" as=\"geometry\"/></mxCell>",
+    box("a", "Order", { x: 40, y: 40 })
+  ]);
+
+  assert.equal(layoutXmlOnGrid(placed).xml, placed);
+  assert.equal(layoutXmlOnGrid(placed).laidOut, 0);
+});
+
 test("a size without x and y is kept, and a table of rows is placed whole", async function()
 {
   const xml = model([
@@ -276,7 +350,7 @@ test("a size without x and y is kept, and a table of rows is placed whole", asyn
 
   // the table's rows have positions of their own, inside the table: they
   // aren't shapes of the page
-  assert.deepEqual(pagePlacement(xml), [{ vertices: 3, unplaced: ["bus", "loan", "book"] }]);
+  assert.deepEqual(pagePlacement(xml), [{ vertices: 3, unplaced: ["bus", "loan", "book"], floats: [] }]);
 
   const r = await draw(xml, [XML_GRID]);
   const g = geometries(r.payload.xml);
