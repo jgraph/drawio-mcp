@@ -298,7 +298,7 @@ test("the switch offers flowcharts and swimlanes, with the schema the benchmark 
   // the server's own words on the two keys the bench's schema doesn't describe,
   // with the size rule for flowcharts without lanes
   assert.equal(listed.properties.type.description,
-    "The diagram type. flowchart without lanes: at most 24 nodes; draw larger ones with create_diagram.");
+    "The diagram type. flowchart without lanes: at most 24 nodes; draw larger ones with create_diagram, as XML you place yourself.");
   delete listed.properties.type.description;
   delete listed.properties.title.description;
   assert.deepEqual(listed, measured);
@@ -502,7 +502,7 @@ test("an architecture diagram above the size rule is sent to create_diagram", as
   // the model reads the rule before it writes the description
   assert.equal(tool.inputSchema.properties.type.description,
     "The diagram type. architecture and network: at most 18 nodes; flowchart without lanes: at most 24 nodes; " +
-    "draw larger ones with create_diagram.");
+    "draw larger ones with create_diagram, as XML you place yourself.");
 
   const call = function(type, count)
   {

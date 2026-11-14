@@ -10939,7 +10939,9 @@ function semanticInputSchema(offered)
 
       return (offered.indexOf(name) >= 0) ? name : value;
     }, z.enum(offered)).describe("The diagram type." + ((sizeRule != null) ? " " + sizeRule +
-      "; draw larger ones with create_diagram." : "")),
+      // as XML: sent on as "larger", models took create_diagram's Mermaid
+      // with ELK for a large flowchart, which lost every judgement
+      "; draw larger ones with create_diagram, as XML you place yourself." : "")),
     title: z.preprocess(looseText, z.string().optional()).describe("A title shown above the diagram."),
     nodes: describe(z.preprocess(jsonList, semanticItems(props.nodes, namedItem)), props.nodes),
     edges: describe(z.preprocess(jsonList, semanticItems(props.edges, edgeItem).optional()), props.edges),
