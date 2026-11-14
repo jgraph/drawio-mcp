@@ -20,19 +20,29 @@
 //
 // Gate: B passes for a type when its share on the held-out prompts is at
 // least --threshold (0.5), every prompt's share is at least --floor (0.3)
-// and the layout check finds no more in B's diagrams than in A's.
+// and the layout check finds no more in B's diagrams than in A's. A prompt
+// that the size rule sends to create_diagram (it refused one of B's
+// descriptions of it, run.mjs `sentOn`) is left out of the gate with every
+// pair whose B diagram came from create_diagram, refused or not: those are
+// the model's XML (or Mermaid) against its own XML and measure nothing of the
+// semantic tool. A description of it that the rule let through still
+// counts. A prompt with all its pairs left out has no share and no floor.
+// --sent-on names such prompts by hand, for sessions in which the tool's
+// description named the limit, so the models went to create_diagram without
+// a refused call.
 //
-// usage: node report.mjs [--threshold 0.5] [--floor 0.3] [--out DIR]
+// usage: node report.mjs [--threshold 0.5] [--floor 0.3] [--sent-on key,key] [--out DIR]
 
 import fs from "node:fs";
 import path from "node:path";
-import { parseArgs, outDir, median, round, readJson, loadPrompts } from "./lib/common.mjs";
+import { parseArgs, outDir, median, round, readJson, loadPrompts, runTag } from "./lib/common.mjs";
 import { stability } from "./lib/diagram-xml.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
 const threshold = Number(args.threshold != null ? args.threshold : 0.5);
 const floor = Number(args.floor != null ? args.floor : 0.3);
+const sentOnByHand = new Set(typeof args["sent-on"] === "string" ? args["sent-on"].split(",").filter(Boolean) : []);
 const fontGap = 2;
 const prompts = loadPrompts();
 const files = fs.readdirSync(out);
@@ -83,7 +93,7 @@ const runs = files.filter(function(x) { return x.endsWith("-summary.json"); }).s
   const run = { tag: s.tag, key: s.key, type: s.type || p.type, split: s.split || p.split, size: s.size || p.size,
     model: s.model, variant: s.variant, ok: s.ok, diagramSecs: s.diagramSecs, wallSecs: s.wallSecs,
     outputTokens: s.outputTokens, totalTokens: s.totalTokens, format: s.format, firstDiagramTool: s.firstDiagramTool,
-    usedReference: s.usedReference, usedSearch: s.usedSearch, issues: render ? render.issues : null,
+    usedReference: s.usedReference, usedSearch: s.usedSearch, sentOn: s.sentOn === true, diagramTool: s.diagramTool, issues: render ? render.issues : null,
     vertices: render ? render.vertices : null, fontSize: render ? render.fontSize : null,
     engineMs: render && render.engine && render.engine.stats ? render.engine.stats.ms : null, edit: null };
 
@@ -100,6 +110,8 @@ const runs = files.filter(function(x) { return x.endsWith("-summary.json"); }).s
 
   return run;
 });
+
+const runByTag = new Map(runs.map(function(r) { return [r.tag, r]; }));
 
 function groupBy(items, keyOf)
 {
@@ -205,8 +217,13 @@ function shareB(results)
   return share(points, valid.length);
 }
 
-function judgedType(j, type, results)
+function judgedType(j, type, all)
 {
+  // the gate reads the pairs that compare the semantic tool (see above)
+  const sentOn = new Set(all.filter(function(r) { return r.sentOn; }).map(function(r) { return r.key; })
+    .concat(Array.from(sentOnByHand)));
+  const leftOut = function(r) { return sentOn.has(r.key) && r.otherTool; };
+  const results = all.filter(function(r) { return !leftOut(r); });
   const pairId = function(r) { return r.key + "|" + r.repeat; };
   const pairs = groupBy(results, pairId).map(function(g) { return g[1][0]; });
   const confounded = new Set(pairs.filter(function(r)
@@ -250,6 +267,8 @@ function judgedType(j, type, results)
 
   return { file: j.file, a: j.a, b: j.b, runsModel: j.runsModel, judge: j.judge, image: j.image || "full", edits: !!j.edits,
     type: type, judgements: results.filter(function(r) { return r.winner != null; }).length, pairs: pairs.length,
+    leftOutPairs: groupBy(all.filter(leftOut), pairId).length,
+    shareAll: shareB(all),
     shareB: shareB(results), shareDev: shareB(results.filter(function(r) { return r.split === "dev"; })),
     shareHeldOut: heldShare, minPrompt: perPrompt.length ? Math.min.apply(null, perPrompt.map(function(p) { return p.shareB == null ? 1 : p.shareB; })) : null,
     confoundedPairs: confounded.size,
@@ -267,6 +286,9 @@ for (const f of files.filter(function(x) { return /^judge-.*\.json$/.test(x); })
 
   for (const r of j.results)
   {
+    const run = runByTag.get(runTag(j.b, r.key, j.runsModel, r.repeat));
+    r.sentOn = run != null && run.sentOn;
+    r.otherTool = run != null && run.diagramTool != null && run.diagramTool !== "create_semantic_diagram";
     const p = prompts[r.key] || {};
     r.type = r.type || p.type || "?";
     r.split = r.split || p.split || "dev";
@@ -334,12 +356,15 @@ if (judgements.length > 0)
     "Each pair of images from one prompt and repeat, shown in both orders; share: the points of B (a tie counts half). " +
     "Style: the pairs whose median font sizes differ by " + fontGap + " px or more, and the share without them. Findings: " +
     "the mean number of layout-check findings per diagram. Gate: held-out share ≥ " + threshold + ", every prompt ≥ " +
-    floor + ", findings of B not above A's.", "");
+    floor + ", findings of B not above A's. Left out: on a prompt the size rule sends to create_diagram, the pairs whose " +
+    "B diagram came from create_diagram, left out of everything but the share of all pairs.", "");
   table(md, ["A", "B", "diagrams by", "judge", "image", "turn", "type", "judgements", "share B", "dev", "held-out",
-    "lowest prompt", "style pairs", "share without", "findings A", "findings B", "gate"], judgements.map(function(j)
+    "lowest prompt", "style pairs", "share without", "findings A", "findings B", "left out", "share of all", "gate"],
+    judgements.map(function(j)
   {
     return [j.a, j.b, j.runsModel, j.judge, j.image, j.edits ? "edit" : "first", j.type, j.judgements, j.shareB, j.shareDev,
-      j.shareHeldOut, j.minPrompt, j.confoundedPairs + "/" + j.pairs, j.shareWithoutConfounded, j.issuesA, j.issuesB, j.gate];
+      j.shareHeldOut, j.minPrompt, j.confoundedPairs + "/" + j.pairs, j.shareWithoutConfounded, j.issuesA, j.issuesB,
+      j.leftOutPairs, j.shareAll, j.gate];
   }));
 
   for (const j of judgements)

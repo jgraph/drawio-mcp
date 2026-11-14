@@ -35,6 +35,31 @@ The rendered diagram includes:
 
 The `create_diagram` description tells the model to call this once per format before its first diagram in a conversation. The references used to be part of that description, which made it about 55,000 characters, too long for clients that index tool descriptions, such as VS Code Copilot's tool search ([#76](https://github.com/jgraph/drawio-mcp/issues/76)).
 
+## Tool: `create_semantic_diagram` (off by default)
+
+A second way to draw flowcharts and swimlane diagrams, still being tested. The model describes what the diagram contains: the steps with their kind (start, step, decision, end, …), the lanes, the transitions, and a row and a column for every step in one grid. It never writes coordinates, sizes or styles. The server lays the description out, routes the lines and styles it in the calm theme. Writing a description is quicker than placing every shape as XML: on the benchmark's held-out prompts, with the switch on, Sonnet took a median of 17 s to the diagram instead of 63 s, and Opus 56 s instead of 339 s. In blind judgements on the same prompts, the diagrams won about two thirds of the comparisons with the XML the models placed themselves (Sonnet 27 of 36, Opus 23 of 36; [`bench/README.md`](../bench/README.md)).
+
+The diagram is shown like one from `create_diagram`, with the same viewer, toolbar, "Open in draw.io" and layout check, and the viewer draws it while the description streams in. To change the diagram, the model sends the whole description again with the change and the same ids.
+
+The tool is off by default. Without the switch, `tools/list` is exactly as before. `DRAWIO_SEMANTIC_TYPES` turns it on:
+
+| Value | Offers |
+|---|---|
+| `on` (or `true`, `1`) | Flowcharts and swimlane diagrams, the types that passed the blind judgement |
+| A comma-separated list, e.g. `on,er` | The types it names: `flowchart`, `swimlane`, `architecture`, `network`, `er`. `on` in the list adds the types of `on`, and unknown names are dropped. `swimlane` offers flowcharts too, and `network` offers architecture diagrams. The types other than flowcharts and swimlanes are for trying out: they have not passed the judgement |
+| `off`, or unset | Nothing (the default) |
+
+Where to set it:
+
+- **Node.js** reads it at startup, for HTTP and `--stdio`: `DRAWIO_SEMANTIC_TYPES=on npm start`
+- **Docker**: `docker run --rm -e DRAWIO_SEMANTIC_TYPES=on -p 127.0.0.1:3001:3001 jgraph/drawio-mcp`
+- **Cloudflare Workers** read it when the HTML is built, before the upload, so set it in the shell that deploys: `DRAWIO_SEMANTIC_TYPES=on npm run deploy`. A deploy without the variable offers nothing.
+
+**Size rules.** A diagram above a type's limit gets an error that sends the model to `create_diagram`, so it draws the diagram as XML instead, and the frame of the refused call shows a short note in place of the diagram. The model isn't told the limits: when it knew them, it left steps out to stay under them. So it describes the whole diagram, and the size of that description decides. The limits come from the blind judgements, where larger diagrams lost against the model's own XML:
+
+- A flowchart without lanes (no step in a lane or group) is drawn with up to 24 steps. Diagrams with lanes have no limit.
+- Architecture and network diagrams (offered only by name) are drawn with up to 18 nodes.
+
 ## Official Hosted Endpoint
 
 The official draw.io MCP App server is hosted at:
@@ -168,7 +193,7 @@ A prebuilt image for `linux/amd64` and `linux/arm64` is published to Docker Hub 
 docker run --rm -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
 ```
 
-The endpoint is `http://localhost:3001/mcp`, as with `npm start`. The image listens on all interfaces inside the container (`LISTEN=0.0.0.0`), so the `-p` mapping decides who can reach it: `127.0.0.1:3001:3001` is this machine only, a plain `3001:3001` is everyone on your network. Pass `-e PORT=8080 -p 127.0.0.1:8080:8080` to change the port, `-e ALLOWED_HOSTS=…` to restrict the accepted hostnames, `-e DRAWIO_BASE_URL=https://drawio.example.com/` to open diagrams in a self-hosted draw.io, and `-e DRAWIO_ICON_SERVICE_URL=off` to keep `search_shapes` from querying the draw.io icon service. The container is stateless (no volume, no diagram content in its logs) and needs no outbound access to render diagrams — see [Deployment boundary](DOCKER_HUB.md#deployment-boundary) and [Data Residency & Offline Use](../README.md#data-residency--offline-use).
+The endpoint is `http://localhost:3001/mcp`, as with `npm start`. The image listens on all interfaces inside the container (`LISTEN=0.0.0.0`), so the `-p` mapping decides who can reach it: `127.0.0.1:3001:3001` is this machine only, a plain `3001:3001` is everyone on your network. Pass `-e PORT=8080 -p 127.0.0.1:8080:8080` to change the port, `-e ALLOWED_HOSTS=…` to restrict the accepted hostnames, `-e DRAWIO_BASE_URL=https://drawio.example.com/` to open diagrams in a self-hosted draw.io, `-e DRAWIO_ICON_SERVICE_URL=off` to keep `search_shapes` from querying the draw.io icon service, and `-e DRAWIO_SEMANTIC_TYPES=on` to offer [`create_semantic_diagram`](#tool-create_semantic_diagram-off-by-default). The container is stateless (no volume, no diagram content in its logs) and needs no outbound access to render diagrams — see [Deployment boundary](DOCKER_HUB.md#deployment-boundary) and [Data Residency & Offline Use](../README.md#data-residency--offline-use).
 
 To build the image yourself, use the [`Dockerfile`](Dockerfile) from the **repository root**, not from this directory — at startup the server reads the shared references and the shape index from the sibling `shared/` and `shape-search/` directories:
 
@@ -228,6 +253,8 @@ To open diagrams in a self-hosted draw.io, set `DRAWIO_BASE_URL` in the shell th
 ```bash
 DRAWIO_BASE_URL=https://drawio.example.com/ npm run deploy
 ```
+
+[`create_semantic_diagram`](#tool-create_semantic_diagram-off-by-default) is switched on the same way: `DRAWIO_SEMANTIC_TYPES=on npm run deploy`, or `DRAWIO_SEMANTIC_TYPES=on npx wrangler deploy --env staging` for staging (`wrangler deploy` builds the HTML itself, in the same shell).
 
 ### Local development with Wrangler
 

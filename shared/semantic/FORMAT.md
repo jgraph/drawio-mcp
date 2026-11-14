@@ -76,6 +76,7 @@ A model knows where things belong (clients above services above data, a database
 - An edge is a transition with an optional `label`; `Yes` / `No` on the branches of a decision color the label.
 - A `group` is a lane (a role, a team, a system) and every node names its lane in `group`; `swimlane` is the same type under another name. Lanes take light tints in turn.
 - Layout without hints: the main path (at every step the successor with the longest way to go) runs along one line, a branch starts beside the step it leaves, a link that closes a loop is kept out of the ranking. A flow that is longer than the chat frame continues at the start of the next column. Lanes share one grid: a hand-over to another lane stays in the same row, and the lanes are columns or rows, whichever is shown larger.
+- Size: a tool that has another way to draw the diagram takes a flowchart without lanes (no node in a group) up to 24 nodes (`MAX_NODES_WITHOUT_LANES`, `semanticToXml`'s `sizeRule`) and sends larger ones there, without naming the number to the model. The large flowchart without lanes of the held-out prompts lost its blind judgements against XML the model placed itself; lane diagrams of that size won theirs and have no limit.
 
 ### `architecture` and `network`: systems, cloud and networks (implemented, measured in `bench/`, not offered yet)
 

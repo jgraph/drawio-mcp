@@ -3,7 +3,8 @@
 // timestamped (<tag>.jsonl), and a summary (<tag>-summary.json) with the time
 // to the diagram, the time to the end of the answer, thinking and writing
 // time, tokens and tool calls. The diagram's arguments go to
-// <tag>-diagram.json for render.mjs.
+// <tag>-diagram.json for render.mjs; a description the size rule refused
+// goes to <tag>-refused.json, for preview.mjs.
 //
 // With --edits, the prompt's follow-up request ("edit" in prompts.json) is
 // sent as a second user turn in the same session once the first answer is
@@ -162,6 +163,26 @@ function shortName(name)
   return name.replace(/^mcp__\w+?__/, "");
 }
 
+// The nodes of a description, also when the list came as JSON text.
+function countNodes(input)
+{
+  let nodes = input.nodes;
+
+  if (typeof nodes === "string")
+  {
+    try
+    {
+      nodes = JSON.parse(nodes);
+    }
+    catch (e)
+    {
+      return null;
+    }
+  }
+
+  return Array.isArray(nodes) ? nodes.length : null;
+}
+
 /**
  * One turn of a session: the events from `start` ms (when its request was
  * sent) up to its `result` event. Times are seconds from the turn's start.
@@ -230,6 +251,10 @@ function summarizeTurn(events, start)
             call.resultT = t;
             call.resultChars = text.length;
             call.isError = !!c.is_error;
+            // the size rule refused the description (shared/semantic/index.js; while
+            // it named the limit, the error said "are drawn with up to")
+            call.tooLarge = call.isError && shortName(call.name) === SEMANTIC_TOOL &&
+              /too large to lay out|are drawn with up to/.test(text);
           }
         }
       }
@@ -257,6 +282,7 @@ function summarizeTurn(events, start)
 
   return {
     last: last,
+    refused: diagramCalls.find(function(c) { return c.tooLarge; }),
     summary:
     {
       ok: last != null,
@@ -277,12 +303,18 @@ function summarizeTurn(events, start)
       firstDiagramTool: diagramCalls.length > 0 ? shortName(diagramCalls[0].name) : null,
       diagramTool: last ? shortName(last.name) : null,
       diagramCalls: diagramCalls.length,
+      // the size rule sent the diagram to create_diagram: the description was
+      // refused as too large, and the diagram came from the other tool
+      sentOn: last != null && shortName(last.name) !== SEMANTIC_TOOL &&
+        diagramCalls.some(function(c) { return c.tooLarge; }),
       usedReference: called("get_drawio_reference"),
       usedSearch: called("search_shapes"),
       calls: calls.map(function(c)
       {
         return { name: shortName(c.name), t: secs(c.callT), inputChars: JSON.stringify(c.input).length,
-          resultChars: c.resultChars, isError: c.isError, query: c.input.query || c.input.format };
+          resultChars: c.resultChars, isError: c.isError, tooLarge: c.tooLarge || undefined,
+          nodes: (shortName(c.name) === SEMANTIC_TOOL) ? countNodes(c.input) : undefined,
+          query: c.input.query || c.input.format };
       }),
       finalText: result && typeof result.result === "string" ? result.result.slice(0, 600) : null
     }
@@ -321,7 +353,7 @@ function runCase(variant, key, model, rep)
     "--mcp-config", mcpConfig(variant, tag), "--allowedTools", allowedTools(variant).join(","),
     "--no-session-persistence"];
 
-  for (const suffix of [".stderr", "-diagram.json", "-edit-diagram.json"])
+  for (const suffix of [".stderr", "-diagram.json", "-edit-diagram.json", "-refused.json"])
   {
     fs.rmSync(path.join(out, tag + suffix), { force: true });
   }
@@ -408,6 +440,7 @@ function runCase(variant, key, model, rep)
       const editTurn = editIndex != null ? summarizeTurn(events.slice(editIndex), editStart) : null;
       const f = firstTurn.summary;
       saveDiagram(tag + "-diagram.json", variant, firstTurn.last);
+      saveDiagram(tag + "-refused.json", variant, firstTurn.refused);
 
       if (editTurn)
       {

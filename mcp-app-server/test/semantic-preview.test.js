@@ -291,3 +291,82 @@ test("the preview lays out what waits for no cell, with the icon paths of the re
   assert.match(source, /args = semanticPreviewArgs\(args\);\n\n  var key = null;/);
   assert.match(source, /mergeSemanticXml\(expandDiagramShorthand\(absolutizeImageUrls\(r\.xml\)\)\.xml\);/);
 });
+
+// ── Keeping the way round the preview has shown ─────────────────────────────
+
+// three lanes and a chain of steps that goes from lane to lane, one column a step
+function chain(count)
+{
+  const d = { type: "flowchart", groups: [{ id: "a", label: "Sales" }, { id: "b", label: "Support" }, { id: "c", label: "Billing" }],
+    nodes: [], edges: [] };
+
+  for (let i = 1; i <= count; i++)
+  {
+    d.nodes.push({ id: "n" + i, label: "Step number " + i, group: "abc".charAt(i % 3), row: (i % 3) + 1, col: i });
+
+    if (i > 1)
+    {
+      d.edges.push({ from: "n" + (i - 1), to: "n" + i });
+    }
+  }
+
+  return d;
+}
+
+test("the preview keeps the way round it has shown the lanes unless the other one is clearly better", async function()
+{
+  const turned = async function(count, keep)
+  {
+    const r = await semanticToXml(chain(count), { hints: "ask", keepTurned: keep });
+
+    assert.equal(r.stats.grid, "page");
+
+    return r.stats.turned;
+  };
+
+  // on its own, the engine turns five steps into columns; shown as rows
+  // before, they stay rows, since columns show them less than 0.3 larger
+  assert.equal(await turned(5), true);
+  assert.equal(await turned(5, false), false);
+  // four steps are rows on their own, and stay columns once shown so
+  assert.equal(await turned(4), false);
+  assert.equal(await turned(4, true), true);
+  // seven steps as rows are shown at half the size of the columns: they turn
+  assert.equal(await turned(7, false), true);
+  // without keepTurned the engine decides as before, as the server does
+  assert.equal(await turned(7, undefined), await turned(7));
+
+  // the description growing one step at a time, as the viewer passes it on:
+  // the lanes turn once
+  let shown;
+  const seen = [];
+
+  for (let count = 2; count <= 20; count++)
+  {
+    shown = await turned(count, shown);
+    seen.push(shown ? "c" : "r");
+  }
+
+  assert.equal(seen.join("").replace(/(.)\1+/g, "$1"), "rc", seen.join(""));
+});
+
+test("only one grid for the page keeps its way round", async function()
+{
+  // a node without a cell: a grid per lane, which has no way round to keep
+  const d = chain(5);
+
+  delete d.nodes[2].row;
+  delete d.nodes[2].col;
+
+  const free = await semanticToXml(d, { hints: "ask" });
+  const kept = await semanticToXml(d, { hints: "ask", keepTurned: true });
+
+  assert.equal(free.stats.grid, "group");
+  assert.equal(kept.xml, free.xml);
+});
+
+test("the viewer passes on the way round it has shown, from a layout on one grid for the page", function()
+{
+  assert.match(source, /sizeRule: true, partial: true,\n\s+keepTurned: semanticShownTurned \}\)\.then\(function\(r\)/);
+  assert.match(source, /if \(r\.stats != null && r\.stats\.grid === 'page'\)\n\s+\{\n\s+semanticShownTurned = r\.stats\.turned === true;/);
+});
