@@ -48,15 +48,21 @@ export function createIconResolver(table, data)
   // cell's: a fill color from a theme would repaint an AWS service tile.
   var ICON_KEYS = ["shape", "resIcon", "prIcon", "grIcon", "image", "fillColor", "strokeColor",
     "gradientColor", "gradientDirection", "grStroke", "aspect", "imageAspect", "editableCssRules"];
-  // The label color of an icon whose library writes a gray that is hard to
-  // read (isPale): the text color of the calm theme, the default of the
-  // shared references (shared/xml-reference.md, Color themes) and of the
-  // role styles (shared/diagram-shorthand.js).
+  // The label color of an icon whose library writes one that is hard to read
+  // on the icon's page (isHardToRead). On a light page the text color of the
+  // calm theme, the default of the shared references (shared/xml-reference.md,
+  // Color themes) and of the role styles (shared/diagram-shorthand.js); on a
+  // dark page (the dark theme's background="#0F172A" on mxGraphModel) the
+  // dark theme's text color.
   var LABEL_COLOR = "#1B1F24";
+  var DARK_PAGE_LABEL_COLOR = "#F1F5F9";
+  // Below this luminance a page is dark: white text has more contrast on it
+  // than black.
+  var DARK_PAGE = Math.sqrt(1.05 * 0.05) - 0.05;
   // An icon whose image the viewer doesn't have, while the XML streams in.
+  // Its label gets the icon's label color (styleOf).
   var PLACEHOLDER_STYLE = "rounded=1;arcSize=16;fillColor=#F1F3F4;strokeColor=#DADCE0;" +
-    "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;" +
-    "fontColor=" + LABEL_COLOR + ";";
+    "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;";
   // No icon name is longer (the longest in the table has 59 characters), so
   // a longer one matches nothing and isn't ranked or kept.
   var MAX_NAME_LENGTH = 100;
@@ -104,21 +110,17 @@ export function createIconResolver(table, data)
   }
 
   /**
-   * Whether a label color from a library is hard to read on a white page: a
-   * gray with less than 4.5:1 contrast against white (WCAG AA for text), or
-   * any color with less than 3:1. The Google Cloud products (gcp2) write
-   * #999999 (2.8:1), AWS's VPC group #AAB7B8 (2.1:1) and its generic subnet
-   * #879196 (3.2:1). The colored labels of the other AWS groups, which match
-   * their borders (#D86613, 3.6:1), and the dark ones stay.
-   * @param {string} color - a value of fontColor
+   * The relative luminance (WCAG) of a #RGB or #RRGGBB color and whether it
+   * is a gray, or null for any other value (`none`, `default`, …).
+   * @param {string} color
    */
-  function isPale(color)
+  function parseColor(color)
   {
     var match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(color).trim());
 
     if (match == null)
     {
-      return false;
+      return null;
     }
 
     var hex = match[1];
@@ -142,21 +144,63 @@ export function createIconResolver(table, data)
       luminance += weights[i] * ((c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
     });
 
-    var contrast = 1.05 / (luminance + 0.05);
-    var gray = Math.max.apply(null, channels) - Math.min.apply(null, channels) <= 48;
-
-    return contrast < 3 || (gray && contrast < 4.5);
+    return { luminance: luminance, gray: Math.max.apply(null, channels) - Math.min.apply(null, channels) <= 48 };
   }
 
-  // The templates with a readable label color. A label color the cell
-  // writes itself still wins (applyToStyle).
-  var templates = table.templates.map(function(template)
+  /**
+   * The luminance of a page: white's unless the page writes a color
+   * (`background="#0F172A"` on its mxGraphModel).
+   * @param {string} [background] - the page's background attribute
+   */
+  function pageLuminance(background)
   {
-    return template.replace(/(^|;)fontColor=([^;]*)/, function(all, start, color)
+    var color = (background != null) ? parseColor(background) : null;
+
+    return (color != null) ? color.luminance : 1;
+  }
+
+  /**
+   * Whether a label color from a library is hard to read on the page: a
+   * gray with less than 4.5:1 contrast against the page (WCAG AA for text),
+   * or any color with less than 3:1. On a white page that is the Google
+   * Cloud products' (gcp2) #999999 (2.8:1), AWS's VPC group #AAB7B8 (2.1:1)
+   * and its generic subnet #879196 (3.2:1), while the colored labels of the
+   * other AWS groups, which match their borders (#D86613, 3.6:1), and the
+   * dark ones stay. On the dark theme's page (#0F172A) those grays are
+   * readable (6.3:1) and AWS's dark labels (#232F3E, 1.3:1) are not.
+   * @param {string} color - a value of fontColor
+   * @param {number} page - the luminance of the page (pageLuminance)
+   */
+  function isHardToRead(color, page)
+  {
+    var label = parseColor(color);
+
+    if (label == null)
     {
-      return isPale(color) ? start + "fontColor=" + LABEL_COLOR : all;
+      return false;
+    }
+
+    var contrast = (Math.max(label.luminance, page) + 0.05) / (Math.min(label.luminance, page) + 0.05);
+
+    return contrast < 3 || (label.gray && contrast < 4.5);
+  }
+
+  /**
+   * A style whose label color from the library is readable on the page: one
+   * that is hard to read (isHardToRead) becomes the calm theme's text color
+   * on a light page and the dark theme's on a dark one. A label color the
+   * cell writes itself still wins (applyToStyle).
+   * @param {string} style - an icon template
+   * @param {number} page - the luminance of the page (pageLuminance)
+   */
+  function withReadableLabel(style, page)
+  {
+    return style.replace(/(^|;)fontColor=([^;]*)/, function(all, start, color)
+    {
+      return isHardToRead(color, page) ?
+        start + "fontColor=" + ((page < DARK_PAGE) ? DARK_PAGE_LABEL_COLOR : LABEL_COLOR) : all;
     });
-  });
+  }
 
   var GENERIC = GENERIC_WORDS.map(stem);
   var entries = table.icons.map(function(icon)
@@ -176,7 +220,7 @@ export function createIconResolver(table, data)
       {
         return nameWords(name).join("");
       }),
-      template: templates[icon[3]],
+      template: table.templates[icon[3]],
       n: icon[4],
       c: icon[5],
       w: icon[6],
@@ -365,36 +409,45 @@ export function createIconResolver(table, data)
     return { provider: provider, words: query.map(stem), squashed: query.join("") };
   }
 
-  function styleOf(entry)
+  // The icon's style on a page of that luminance (pageLuminance).
+  function styleOf(entry, page)
   {
+    var template = withReadableLabel(entry.template, page);
     var n = entry.n;
 
     if (typeof n === "number")
     {
       if (data == null || data[n] == null)
       {
-        return { style: PLACEHOLDER_STYLE, placeholder: true };
+        // The label as the icon will have it.
+        var label = /(?:^|;)fontColor=([^;]*)/.exec(template);
+
+        return { style: PLACEHOLDER_STYLE + ((label != null) ? "fontColor=" + label[1] + ";" : ""),
+          placeholder: true };
       }
 
       n = data[n];
     }
 
-    return { style: entry.template.replace("{n}", n).replace("{c}", entry.c), placeholder: false };
+    return { style: template.replace("{n}", n).replace("{c}", entry.c), placeholder: false };
   }
 
   /**
    * The best icons for a name, best first, with their scores.
    * @param {string} name - e.g. "aws lambda", "Azure Functions", "gcp pub/sub"
-   * @param {{container?: boolean, large?: boolean}} [options] - container:
-   *   the cell holds other cells, so only group shapes (AWS VPC, subnet, …)
-   *   qualify; large: the cell is larger than 100 × 100, so a group shape
-   *   wins over an icon that fits as well
+   * @param {{container?: boolean, large?: boolean, background?: string}}
+   *   [options] - container: the cell holds other cells, so only group
+   *   shapes (AWS VPC, subnet, …) qualify; large: the cell is larger than
+   *   100 × 100, so a group shape wins over an icon that fits as well;
+   *   background: the page's background, which the label color must be
+   *   readable on (white without one)
    * @param {number} [limit]
    */
   function rank(name, options, limit)
   {
     var container = options != null && options.container === true;
     var large = options != null && options.large === true;
+    var page = pageLuminance(options != null ? options.background : null);
     var results = [];
 
     if (String(name).length > MAX_NAME_LENGTH)
@@ -436,7 +489,7 @@ export function createIconResolver(table, data)
 
     return results.slice(0, limit || 5).map(function(r)
     {
-      var s = styleOf(r.entry);
+      var s = styleOf(r.entry, page);
 
       return { title: r.entry.title, provider: r.entry.provider, kind: r.entry.kind, style: s.style,
         placeholder: s.placeholder, w: r.entry.w, h: r.entry.h, score: Math.round(r.score * 100) / 100 };
@@ -449,7 +502,8 @@ export function createIconResolver(table, data)
   /**
    * The icon for a name, or null when none fits.
    * @param {string} name
-   * @param {{container?: boolean, large?: boolean}} [options] - see rank
+   * @param {{container?: boolean, large?: boolean, background?: string}}
+   *   [options] - see rank
    * @returns {{title: string, provider: string, kind: string, style: string,
    *   placeholder: boolean, w: number, h: number}|null}
    */
@@ -463,7 +517,8 @@ export function createIconResolver(table, data)
     }
 
     var key = text.toLowerCase().trim() + "|" + (options != null && options.container === true) +
-      "|" + (options != null && options.large === true);
+      "|" + (options != null && options.large === true) +
+      "|" + pageLuminance(options != null ? options.background : null);
     var icon = cache.get(key);
 
     if (icon !== undefined)
@@ -530,7 +585,8 @@ export function createIconResolver(table, data)
 
   /**
    * Replaces `icon=<name>` in a style with the icon's style, whose label
-   * color is readable (isPale). The cell's other keys stay and win, except
+   * color is readable on the page (isHardToRead, options.background). The
+   * cell's other keys stay and win, except
    * the keys that make the icon
    * (ICON_KEYS) and `whiteSpace` on an icon whose label sits outside it (the
    * name below an icon doesn't wrap at the icon's width). Style names
@@ -600,7 +656,10 @@ export function createIconResolver(table, data)
    * also a partial one while it streams in. A cell counts as a container
    * (only group shapes fit) when its style has container=1 or other cells
    * on its page name it as their parent; a cell larger than 100 × 100
-   * prefers a group shape but still takes an icon (rank's `large`).
+   * prefers a group shape but still takes an icon (rank's `large`). The
+   * label colors are readable on the background of the cell's page (rank's
+   * `background`): a dark page (the dark theme's `background="#0F172A"`)
+   * keeps a library's gray and gets a light label for a dark one.
    * @returns {{xml: string, resolved: Array, unresolved: Array}}
    */
   function applyToXml(xml)
@@ -614,13 +673,19 @@ export function createIconResolver(table, data)
     }
 
     // Pages reuse ids ("2", "3", …): a parent counts on its own page only.
+    // A page's background decides the label colors on it (pageBackgrounds,
+    // by the number pageAt gives).
     var pageStarts = [];
-    var pagePattern = /<mxGraphModel\b/g;
+    var pageBackgrounds = [null];
+    var pagePattern = /<mxGraphModel\b((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)/g;
     var pageMatch;
 
     while ((pageMatch = pagePattern.exec(xml)) != null)
     {
+      var background = /\sbackground\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(pageMatch[1]);
+
       pageStarts.push(pageMatch.index);
+      pageBackgrounds.push(background != null ? (background[1] != null ? background[1] : background[2]) : null);
     }
 
     function pageAt(offset)
@@ -697,7 +762,8 @@ export function createIconResolver(table, data)
         }
       }
 
-      var result = applyToStyle(style, { container: container, large: large });
+      var result = applyToStyle(style, { container: container, large: large,
+        background: pageBackgrounds[pageAt(offset)] });
 
       if (result == null)
       {

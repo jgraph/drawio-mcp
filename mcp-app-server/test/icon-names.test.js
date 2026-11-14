@@ -146,6 +146,13 @@ test("the viewer resolves names while the XML streams in, without the image data
     '<mxGeometry x="40" y="40" width="400" height="240" as="geometry"/></mxCell>'));
 
   assert.match(cellStyle(vpc, "v"), /grIcon=mxgraph\.aws4\.group_vpc2;.*fontColor=#1B1F24;/);
+  // On the dark theme's page the gray stays, on the placeholder too, and
+  // AWS's dark label becomes light, as on the server.
+  const dark = partial.replace("<mxGraphModel>", '<mxGraphModel background="#0F172A" adaptiveColors="none">');
+
+  assert.match(cellStyle(context.expandIcons(dark), "ps"), /^rounded=1;arcSize=16;.*;fontColor=#999999;$/);
+  assert.match(cellStyle(context.expandIcons(dark), "fn"), /;fontColor=#F1F5F9;/);
+  assert.equal(cellStyle(context.expandIcons(dark), "fn"), cellStyle(getIconResolver().applyToXml(dark).xml, "fn"));
   assert.ok(expanded.endsWith('<mxCell id="q" value="Queue" style="icon=aws s'));
   // Resolved XML, and XML without names, pass unchanged.
   assert.equal(context.expandIcons(expanded), expanded);

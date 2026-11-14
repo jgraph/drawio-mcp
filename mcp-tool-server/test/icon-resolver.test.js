@@ -182,18 +182,25 @@ test("applyToXml keeps the label keys, drops the ones the icon defines, and is i
   assert.equal(resolver.applyToXml(once.xml).xml, once.xml);
 });
 
-// The label color as WCAG computes the contrast of text on white.
-function contrastOnWhite(color)
+// The contrast of a label color on a page as WCAG computes it.
+function luminance(color)
 {
   const hex = color.slice(1).length === 3 ? color.slice(1).replace(/./g, "$&$&") : color.slice(1);
-  const luminance = [0, 2, 4].reduce(function(sum, i, k)
+
+  return [0, 2, 4].reduce(function(sum, i, k)
   {
     const c = parseInt(hex.substring(i, i + 2), 16) / 255;
 
     return sum + [0.2126, 0.7152, 0.0722][k] * ((c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   }, 0);
+}
 
-  return 1.05 / (luminance + 0.05);
+function contrast(color, page)
+{
+  const a = luminance(color);
+  const b = luminance(page);
+
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
 function labelColor(style)
@@ -221,8 +228,15 @@ test("an icon's label is readable: a pale gray from its library becomes the calm
   assert.equal(labelColor(resolver.resolve("azure functions").style), null);
   assert.equal(labelColor(resolver.resolve("kubernetes pod").style), null);
 
-  // Every icon of the table, as rank and resolve give it: no gray under
-  // 4.5:1 and no color under 3:1, and nothing but the label color changed.
+  // Every icon of the table is readable on a white page.
+  assert.deepEqual(hardToRead("#FFFFFF"), []);
+});
+
+// The icons of the table whose label is hard to read on a page of that
+// color, as rank and resolve give them: a gray under 4.5:1 or any color
+// under 3:1. Nothing but the label color may differ from the library.
+function hardToRead(page)
+{
   const library = new Set(ICON_TABLE.icons.map(function(icon)
   {
     return withoutLabelColor(styleFrom(ICON_TABLE.templates[icon[3]], icon));
@@ -232,7 +246,9 @@ test("an icon's label is readable: a pale gray from its library becomes the calm
 
   ICON_TABLE.icons.forEach(function(icon)
   {
-    resolver.rank(icon[0] + " " + icon[2].split("|")[0], { container: icon[1] === "g" }, 50).forEach(function(r)
+    const options = { container: icon[1] === "g", background: page };
+
+    resolver.rank(icon[0] + " " + icon[2].split("|")[0], options, 50).forEach(function(r)
     {
       const color = labelColor(r.style);
 
@@ -244,7 +260,7 @@ test("an icon's label is readable: a pale gray from its library becomes the calm
         const rgb = [1, 3, 5].map(function(i) { return parseInt(color.substring(i, i + 2), 16); });
         const gray = Math.max.apply(null, rgb) - Math.min.apply(null, rgb) <= 48;
 
-        if (contrastOnWhite(color) < 3 || (gray && contrastOnWhite(color) < 4.5))
+        if (contrast(color, page) < 3 || (gray && contrast(color, page) < 4.5))
         {
           pale.push(r.provider + " " + r.title + " " + color);
         }
@@ -252,8 +268,63 @@ test("an icon's label is readable: a pale gray from its library becomes the calm
     });
   });
 
-  assert.deepEqual(pale, []);
   assert.ok(seen.size >= ICON_TABLE.icons.length * 0.9, seen.size + " styles of " + ICON_TABLE.icons.length + " icons");
+
+  return pale;
+}
+
+test("on a dark page an icon's label is readable too: a library's gray stays, a dark one becomes light", function()
+{
+  // The dark theme's page (shared/xml-reference.md, Color themes): the
+  // grays read well on it, AWS's dark labels and black don't.
+  const dark = { background: "#0F172A" };
+
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub", dark).style), "#999999");
+  assert.equal(labelColor(resolver.resolve("aws vpc", { container: true, background: "#0F172A" }).style), "#AAB7B8");
+  assert.equal(labelColor(resolver.resolve("aws subnet", { container: true, background: "#0F172A" }).style), "#879196");
+  assert.equal(labelColor(resolver.resolve("aws auto scaling group", { container: true, background: "#0F172A" }).style), "#D86613");
+  assert.equal(labelColor(resolver.resolve("aws lambda", dark).style), "#F1F5F9");
+  assert.equal(labelColor(resolver.resolve("gcp bigquery", dark).style), "#F1F5F9");
+  // The blueprint theme's page is lighter: #999999 is 4.0:1 on it.
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub", { background: "#1E3A5F" }).style), "#F1F5F9");
+  // A background that names no color is a white page.
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub", { background: "none" }).style), "#1B1F24");
+
+  assert.deepEqual(hardToRead("#0F172A"), []);
+  assert.deepEqual(hardToRead("#1E3A5F"), []);
+});
+
+test("applyToXml reads each page's background, and the viewer's placeholder has the icon's label color", function()
+{
+  function page(attrs, id, name)
+  {
+    return '<diagram id="' + id + '"><mxGraphModel' + attrs + '><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+      '<mxCell id="2" value="Events" style="icon=' + name + ';" vertex="1" parent="1">' +
+      '<mxGeometry x="40" y="40" width="48" height="48" as="geometry"/></mxCell>' +
+      '<mxCell id="3" value="Own" style="icon=' + name + ';fontColor=#5A626E;" vertex="1" parent="1">' +
+      '<mxGeometry x="140" y="40" width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel></diagram>';
+  }
+
+  // Pages reuse ids, so the colors are read in the order the cells come.
+  function colors(xml)
+  {
+    return xml.match(/fontColor=[^;]*/g);
+  }
+
+  const file = '<mxfile>' + page(' background="#0F172A" adaptiveColors="none"', "a", "gcp pub/sub") +
+    page(' adaptiveColors="auto"', "b", "gcp pub/sub") + page(" background='#0F172A'", "c", "aws lambda") +
+    page(' background="#FFFFFF"', "d", "aws lambda") + '</mxfile>';
+
+  assert.deepEqual(colors(resolver.applyToXml(file).xml), ["fontColor=#999999", "fontColor=#5A626E",
+    "fontColor=#1B1F24", "fontColor=#5A626E", "fontColor=#F1F5F9", "fontColor=#5A626E",
+    "fontColor=#232F3E", "fontColor=#5A626E"]);
+
+  // Without the image data (the viewer), a Google Cloud product is a
+  // placeholder while the XML streams in, labeled as the icon will be.
+  const viewer = createIconResolver(ICON_TABLE);
+
+  assert.deepEqual(colors(viewer.applyToXml(file).xml), colors(resolver.applyToXml(file).xml));
+  assert.match(viewer.applyToXml(file).xml, /style="rounded=1;arcSize=16;fillColor=#F1F3F4;[^"]*;fontColor=#999999;"/);
 });
 
 // The style of an icon as the library writes it.
