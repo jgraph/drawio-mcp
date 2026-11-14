@@ -14,6 +14,8 @@ Variants (`run.mjs`):
 | `both` | one server with the app server's three tools and `create_semantic_diagram`, to see which one the model picks |
 | `both-rule` | the same, with a sentence in the `create_diagram` description that sends architecture, cloud, network and swimlane-flowchart diagrams to the semantic tool |
 | `switch-on` | the app server itself with its switch on (`DRAWIO_SEMANTIC_TYPES`, `on` unless set): its own `create_semantic_diagram` for the types that passed the judgement next to `create_diagram`, as staging has it. Shows which tool a model picks per diagram type and that the server's tool takes what models send |
+| `staging` | the staging Worker as deployed, over HTTP (`BENCH_STAGING_URL`, else `drawio-mcp-app-staging` on workers.dev): `create_diagram` and, where the deploy switched it on, `create_semantic_diagram` |
+| `production` | the production server, over HTTP (`BENCH_PRODUCTION_URL`, else `https://mcp.draw.io/mcp`): `create_diagram` only |
 
 ## Setup
 
@@ -53,6 +55,22 @@ Per run, `run.mjs` writes the timestamped stream (`<tag>.jsonl`), a summary (`<t
 `judge.mjs` shows a judge model (Opus by default) the two images of one prompt and repeat as "X" and "Y", once in each order, with the prompt, and asks which one the user would prefer and for a score of each. It shows the inline image by default: the 800 px frame as the chat shows it, scaled down and cut where the viewer cuts it, because that is what the user reads; `--image full` shows the whole diagram at its own size. A tie counts half; the share of B is its points over all judgements.
 
 `report.mjs` writes `report.md` and `report.json`: the runs per type and prompt, the edit turns (seconds, tokens, and of the shapes in both diagrams the share that kept its id and the share that moved by more than 10 px once the common shift is removed; the share that stayed in place, within 10 px with no shift removed; for changes of a description, the nodes the change left as they were, with the same id, lane, cell, label and kind, and how many of them moved, with no shift removed and once the shift they share is removed (a page that grows at its top moves them all alike), which is what the engine moved and not what the model renumbered; and how many changes passed the first result's `layout` back), the tool choice (the share of runs whose first diagram call was the semantic tool) and the judgements with the gate.
+
+## The live test of staging
+
+`staging` and `production` run the prompts against the deployed servers instead of a local one. The summary records the server and the `_buildId` of each diagram's result, the diagram file keeps the result as the server returned it, and `render.mjs` draws that XML in the local viewer, with the local layout check, without calling a local server.
+
+The prompts `live-*` (`"set": "live-2026-11-14"`) were written for the staging test of 14 November 2026 and committed before its runs; no layout or wording was tuned on them. Seven are flowcharts (type `swimlane`), each with a follow-up change: three without lanes (small, normal, large; the large one has more nodes than the size rule lets through without lanes) and four with lanes (small, two normal, large). The other four (an architecture, a sequence, an ER diagram and an org chart) show which tool a model picks with the switch on; staging offers them `create_diagram` only.
+
+```bash
+node run.mjs --variants production,staging --prompts live-flow-vending,…,live-org-studio --models sonnet,opus --repeats 3 --edits
+node render.mjs --chrome /path/to/chrome
+node judge.mjs --a production --b staging --prompts live-… --runs-model sonnet
+node judge.mjs --a production --b staging --prompts live-… --runs-model sonnet --edits
+node report.mjs
+```
+
+The rule, declared before the runs: for each model (Sonnet and Opus, three runs per prompt, judged blind by Opus on the inline images in both orders), staging passes when `report.mjs`'s gate with its defaults (below: share at least 0.5, every prompt at least 0.3, staging's layout-check findings not above production's, the pairs a size rule sends on left out) passes on the flowchart prompts, for the first diagrams and for the changed diagrams. A fail on the changed diagrams counts as a clear loss of quality. Staging is a candidate for production only when both models pass and its median time to the diagram is lower; the other four prompts are reported, not gated. Production served `fee698b` (1.9.0, built 10 November 2026, main before #100 to #103) and staging `3a1818f` (main `310aa3c` with #106, #107, #109 and #110 merged), so the `create_diagram` of the two differs too.
 
 ## When a type is switched on
 

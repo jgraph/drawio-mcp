@@ -17,6 +17,10 @@
 // engine draws it, which is the one it got when the engine hasn't changed
 // since the run; one the model didn't copy exactly stays as it was.
 //
+// A diagram of a live variant (run.mjs staging, production) carries the
+// result the deployed server returned: that XML is drawn as it came, with
+// the local viewer, and the local server is not called for it.
+//
 // --routing viewer leaves the edges of semantic descriptions to the viewer
 // (create_diagram's routing: "libavoid") instead of the engine's own router,
 // to compare the two on the same placements.
@@ -142,8 +146,35 @@ async function render(f)
   const d = JSON.parse(fs.readFileSync(path.join(out, f), "utf8"));
   let input = d.arguments;
   let engine = null;
+  let res = null;
 
-  if (d.tool === "create_semantic_diagram")
+  if (Array.isArray(d.result))
+  {
+    // what the deployed server returned (run.mjs staging, production)
+    const first = d.result.find(function(b) { return b.type === "text"; });
+    const payload = first ? JSON.parse(first.text) : {};
+
+    if (typeof payload.xml !== "string" && typeof payload.mermaid !== "string")
+    {
+      console.log(tag, "no diagram in the live result");
+      return;
+    }
+
+    // the diagram as the server handed it to the viewer: xml or mermaid with its options
+    input = {};
+
+    for (const k of ["xml", "mermaid", "postLayout", "direction", "routing"])
+    {
+      if (payload[k] != null)
+      {
+        input[k] = payload[k];
+      }
+    }
+
+    engine = d.tool === "create_semantic_diagram" ? { live: d.server, buildId: d.buildId } : null;
+    res = { result: { content: d.result } };
+  }
+  else if (d.tool === "create_semantic_diagram")
   {
     // as in the run: without the placement hints when the variant had none,
     // as one grid for the page when it asked for them
@@ -161,7 +192,11 @@ async function render(f)
     engine = { warnings: r.warnings, stats: r.stats };
   }
 
-  const res = await server.call("tools/call", { name: "create_diagram", arguments: input });
+  if (res == null)
+  {
+    res = await server.call("tools/call", { name: "create_diagram", arguments: input });
+  }
+
   const page = await browser.newPage();
 
   try

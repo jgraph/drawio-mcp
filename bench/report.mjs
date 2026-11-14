@@ -9,7 +9,7 @@
 //   tokens, and how much of the diagram moved: of the vertices in both
 //   diagrams (matched by id, else by label), the share whose position
 //   changed by more than 10 px once their common shift is removed;
-// - the tool choice (variants both, both-rule, switch-on): the share of runs whose
+// - the tool choice (variants both, both-rule, switch-on, staging): the share of runs whose
 //   first diagram call was the semantic tool, and the share that fetched the
 //   reference;
 // - the blind judgements (judge.mjs), per variant pair and type: the share
@@ -212,7 +212,7 @@ const editsByPrompt = groupBy(withEdits, function(r) { return [r.type, r.key, r.
 
 // ─── Tool choice ─────────────────────────────────────────────────
 
-const toolChoice = groupBy(runs.filter(function(r) { return /^both/.test(r.variant) || r.variant === "switch-on"; }),
+const toolChoice = groupBy(runs.filter(function(r) { return /^both/.test(r.variant) || r.variant === "switch-on" || r.variant === "staging"; }),
   function(r) { return [r.variant, r.model, r.type].join("|"); }).map(function(g)
 {
   const list = g[1];

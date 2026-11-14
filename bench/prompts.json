@@ -160,5 +160,56 @@
     "type": "swimlane", "split": "held-out", "size": "large", "lanes": true,
     "prompt": "Draw a detailed flowchart with swimlanes for Developer, CI System, QA and Operations for a software release: the developer opens a pull request; the CI system builds it and runs the tests (decision: build and tests green? if not, the developer fixes the code and the CI system builds again); a second developer reviews the code (decision: review approved? if not, back to fixing the code); the developer merges; the CI system builds a release candidate and deploys it to the test environment; QA runs the regression tests and the exploratory tests (decision: release quality reached? if not, QA files bugs and the developer fixes them, then a new release candidate is built); QA signs off; operations schedules the release window, deploys to production and monitors the error rate (decision: error rate normal? if not, operations rolls back and informs the developer); operations closes the release and the developer writes the release notes.",
     "edit": "Add a Security lane: after QA signs off, security runs a penetration test, and only if it passes does Operations schedule the release window; otherwise the developer fixes the findings."
+  },
+  "live-flow-vending": {
+    "type": "swimlane", "split": "held-out", "size": "small", "lanes": false, "set": "live-2026-11-14",
+    "prompt": "Draw a flowchart of buying a drink from a vending machine: the customer selects a drink (decision: drink in stock? if not, show 'sold out' and let the customer select again); the customer pays (decision: card or cash? for a card, the machine asks the bank, and if the payment is declined it shows an error and ends; for cash, it counts the coins and gives change when needed); the machine releases the drink and shows 'thank you'.",
+    "edit": "Add a check after the drink is released whether it actually dropped: if not, the machine refunds the payment and shows an error."
+  },
+  "live-flow-triage": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "live-2026-11-14",
+    "prompt": "Draw a flowchart of how an emergency department triages a patient: the patient arrives and registers; a nurse measures the vital signs (decision: life-threatening? if yes, start resuscitation and move the patient to the resuscitation room); otherwise the nurse assesses the pain and symptoms and assigns a priority (decision: urgent? if yes, a doctor sees the patient within 15 minutes, otherwise the patient waits in the waiting room and the vital signs are measured again every 30 minutes; decision: condition worse? if yes, assign a higher priority); the doctor examines the patient and orders tests (decision: admission needed? if yes, find a bed on a ward and transfer the patient, otherwise treat, write the discharge letter and send the patient home).",
+    "edit": "Add a step where a patient with a fever is moved to an isolation room before the doctor examines them."
+  },
+  "live-flow-warranty-large": {
+    "type": "swimlane", "split": "held-out", "size": "large", "lanes": false, "set": "live-2026-11-14",
+    "prompt": "Draw a detailed flowchart of how an electronics manufacturer handles a warranty claim. The customer registers the claim online; check the serial number (decision: serial number valid? if not, ask for a photo of the type plate and check again; decision: still not valid? reject the claim and end); check the purchase date (decision: within the two-year warranty? if not, offer a paid repair; decision: customer accepts the quote? if not, close the claim and end); try remote troubleshooting (decision: problem solved remotely? if yes, close the claim and end); send a shipping label and wait for the device (decision: device received within 21 days? if not, send a reminder, and close the claim after a second missed deadline); a technician inspects the device (decision: damage caused by the customer? if yes, the warranty doesn't apply and a paid repair is offered as above); decide whether to repair (decision: repair costs below 60% of the device's value? if yes, order the parts, repair the device and test it; decision: test passed? if not, repair again); otherwise replace the device from stock (decision: replacement in stock? if not, refund the purchase price); ship the device back, send a satisfaction survey and close the claim.",
+    "edit": "Add a check after the technician's inspection whether the device belongs to a known faulty batch: if it does, replace it at once without the repair decision."
+  },
+  "live-lanes-hotel": {
+    "type": "swimlane", "split": "held-out", "size": "small", "lanes": true, "set": "live-2026-11-14",
+    "prompt": "Draw a flowchart with swimlanes for Guest and Front Desk for a hotel check-in: the guest arrives and gives their name; the front desk looks up the booking (decision: booking found? if not, the front desk offers a free room, and if there is none the guest leaves); the guest shows an ID; the front desk takes a card deposit and hands over the key card; the guest goes to the room.",
+    "edit": "Add a step where the front desk asks whether the guest wants breakfast and adds it to the booking before the deposit is taken."
+  },
+  "live-lanes-repair": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "live-2026-11-14",
+    "prompt": "Draw a flowchart with swimlanes for Tenant, Property Manager and Contractor for a repair request in a rented flat: the tenant reports the problem with photos; the property manager assesses it (decision: emergency? if yes, call the contractor's emergency line at once); otherwise the property manager asks the contractor for a quote (decision: quote below 500? if not, the property manager asks the owner for approval, and if the owner declines, the tenant is informed and the request ends); the contractor arranges a date with the tenant and does the repair; the tenant confirms the repair (decision: problem fixed? if not, the contractor comes back); the contractor sends the invoice and the property manager pays it.",
+    "edit": "Add an Owner lane and move the owner's approval of quotes over 500 into it."
+  },
+  "live-lanes-onboarding": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "live-2026-11-14",
+    "prompt": "Draw a flowchart with swimlanes for New Hire, HR, IT, Team Lead and Facilities for employee onboarding: HR sends the contract and the new hire signs it (decision: contract signed within a week? if not, HR calls the new hire and sends it again); HR creates the employee record; IT creates the accounts and prepares a laptop (decision: laptop in stock? if not, IT orders one and hands out a loan laptop on the first day); facilities prepares a desk and an access badge; on the first day the team lead welcomes the new hire and assigns a buddy; the new hire completes the security training (decision: test passed? if not, repeat the training); after 30 days the team lead holds a check-in meeting.",
+    "edit": "Add a step where facilities asks the new hire about parking and issues a parking permit before the first day."
+  },
+  "live-lanes-tender-large": {
+    "type": "swimlane", "split": "held-out", "size": "large", "lanes": true, "set": "live-2026-11-14",
+    "prompt": "Draw a detailed flowchart with swimlanes for Customer, Sales, Engineering, Legal and Finance for a B2B deal from request to signed contract: the customer sends a request for proposal; sales qualifies it (decision: deal fits our offering? if not, sales declines politely and the process ends); engineering estimates the effort and drafts the solution (decision: technically feasible? if not, sales proposes an alternative scope to the customer, and if the customer rejects it the process ends); finance calculates the price (decision: margin above 25%? if not, sales and finance agree on a discount limit with the sales director's approval); sales sends the proposal; the customer evaluates it (decision: accepted? if not, sales negotiates, and after two rounds without agreement the deal is lost); legal drafts the contract (decision: customer requests changes to the terms? if yes, legal reviews them and sends a new draft); the customer signs; finance sets up billing; engineering plans the kickoff and sales hands the account over.",
+    "edit": "Add a Procurement lane on the customer's side: the signed contract goes through the customer's procurement for a supplier registration before finance sets up billing."
+  },
+  "live-arch-rides": {
+    "type": "architecture", "split": "held-out", "size": "normal", "set": "live-2026-11-14",
+    "prompt": "Draw an architecture diagram of a ride-hailing backend with plain boxes and no cloud provider: rider and driver apps connect through an API gateway; behind it are a trip service, a matching service, a pricing service, a payment service and a notification service; the trip service uses a PostgreSQL database, the matching service reads driver positions from a Redis store that a location service fills from the driver app's updates; services publish events to a Kafka cluster that the notification and payment services consume; the payment service calls an external payment provider."
+  },
+  "live-seq-terminal": {
+    "type": "sequence", "split": "held-out", "size": "normal", "set": "live-2026-11-14",
+    "prompt": "Draw a sequence diagram of a contactless card payment at a shop: Customer, Card, Payment Terminal, Acquirer, Card Network and Issuing Bank, including the case where the bank asks for the PIN because the amount is above the contactless limit, and the receipt at the end."
+  },
+  "live-er-conference": {
+    "type": "er", "split": "held-out", "size": "normal", "set": "live-2026-11-14",
+    "prompt": "Draw an ER diagram for a conference management system: conferences, venues with rooms, talks (each talk is held in one room in one time slot), speakers (many-to-many with talks), attendees, tickets (an attendee buys tickets of a ticket type for a conference) and sponsors with sponsorship levels, with primary and foreign keys."
+  },
+  "live-org-studio": {
+    "type": "orgchart", "split": "held-out", "size": "normal", "set": "live-2026-11-14",
+    "prompt": "Draw an org chart of a 20-person design studio: the managing director leads a creative director, an operations manager and a head of technology; the creative director has two art directors, each with two designers; the operations manager has an office manager, a project manager and an accountant; the head of technology has three developers and a QA engineer."
   }
 }

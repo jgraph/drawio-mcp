@@ -38,13 +38,30 @@
 //                  (DRAWIO_SEMANTIC_TYPES, "on" unless set): its own
 //                  create_semantic_diagram for the types that passed the
 //                  judgement next to create_diagram, as staging has it
+//   staging        the staging Worker over HTTP (BENCH_STAGING_URL, else
+//                  drawio-mcp-app-staging on workers.dev), as deployed:
+//                  create_diagram and, where the deploy switched it on,
+//                  create_semantic_diagram
+//   production     the production server over HTTP (BENCH_PRODUCTION_URL,
+//                  else https://mcp.draw.io/mcp): create_diagram only
+//
+// For the two live variants the diagram file also keeps the tool's result
+// as the live server returned it (with its _buildId), and render.mjs draws
+// that XML instead of calling the local server.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { BENCH, APP_SERVER, parseArgs, outDir, loadPrompts, selectKeys, runTag, pool, round } from "./lib/common.mjs";
 
-const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on"];
+const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on",
+  "staging", "production"];
+// the deployed servers the live variants talk to
+const LIVE_URLS =
+{
+  staging: process.env.BENCH_STAGING_URL || "https://drawio-mcp-app-staging.jgraph.workers.dev/mcp",
+  production: process.env.BENCH_PRODUCTION_URL || "https://mcp.draw.io/mcp"
+};
 const SEMANTIC_TOOL = "create_semantic_diagram";
 
 const args = parseArgs(process.argv.slice(2));
@@ -77,14 +94,20 @@ function usesAppServer(variant)
   return variant === "today" || variant === "mermaid" || variant === "switch-on";
 }
 
+// A deployed server, over HTTP: its URL, else null.
+function liveUrl(variant)
+{
+  return LIVE_URLS[variant] || null;
+}
+
 function usesSemanticServer(variant)
 {
-  return !usesAppServer(variant);
+  return !usesAppServer(variant) && liveUrl(variant) == null;
 }
 
 function offersBoth(variant)
 {
-  return variant === "both" || variant === "both-rule" || variant === "switch-on";
+  return variant === "both" || variant === "both-rule" || variant === "switch-on" || variant === "staging";
 }
 
 function formatRule(variant)
@@ -96,7 +119,11 @@ function mcpConfig(variant, tag)
 {
   let server;
 
-  if (usesSemanticServer(variant))
+  if (liveUrl(variant) != null)
+  {
+    server = { type: "http", url: liveUrl(variant) };
+  }
+  else if (usesSemanticServer(variant))
   {
     const env = { BENCH_RUN_DIR: out, BENCH_TAG: tag, NODE_PATH: process.env.NODE_PATH || "" };
 
@@ -248,6 +275,7 @@ function summarizeTurn(events, start)
 
           if (call)
           {
+            call.result = c.content;
             call.resultT = t;
             call.resultChars = text.length;
             call.isError = !!c.is_error;
@@ -331,15 +359,40 @@ function hintsOf(variant)
   }
 
   // the app server's own tool asks for the cells (SEMANTIC_HINTS in its src/shared.js)
-  return (variant === "semantic-rows" || variant === "switch-on" || process.env.SEMANTIC_HINTS === "ask") ? "ask" : true;
+  return (variant === "semantic-rows" || variant === "switch-on" || variant === "staging" ||
+    process.env.SEMANTIC_HINTS === "ask") ? "ask" : true;
+}
+
+// The _buildId of a result of a live server (the first text block is the payload).
+function buildIdOf(call)
+{
+  const first = call && Array.isArray(call.result) ? call.result.find(function(b) { return b.type === "text"; }) : null;
+
+  try
+  {
+    return first ? JSON.parse(first.text)._buildId || null : null;
+  }
+  catch (e)
+  {
+    return null;
+  }
 }
 
 function saveDiagram(file, variant, call)
 {
   if (call)
   {
-    fs.writeFileSync(path.join(out, file), JSON.stringify({ tool: shortName(call.name), arguments: call.input,
-      hints: hintsOf(variant) }, null, 1));
+    const d = { tool: shortName(call.name), arguments: call.input, hints: hintsOf(variant) };
+
+    if (liveUrl(variant) != null)
+    {
+      // what the deployed server returned: render.mjs draws this XML
+      d.server = liveUrl(variant);
+      d.buildId = buildIdOf(call);
+      d.result = call.result;
+    }
+
+    fs.writeFileSync(path.join(out, file), JSON.stringify(d, null, 1));
   }
 }
 
@@ -449,11 +502,13 @@ function runCase(variant, key, model, rep)
 
       const s = Object.assign({ variant: variant, key: key, type: p.type, split: p.split, size: p.size, model: model,
         repeat: rep, tag: tag, formatRule: usesSemanticServer(variant) && offersBoth(variant) ? formatRule(variant) : undefined,
+        server: liveUrl(variant) || undefined, buildId: liveUrl(variant) != null ? buildIdOf(firstTurn.last) || undefined : undefined,
         timedOut: timedOut || undefined,
         // seconds until the first answer was complete (as before: "wall"), and of the whole session
         wallSecs: f.endSecs != null ? f.endSecs : round((Date.now() - t0) / 1000, 2),
         sessionSecs: round((Date.now() - t0) / 1000, 2) }, f,
-        { edit: editTurn ? Object.assign({ request: p.edit }, editTurn.summary) : null });
+        { edit: editTurn ? Object.assign({ request: p.edit,
+          buildId: liveUrl(variant) != null ? buildIdOf(editTurn.last) || undefined : undefined }, editTurn.summary) : null });
       delete s.endSecs;
       fs.writeFileSync(path.join(out, tag + "-summary.json"), JSON.stringify(s, null, 1));
       console.log(tag, s.ok ? "diagram " + s.diagramSecs + " s, end " + s.wallSecs + " s, " + s.outputTokens +
