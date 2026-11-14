@@ -199,12 +199,15 @@ function nodeCells(args)
  * The shapes a change of a description didn't touch, and how many of them
  * moved anyway: the nodes with the same id, lane or group, row, col, label
  * and kind in both descriptions, drawn in both diagrams, that moved by more
- * than `tolerance` px (no shift removed). What the engine moved, where
- * stability() also counts what the model renumbered.
+ * than `tolerance` px: `moved` with no shift removed, `shifted` once the
+ * shift they all share is removed (the median of theirs), since a page that
+ * grows at its top or left moves them all alike, which the chat, fitting the
+ * diagram again, doesn't show. What the engine moved, where stability()
+ * also counts what the model renumbered.
  *
  * @param {object} beforeArgs - the first description
  * @param {object} afterArgs - the changed one
- * @returns {{untouched: number, moved: number, share: number|null}}
+ * @returns {{untouched: number, moved: number, shifted: number, share: number|null}}
  */
 export function untouchedMoves(beforeArgs, afterArgs, beforeXml, afterXml, tolerance)
 {
@@ -213,20 +216,23 @@ export function untouchedMoves(beforeArgs, afterArgs, beforeXml, afterXml, toler
   const b = nodeCells(afterArgs);
   const va = new Map(vertices(beforeXml).map(function(v) { return [v.id, v]; }));
   const vb = new Map(vertices(afterXml).map(function(v) { return [v.id, v]; }));
-  let untouched = 0;
-  let moved = 0;
+  const pairs = [];
 
   for (const [id, cell] of a)
   {
     if (b.get(id) === cell && va.has(id) && vb.has(id))
     {
-      const p = va.get(id);
-      const q = vb.get(id);
-
-      untouched++;
-      moved += (Math.hypot(q.x - p.x, q.y - p.y) > limit) ? 1 : 0;
+      pairs.push([va.get(id), vb.get(id)]);
     }
   }
 
-  return { untouched: untouched, moved: moved, share: untouched > 0 ? moved / untouched : null };
+  const dx = median(pairs.map(function(p) { return p[1].x - p[0].x; })) || 0;
+  const dy = median(pairs.map(function(p) { return p[1].y - p[0].y; })) || 0;
+  const moved = pairs.filter(function(p) { return Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y) > limit; }).length;
+  const shifted = pairs.filter(function(p)
+  {
+    return Math.hypot(p[1].x - p[0].x - dx, p[1].y - p[0].y - dy) > limit;
+  }).length;
+
+  return { untouched: pairs.length, moved: moved, shifted: shifted, share: pairs.length > 0 ? moved / pairs.length : null };
 }
