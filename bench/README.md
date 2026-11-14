@@ -62,6 +62,8 @@ Per run, `run.mjs` writes the timestamped stream (`<tag>.jsonl`), a summary (`<t
 
 The prompts `live-*` (`"set": "live-2026-11-14"`) were written for the staging test of 14 November 2026 and committed before its runs; no layout or wording was tuned on them. Seven are flowcharts (type `swimlane`), each with a follow-up change: three without lanes (small, normal, large; the large one has more nodes than the size rule lets through without lanes) and four with lanes (small, two normal, large). The other four (an architecture, a sequence, an ER diagram and an org chart) show which tool a model picks with the switch on; staging offers them `create_diagram` only.
 
+The prompts of `"set": "er-2026-11-14"` were written for the check of the ER diagrams of `create_diagram` between production (fee698b) and main (310aa3c) and committed before its runs: four ER schemas (small, two normal, large) and a mind map, all `held-out`, without a follow-up change.
+
 ```bash
 node run.mjs --variants production,staging --prompts live-flow-vending,…,live-org-studio --models sonnet,opus --repeats 3 --edits
 node render.mjs --chrome /path/to/chrome

@@ -211,5 +211,25 @@
   "live-org-studio": {
     "type": "orgchart", "split": "held-out", "size": "normal", "set": "live-2026-11-14",
     "prompt": "Draw an org chart of a 20-person design studio: the managing director leads a creative director, an operations manager and a head of technology; the creative director has two art directors, each with two designers; the operations manager has an office manager, a project manager and an accountant; the head of technology has three developers and a QA engineer."
+  },
+  "er-hospital": {
+    "type": "er", "split": "held-out", "size": "normal", "set": "er-2026-11-14",
+    "prompt": "Draw an ER diagram for a hospital: departments, doctors (each in one department), patients, wards with beds, admissions (a patient is admitted to one bed by one doctor), prescriptions (a doctor prescribes a drug to a patient with a dose), drugs, and lab tests ordered during an admission, with primary and foreign keys."
+  },
+  "er-airline": {
+    "type": "er", "split": "held-out", "size": "normal", "set": "er-2026-11-14",
+    "prompt": "Draw an ER diagram for an airline booking system: airports, aircraft, flights (from one airport to another, flown by one aircraft), customers, bookings (made by one customer for one or more passengers), passengers, tickets (one per passenger and flight, with a seat and a fare class) and loyalty accounts of customers, with primary and foreign keys."
+  },
+  "er-school": {
+    "type": "er", "split": "held-out", "size": "small", "set": "er-2026-11-14",
+    "prompt": "Draw an ER diagram for a school: students, teachers, classrooms, courses (each taught by one teacher in one classroom), enrollments of students in courses, and grades per enrollment and term, with primary and foreign keys."
+  },
+  "er-projects-large": {
+    "type": "er", "split": "held-out", "size": "large", "set": "er-2026-11-14",
+    "prompt": "Draw a detailed ER diagram for a project management service: organizations, users (many-to-many with organizations through memberships with a role), teams, projects owned by a team, tasks (each in one project, with an assignee and an optional parent task), comments on tasks, attachments, labels (many-to-many with tasks), sprints, time entries by users on tasks, subscriptions of organizations to plans, plans, and invoices for subscriptions, with primary and foreign keys."
+  },
+  "mind-trip": {
+    "type": "mindmap", "split": "held-out", "size": "normal", "set": "er-2026-11-14",
+    "prompt": "Draw a mind map for planning a two-week trip to Japan: budget, transport, accommodation, the itinerary by city, food to try, and packing and documents, with three to five items on every branch."
   }
 }
