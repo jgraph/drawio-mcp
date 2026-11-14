@@ -232,9 +232,21 @@ test("an icon's label is readable: a pale gray from its library becomes the calm
   assert.deepEqual(hardToRead("#FFFFFF"), []);
 });
 
+// The fill an icon's own label sits on: a group's label is inside it, at
+// the top left (AWS's private and public subnets are filled). Null for a
+// label below or beside the icon, or a group without a fill.
+function ownLabelFill(style)
+{
+  const fill = /(?:^|;)fillColor=(#[0-9a-f]{6})(;|$)/i.exec(style);
+  const outside = /(^|;)(verticalLabelPosition=(top|bottom)|labelPosition=(left|right)|image)(;|$)/.test(style);
+
+  return (fill != null && !outside) ? fill[1] : null;
+}
+
 // The icons of the table whose label is hard to read on a page of that
-// color, as rank and resolve give them: a gray under 4.5:1 or any color
-// under 3:1. Nothing but the label color may differ from the library.
+// color (or, inside a filled group, on its fill), as rank and resolve give
+// them: a gray under 4.5:1 or any color under 3:1. Nothing but the label
+// color may differ from the library.
 function hardToRead(page)
 {
   const library = new Set(ICON_TABLE.icons.map(function(icon)
@@ -251,6 +263,7 @@ function hardToRead(page)
     resolver.rank(icon[0] + " " + icon[2].split("|")[0], options, 50).forEach(function(r)
     {
       const color = labelColor(r.style);
+      const surface = ownLabelFill(r.style) || page;
 
       seen.add(r.style);
       assert.ok(library.has(withoutLabelColor(r.style)), r.title + ": " + r.style);
@@ -260,7 +273,7 @@ function hardToRead(page)
         const rgb = [1, 3, 5].map(function(i) { return parseInt(color.substring(i, i + 2), 16); });
         const gray = Math.max.apply(null, rgb) - Math.min.apply(null, rgb) <= 48;
 
-        if (contrast(color, page) < 3 || (gray && contrast(color, page) < 4.5))
+        if (contrast(color, surface) < 3 || (gray && contrast(color, surface) < 4.5))
         {
           pale.push(r.provider + " " + r.title + " " + color);
         }
@@ -290,8 +303,90 @@ test("on a dark page an icon's label is readable too: a library's gray stays, a 
   // A background that names no color is a white page.
   assert.equal(labelColor(resolver.resolve("gcp pub/sub", { background: "none" }).style), "#1B1F24");
 
+  // A subnet's own label sits on its pale fill, not on the page: it keeps
+  // the library's color, which was 2.9:1 on this page and is 4.0:1 there.
+  assert.equal(labelColor(resolver.resolve("aws private subnet", { container: true, background: "#0F172A" }).style), "#147EBA");
+  assert.equal(labelColor(resolver.resolve("aws public subnet", { container: true, background: "#1E3A5F" }).style), "#248814");
+
   assert.deepEqual(hardToRead("#0F172A"), []);
   assert.deepEqual(hardToRead("#1E3A5F"), []);
+});
+
+test("an icon's label is readable on the group or shape it sits in, not only on the page", function()
+{
+  // The dark theme's page with AWS's subnets on it, whose library fills
+  // (#E6F6F7, #F2F6E8) stay, as every key that makes the icon does.
+  function cell(id, parent, style, w)
+  {
+    return '<mxCell id="' + id + '" value="' + id + '" style="' + style + '" vertex="1" parent="' + parent + '">' +
+      '<mxGeometry x="20" y="40" width="' + (w || 48) + '" height="' + (w || 48) + '" as="geometry"/></mxCell>';
+  }
+
+  function colorsOf(xml)
+  {
+    const colors = {};
+
+    xml.replace(/<mxCell id="([^"]*)"[^>]*?style="([^"]*)"/g, function(_m, id, style)
+    {
+      colors[id] = labelColor(style);
+    });
+
+    return colors;
+  }
+
+  const dark = '<mxGraphModel background="#0F172A" adaptiveColors="none"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    cell("private", "1", "icon=aws private subnet;", 400) + cell("lambda", "private", "icon=aws lambda;") +
+    cell("sg", "private", "icon=aws security group;", 200) + cell("ec2", "sg", "icon=aws ec2;") +
+    cell("public", "1", "icon=aws public subnet;", 400) + cell("pubsub", "public", "icon=gcp pub/sub;") +
+    cell("vpc", "1", "icon=aws vpc;", 400) + cell("queue", "vpc", "icon=aws sqs;") +
+    cell("card", "1", "rounded=1;fillColor=#1E293B;strokeColor=#60A5FA;container=1;", 200) +
+    cell("bucket", "card", "icon=aws s3;") +
+    cell("white", "1", "rounded=1;container=1;", 200) + cell("db", "white", "icon=aws rds;") +
+    cell("lane", "1", "swimlane;fillColor=#FFFFFF;", 200) + cell("fn", "lane", "icon=gcp pub/sub;") +
+    '</root></mxGraphModel>';
+  const colors = colorsOf(resolver.applyToXml(dark).xml);
+
+  // In a pale subnet AWS's dark label stays, also in a group without a fill
+  // inside it, and Google Cloud's gray becomes dark; the subnets' own labels
+  // keep their colors, which read well on their fills.
+  assert.equal(colors.lambda, "#232F3E");
+  assert.equal(colors.ec2, "#232F3E");
+  assert.equal(colors.pubsub, "#1B1F24");
+  assert.equal(colors.private, "#147EBA");
+  assert.equal(colors.public, "#248814");
+  // A VPC has no fill and a theme's card is dark: the label is light, as on
+  // the page itself.
+  assert.equal(colors.queue, "#F1F5F9");
+  assert.equal(colors.bucket, "#F1F5F9");
+  // A shape without a fillColor is painted white, also on a dark page; a
+  // swimlane's body is transparent unless it has a swimlaneFillColor.
+  assert.equal(colors.db, "#232F3E");
+  assert.equal(colors.fn, "#999999");
+
+  // On a white page a dark card gets light labels; a gray that reads well
+  // on it stays.
+  const light = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    cell("card", "1", "rounded=1;fillColor=#1E293B;container=1;", 200) + cell("bucket", "card", "icon=aws s3;") +
+    cell("ps", "card", "icon=gcp pub/sub;") + cell("group", "1", "group;", 200) + cell("fn", "group", "icon=gcp pub/sub;") +
+    '</root></mxGraphModel>';
+  const onWhite = colorsOf(resolver.applyToXml(light).xml);
+
+  assert.equal(onWhite.bucket, "#F1F5F9");
+  assert.equal(onWhite.ps, "#999999");
+  assert.equal(onWhite.fn, "#1B1F24");
+
+  // The parent may be wrapped in <object> (its id is the wrapper's), pages
+  // reuse ids, and a cycle of parents ends at the page.
+  const file = '<mxfile><diagram id="a"><mxGraphModel background="#0F172A"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<object id="2" label="Private &gt; app"><mxCell style="icon=aws private subnet;" vertex="1" parent="1">' +
+    '<mxGeometry width="400" height="300" as="geometry"/></mxCell></object>' + cell("3", "2", "icon=aws lambda;") +
+    '</root></mxGraphModel></diagram><diagram id="b"><mxGraphModel background="#0F172A"><root><mxCell id="0"/>' +
+    '<mxCell id="1" parent="0"/>' + cell("2", "1", "icon=aws vpc;", 400) + cell("3", "2", "icon=aws lambda;") +
+    cell("4", "5", "icon=aws vpc;", 400) + cell("5", "4", "icon=aws vpc;", 400) +
+    '</root></mxGraphModel></diagram></mxfile>';
+
+  assert.deepEqual(resolver.applyToXml(file).xml.match(/fontColor=[^;]*/g), ["fontColor=#147EBA", "fontColor=#232F3E",
+    "fontColor=#AAB7B8", "fontColor=#F1F5F9", "fontColor=#AAB7B8", "fontColor=#AAB7B8"]);
 });
 
 test("applyToXml reads each page's background, and the viewer's placeholder has the icon's label color", function()

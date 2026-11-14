@@ -153,6 +153,16 @@ test("the viewer resolves names while the XML streams in, without the image data
   assert.match(cellStyle(context.expandIcons(dark), "ps"), /^rounded=1;arcSize=16;.*;fontColor=#999999;$/);
   assert.match(cellStyle(context.expandIcons(dark), "fn"), /;fontColor=#F1F5F9;/);
   assert.equal(cellStyle(context.expandIcons(dark), "fn"), cellStyle(getIconResolver().applyToXml(dark).xml, "fn"));
+  // In a pale AWS subnet on that page the label is measured on the subnet's
+  // fill, so AWS's dark label stays, in the viewer as on the server.
+  const subnet = '<mxGraphModel background="#0F172A" adaptiveColors="none"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="sn" value="Private" style="icon=aws private subnet;" vertex="1" parent="1">' +
+    '<mxGeometry x="40" y="40" width="400" height="240" as="geometry"/></mxCell>' +
+    '<mxCell id="in" value="Handler" style="icon=aws lambda;" vertex="1" parent="sn">' +
+    '<mxGeometry x="40" y="60" width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel>';
+
+  assert.match(cellStyle(context.expandIcons(subnet), "in"), /;fontColor=#232F3E;/);
+  assert.equal(context.expandIcons(subnet), getIconResolver().applyToXml(subnet).xml);
   assert.ok(expanded.endsWith('<mxCell id="q" value="Queue" style="icon=aws s'));
   // Resolved XML, and XML without names, pass unchanged.
   assert.equal(context.expandIcons(expanded), expanded);
