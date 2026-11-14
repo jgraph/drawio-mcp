@@ -830,11 +830,13 @@ export function createIconResolver(table, data)
     // What a cell of that page in the parent `id` sits on: the fill of the
     // nearest shape around it that has one, the icon's where the shape names
     // an icon (an AWS private subnet's #E6F6F7), or the page's background.
+    // A Set, not an object, ends a cycle of parents: on an object the id
+    // `__proto__` is never marked as seen, and the walk would never end.
     function surfaceAt(page, id)
     {
-      var seen = {};
+      var seen = new Set();
 
-      while (id != null && seen[id] !== true)
+      while (id != null && !seen.has(id))
       {
         var cell = cells[page + " " + id];
 
@@ -857,7 +859,7 @@ export function createIconResolver(table, data)
           return cell.fill;
         }
 
-        seen[id] = true;
+        seen.add(id);
         id = cell.parent;
       }
 

@@ -1,6 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import pako from "pako";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -387,6 +388,28 @@ test("an icon's label is readable on the group or shape it sits in, not only on 
 
   assert.deepEqual(resolver.applyToXml(file).xml.match(/fontColor=[^;]*/g), ["fontColor=#147EBA", "fontColor=#232F3E",
     "fontColor=#AAB7B8", "fontColor=#F1F5F9", "fontColor=#AAB7B8", "fontColor=#AAB7B8"]);
+});
+
+test("a cell that is its own parent under the id __proto__ ends the walk to the surface", function()
+{
+  // On a plain object `seen["__proto__"] = true` is lost, and the walk never
+  // ended: it runs in a child process, so a hang fails the test.
+  const xml = '<mxGraphModel background="#0F172A"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="__proto__" style="fillColor=none;" vertex="1" parent="__proto__"/>' +
+    '<mxCell id="constructor" vertex="1" parent="constructor"/>' +
+    '<mxCell id="i" value="Fn" style="icon=aws lambda;" vertex="1" parent="__proto__">' +
+    '<mxGeometry width="48" height="48" as="geometry"/></mxCell>' +
+    '<mxCell id="j" value="Fn" style="icon=aws lambda;" vertex="1" parent="constructor">' +
+    '<mxGeometry width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel>';
+  const script = 'import { createIconResolver } from ' + JSON.stringify(new URL("../../shared/icon-resolver.js", import.meta.url).href) + ';' +
+    'import { ICON_TABLE, ICON_DATA } from ' + JSON.stringify(new URL("../../shared/icon-table.js", import.meta.url).href) + ';' +
+    'process.stdout.write(createIconResolver(ICON_TABLE, ICON_DATA).applyToXml(' + JSON.stringify(xml) + ').xml);';
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 20000 });
+
+  assert.equal(run.error, undefined);
+  assert.equal(run.status, 0, run.stderr);
+  // Neither has a fill, so both icons sit on the dark page.
+  assert.deepEqual(run.stdout.match(/fontColor=[^;]*/g), ["fontColor=#F1F5F9", "fontColor=#F1F5F9"]);
 });
 
 test("applyToXml reads each page's background, and the viewer's placeholder has the icon's label color", function()
