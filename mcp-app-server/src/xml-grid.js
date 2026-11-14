@@ -9,11 +9,13 @@
 // Only a page whose shapes all have no position is laid out. A page the model
 // placed passes byte-identical, and so does a page that has positions for
 // some shapes and none for others: the shapes with a position stay where the
-// model put them, and the result names the ones without, which draw.io
-// doesn't draw. Text the pass puts above or below the diagram (a title, a
-// legend: a text of the layer with no edge and no children) doesn't count:
-// written with a position on a page of cells, it loses the position and goes
-// where the pass puts it.
+// model put them, and the result names the ones draw.io doesn't draw where
+// they belong: one without a geometry isn't drawn, and one with a size and a
+// cell is drawn at the top left. A size without a cell is a shape at 0, 0,
+// which draw.io writes without x and y, and isn't named. Text the pass puts
+// above or below the diagram (a title, a legend: a text of the layer with no
+// edge and no children) doesn't count: written with a position on a page of
+// cells, it loses the position and goes where the pass puts it.
 
 import { transformPages } from "../../shared/mx-xml.js";
 import { gridLayoutDiagram } from "../../shared/grid-layout.js";
@@ -28,6 +30,12 @@ function hasPosition(cell)
   var geo = cell.geometry;
 
   return geo != null && geo.origAttrs != null && (geo.origAttrs.x != null || geo.origAttrs.y != null);
+}
+
+// A cell named in the style, `row=` or `col=`.
+function hasCell(style)
+{
+  return /(^|;)\s*(row|col)=/.test(String(style || ""));
 }
 
 // As the grid pass reads a text: the style `text`, or neither fill nor stroke.
@@ -62,12 +70,13 @@ function isText(style)
 
 // The shapes of one page as the grid pass sees them (vertices, without edge
 // labels and without the rows of a table, which lays them out itself), the
-// ones without a position, and the texts with one that the pass would put
-// above or below the diagram.
+// ones without a position, of those the ones draw.io doesn't draw where they
+// belong (no geometry, or a size and a cell: sized) and the texts with a
+// position that the pass would put above or below the diagram.
 function pageShapes(graph)
 {
   var model = graph.getModel();
-  var page = { vertices: 0, unplaced: [], floats: [] };
+  var page = { vertices: 0, unplaced: [], lost: [], sized: [], floats: [] };
   var texts = [];
   var connected = new Set();
 
@@ -89,6 +98,16 @@ function pageShapes(graph)
         if (!hasPosition(child))
         {
           page.unplaced.push(String(child.id));
+
+          if (child.geometry == null)
+          {
+            page.lost.push(String(child.id));
+          }
+          else if (hasCell(child.style))
+          {
+            page.lost.push(String(child.id));
+            page.sized.push(String(child.id));
+          }
         }
         else if (top && model.getChildCount(child) === 0 && isText(child.style))
         {
@@ -126,11 +145,16 @@ function isOpen(page)
 /**
  * The shapes of every page as the grid pass sees them (vertices, without
  * edge labels and without the rows of a table, which lays them out itself),
- * which of them have no position, and which have one but are texts the pass
- * puts above or below the diagram (a title, a legend).
+ * which of them have no position, which of those draw.io doesn't draw where
+ * they belong on a page with positions (lost: no geometry, or a size and a
+ * cell; sized: the ones with a size, drawn at the top left), and which have
+ * a position but are texts the pass puts above or below the diagram (a
+ * title, a legend). The pages come last first, as transformPages visits
+ * them.
  *
  * @param {string} xml - mxGraphModel or mxfile XML
- * @returns {{vertices: number, unplaced: string[], floats: string[]}[]} one entry per page
+ * @returns {{vertices: number, unplaced: string[], lost: string[], sized: string[], floats: string[],
+ *   open: boolean}[]} one entry per page; open: the pass lays it out
  */
 export function pagePlacement(xml)
 {
@@ -140,10 +164,11 @@ export function pagePlacement(xml)
   {
     var page = pageShapes(graph);
 
-    pages.push({ vertices: page.vertices, unplaced: page.unplaced, floats: page.floats.map(function(cell)
-    {
-      return String(cell.id);
-    }) });
+    pages.push({ vertices: page.vertices, unplaced: page.unplaced, lost: page.lost, sized: page.sized,
+      floats: page.floats.map(function(cell)
+      {
+        return String(cell.id);
+      }), open: isOpen(page) });
   });
 
   return pages;
@@ -194,65 +219,108 @@ function freeFloats(xml)
  * resolver, before the passes every XML diagram goes through.
  *
  * @param {string} xml - draw.io XML
- * @returns {{xml: string, laidOut: number, shapes: number, mixed: string[], stats: object|null}}
+ * @returns {{xml: string, laidOut: number, shapes: number, mixed: string[], sized: string[],
+ *   failed: string[], stats: object|null}}
  *   laidOut: the pages placed; shapes: the shapes on them; mixed: the shapes
- *   without a position on pages that have positions for others (not drawn)
+ *   without a position on pages that have positions for others, which
+ *   draw.io doesn't draw where they belong (sized: the ones of them with a
+ *   size, drawn at the top left); failed: the shapes of the pages of cells
+ *   the pass left as they were (not drawn)
  */
 export function layoutXmlOnGrid(xml)
 {
   var pages = pagePlacement(xml);
   var mixed = [];
+  var sized = [];
+  var floats = new Set();
   var open = 0;
   var shapes = 0;
 
   pages.forEach(function(p)
   {
-    if (p.unplaced.length === 0)
-    {
-      return;
-    }
-
-    if (!isOpen(p))
-    {
-      mixed = mixed.concat(p.unplaced);
-    }
-    else
+    if (p.open)
     {
       open++;
       shapes += p.vertices;
+      p.floats.forEach(function(id)
+      {
+        floats.add(id);
+      });
+    }
+    else
+    {
+      mixed = mixed.concat(p.lost);
+      sized = sized.concat(p.sized);
     }
   });
 
-  // The pass lays out every page with a shape without a position, so a page
-  // the model placed in part keeps the whole diagram from it: placing it
-  // would move the shapes the model placed.
+  // A page the model placed in part keeps the whole diagram from the pass,
+  // so the model sends it again one way or the other. Shapes it would draw
+  // as written (a size and no cell: one at 0, 0) don't count.
   if (open === 0 || mixed.length > 0)
   {
-    return { xml: xml, laidOut: 0, shapes: 0, mixed: mixed, stats: null };
+    return { xml: xml, laidOut: 0, shapes: 0, mixed: mixed, sized: sized, failed: [], stats: null };
   }
 
   // As the engine does (placeCompactXml in shared/semantic/boxes.js): the
   // edges filed at the nearest common ancestor of their ends first, then one
-  // grid for the page, as the semantic tool reads its cells.
-  var r = gridLayoutDiagram(normalizeDiagram(freeFloats(xml)).xml, { hints: "page" });
+  // grid for the page, as the semantic tool reads its cells. Only the pages
+  // of cells: the pass would also lay out a placed page with a shape at
+  // 0, 0, written without x and y.
+  var r = gridLayoutDiagram(normalizeDiagram(freeFloats(xml)).xml, { hints: "page", page: function(graph)
+  {
+    return isOpen(pageShapes(graph));
+  } });
 
-  return { xml: r.xml, laidOut: r.stats.pages, shapes: shapes, mixed: [], stats: r.stats };
+  // A page the pass couldn't place (it never breaks a diagram, so an error
+  // leaves the page as it was) is still a page of cells, whose shapes
+  // draw.io doesn't draw. Its titles and legends lost their position for
+  // the pass and aren't named.
+  var failed = [];
+
+  if (r.stats.pages < open)
+  {
+    pagePlacement(r.xml).forEach(function(p)
+    {
+      if (p.open)
+      {
+        shapes -= p.vertices;
+        failed = failed.concat(p.unplaced.filter(function(id)
+        {
+          return !floats.has(id);
+        }));
+      }
+    });
+  }
+
+  return { xml: (r.stats.pages > 0) ? r.xml : xml, laidOut: r.stats.pages, shapes: shapes, mixed: [], sized: [],
+    failed: failed, stats: r.stats };
+}
+
+// The ids of a list of shapes for a message, at most eight.
+function idList(ids)
+{
+  return ids.slice(0, 8).join(", ") + (ids.length > 8 ? ", …" : "");
 }
 
 /**
  * What the model is told about the pass, or null when it didn't run and
  * found nothing to say: a page placed on the grid is changed by sending it
- * again the same way, and shapes without a position on a page with
- * positions aren't drawn.
+ * again the same way, shapes without a position on a page with positions
+ * aren't drawn where they belong, and the shapes of a page the pass couldn't
+ * place aren't drawn.
  *
- * @param {{laidOut: number, shapes: number, mixed: string[], ignored?: string[]}} r - layoutXmlOnGrid's
- *   result; ignored: the options of the call the server left out for a diagram it placed (postLayout, routing)
+ * @param {{laidOut: number, shapes: number, mixed: string[], sized?: string[], failed?: string[],
+ *   ignored?: string[]}} r - layoutXmlOnGrid's result; ignored: the options of the call the server
+ *   left out for a diagram it placed (postLayout, routing)
  * @returns {{note: string|null, warning: string|null}}
  */
 export function xmlGridMessages(r)
 {
   var note = null;
   var warning = null;
+  var sized = r.sized || [];
+  var failed = r.failed || [];
   var ignored = (r.ignored || []).map(function(o)
   {
     return "`" + o + "`";
@@ -267,11 +335,21 @@ export function xmlGridMessages(r)
 
   if (r.mixed.length > 0)
   {
-    var ids = r.mixed.slice(0, 8).join(", ") + (r.mixed.length > 8 ? ", …" : "");
+    var many = r.mixed.length > 1;
+    var fate = (sized.length === 0) ? (many ? "they are" : "it is") + " not drawn" :
+      (sized.length === r.mixed.length) ? (many ? "they are" : "it is") + " drawn at the top left" :
+        "the ones without a geometry are not drawn and the others are drawn at the top left";
 
-    warning = r.mixed.length + " shape" + (r.mixed.length > 1 ? "s have" : " has") + " no position (" + ids +
-      ") while the others have one, so " + (r.mixed.length > 1 ? "they are" : "it is") + " not drawn and nothing was placed " +
-      "for you. Give every shape a position, or none and a cell (row, col) each to have the server place them all.";
+    warning = r.mixed.length + " shape" + (many ? "s have" : " has") + " no position (" + idList(r.mixed) +
+      ") while the others have one, so " + fate + " and nothing was placed for you. " +
+      "Give every shape a position, or none and a cell (row, col) each to have the server place them all.";
+  }
+  else if (failed.length > 0)
+  {
+    warning = "The server could not place " + failed.length + " shape" + (failed.length > 1 ? "s" : "") +
+      " (" + idList(failed) + "), so " + (failed.length > 1 ? "they are" : "it is") + " not drawn. " +
+      "Send the diagram again with a position for " + (failed.length > 1 ? "each of them" : "it") +
+      " (an mxGeometry with x, y, width and height).";
   }
 
   return { note: note, warning: warning };

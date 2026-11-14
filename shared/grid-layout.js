@@ -3252,6 +3252,11 @@ function isUnplaced(cell)
 
 function layoutPage(graph, options, stats)
 {
+  if (options.page != null && !options.page(graph))
+  {
+    return;
+  }
+
   const model = graph.getModel();
   const tree = buildItems(graph, options.hints !== false);
 
@@ -3622,14 +3627,16 @@ function layoutPage(graph, options, stats)
  *
  * @param {string} xml - mxGraphModel or mxfile XML
  * @param {{all?: boolean, direction?: "vertical"|"horizontal", mode?: "flow"|"tiers",
- *   frame?: {width: number, height: number}, hints?: boolean|"page", route?: boolean}} [options] -
+ *   frame?: {width: number, height: number}, hints?: boolean|"page", route?: boolean,
+ *   page?: function(object): boolean}} [options] -
  *   all: also lay out pages that are placed already; direction: where the
  *   flow runs (default: whichever is shown larger in the frame); mode: how
  *   children without hints are placed (default: flow when the page has
  *   decisions or lanes, else tiers); frame: the size the diagram is shown in;
  *   hints: false ignores `row=` and `col=`, "page" reads them as the cells of
  *   one grid for the whole page (default: of the grid of each container);
- *   route: false leaves the edges as they are
+ *   route: false leaves the edges as they are; page: a test every page
+ *   must pass as well to be laid out, given the page's graph
  * @returns {{xml: string, changed: number, stats: object}}
  */
 export function gridLayoutDiagram(xml, options)

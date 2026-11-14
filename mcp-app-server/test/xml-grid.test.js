@@ -235,7 +235,45 @@ test("a diagram with positions passes byte-identical with the switch on", async 
 
   assert.equal(on.payload.xml, off.payload.xml);
   assert.deepEqual(on.texts, off.texts);
-  assert.deepEqual(layoutXmlOnGrid(PLACED), { xml: PLACED, laidOut: 0, shapes: 0, mixed: [], stats: null });
+  assert.deepEqual(layoutXmlOnGrid(PLACED), { xml: PLACED, laidOut: 0, shapes: 0, mixed: [], sized: [], failed: [], stats: null });
+});
+
+test("a placed diagram with a shape at 0, 0, written without x and y as draw.io does, passes as it is", async function()
+{
+  const origin = "<mxCell id=\"o\" value=\"Start\" style=\"rounded=1;whiteSpace=wrap;html=1;\" vertex=\"1\" parent=\"1\">" +
+    "<mxGeometry width=\"140\" height=\"60\" as=\"geometry\"/></mxCell>";
+  const xml = model([origin, box("a", "Order", { x: 200, y: 0 }), edge("oa", "o", "a")]);
+  const r = layoutXmlOnGrid(xml);
+
+  assert.deepEqual(r, { xml: xml, laidOut: 0, shapes: 0, mixed: [], sized: [], failed: [], stats: null });
+
+  const off = await draw(xml, []);
+  const on = await draw(xml, [XML_GRID]);
+
+  assert.equal(on.payload.xml, off.payload.xml);
+  assert.deepEqual(on.texts, off.texts);
+  assert.ok(!on.texts.some(function(t) { return /no position|not drawn/.test(t); }));
+
+  // beside a page of cells it doesn't keep that page from being placed, and
+  // isn't placed itself
+  const page = function(id, inner)
+  {
+    return "<diagram id=\"" + id + "\" name=\"" + id + "\">" + inner + "</diagram>";
+  };
+  const cells = model([
+    cell("x", "Start", "role=start;row=1;col=1;"),
+    cell("y", "Done", "role=end;row=1;col=2;"),
+    edge("xy", "x", "y")
+  ]);
+  const two = layoutXmlOnGrid("<mxfile>" + page("placed", xml) + page("cells", cells) + "</mxfile>");
+  const placed = geometries(two.xml.substring(two.xml.indexOf("<diagram id=\"placed\""), two.xml.indexOf("<diagram id=\"cells\"")));
+
+  assert.equal(two.laidOut, 1);
+  assert.equal(two.shapes, 2);
+  assert.deepEqual(two.mixed, []);
+  assert.equal(placed.get("o"), geometries(xml).get("o"));
+  assert.equal(placed.get("a"), geometries(xml).get("a"));
+  assert.match(two.xml.substring(two.xml.indexOf("<diagram id=\"cells\"")), /id="x"[^>]*>\s*<mxGeometry x=/);
 });
 
 test("routing and postLayout are left out for a diagram the pass placed, and kept for a placed one", async function()
@@ -292,6 +330,69 @@ test("shapes without a position beside shapes with one: nothing moves, and the m
   assert.ok(!drawn.texts.some(function(t) { return /The server placed/.test(t); }));
 });
 
+test("a shape with a size and a cell beside shapes with a position is named as drawn at the top left", async function()
+{
+  const sized = "<mxCell id=\"d\" value=\"Bill\" style=\"rounded=1;whiteSpace=wrap;html=1;row=1;col=4;\" vertex=\"1\" parent=\"1\">" +
+    "<mxGeometry width=\"200\" height=\"60\" as=\"geometry\"/></mxCell>";
+  const alone = model([box("a", "Order", { x: 40, y: 40 }), sized]);
+  const both = model([box("a", "Order", { x: 40, y: 40 }), cell("c", "Ship", "rounded=1;whiteSpace=wrap;html=1;row=1;col=3;"), sized]);
+  const one = layoutXmlOnGrid(alone);
+  const two = layoutXmlOnGrid(both);
+
+  assert.equal(one.xml, alone);
+  assert.deepEqual([one.mixed, one.sized], [["d"], ["d"]]);
+  assert.deepEqual([two.mixed, two.sized], [["c", "d"], ["d"]]);
+  assert.match(xmlGridMessages(one).warning, /^1 shape has no position \(d\) while the others have one, so it is drawn at the top left and nothing was placed for you\./);
+  assert.match(xmlGridMessages(two).warning,
+    /^2 shapes have no position \(c, d\) while the others have one, so the ones without a geometry are not drawn and the others are drawn at the top left and nothing was placed for you\./);
+
+  const drawn = await draw(alone, [XML_GRID]);
+
+  assert.ok(drawn.texts.some(function(t) { return /WARNINGS[\s\S]*\(d\)[^\n]*drawn at the top left/.test(t); }));
+});
+
+test("a page of cells the pass leaves as it was is named, and the note counts only the shapes it placed", async function()
+{
+  // The pass never breaks a diagram: a page it fails on stays as it was. A
+  // shape on the root instead of a layer is such a page: the pass reads the
+  // shapes of the layers and has nothing to place.
+  const stray = "<mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/>" +
+    "<mxCell id=\"v\" value=\"Lost\" style=\"rounded=1;html=1;row=1;col=1;\" vertex=\"1\" parent=\"0\"/></root></mxGraphModel>";
+  const r = layoutXmlOnGrid(stray);
+
+  assert.equal(r.xml, stray);
+  assert.equal(r.laidOut, 0);
+  assert.equal(r.shapes, 0);
+  assert.deepEqual(r.failed, ["v"]);
+  assert.deepEqual(xmlGridMessages(r), { note: null, warning: "The server could not place 1 shape (v), so it is not drawn. " +
+    "Send the diagram again with a position for it (an mxGeometry with x, y, width and height)." });
+
+  const drawn = await draw(stray, [XML_GRID]);
+
+  assert.ok(drawn.texts.some(function(t) { return /WARNINGS[\s\S]*The server could not place 1 shape \(v\)/.test(t); }));
+  assert.ok(!drawn.texts.some(function(t) { return /The server placed/.test(t); }));
+
+  // beside a page it placed: that page is placed, its shapes are counted,
+  // and the other one is named
+  const page = function(id, inner)
+  {
+    return "<diagram id=\"" + id + "\" name=\"" + id + "\">" + inner + "</diagram>";
+  };
+  const cells = model([
+    cell("x", "Start", "role=start;row=1;col=1;"),
+    cell("y", "Done", "role=end;row=1;col=2;"),
+    edge("xy", "x", "y")
+  ]);
+  const two = layoutXmlOnGrid("<mxfile>" + page("stray", stray) + page("cells", cells) + "</mxfile>");
+  const messages = xmlGridMessages(two);
+
+  assert.equal(two.laidOut, 1);
+  assert.equal(two.shapes, 2);
+  assert.deepEqual(two.failed, ["v"]);
+  assert.match(messages.note, /^The server placed the 2 shapes on their cells/);
+  assert.match(messages.warning, /^The server could not place 1 shape \(v\)/);
+});
+
 test("a title and a legend written with a position don't keep a page of cells from being placed", async function()
 {
   // Sonnet in the pilot run: every shape with its cell, the title and the
@@ -304,7 +405,8 @@ test("a title and a legend written with a position don't keep a page of cells fr
     "<mxCell id=\"legend\" value=\"Dashed = async\" style=\"text;html=1;fontSize=12;align=left;\" vertex=\"1\" parent=\"1\"><mxGeometry x=\"40\" y=\"640\" width=\"260\" height=\"20\" as=\"geometry\"/></mxCell>"
   ]);
 
-  assert.deepEqual(pagePlacement(xml), [{ vertices: 4, unplaced: ["a", "b"], floats: ["title", "legend"] }]);
+  assert.deepEqual(pagePlacement(xml), [{ vertices: 4, unplaced: ["a", "b"], lost: ["a", "b"], sized: [],
+    floats: ["title", "legend"], open: true }]);
 
   const r = layoutXmlOnGrid(xml);
 
@@ -377,7 +479,8 @@ test("a size without x and y is kept, and a table of rows is placed whole", asyn
 
   // the table's rows have positions of their own, inside the table: they
   // aren't shapes of the page
-  assert.deepEqual(pagePlacement(xml), [{ vertices: 3, unplaced: ["bus", "loan", "book"], floats: [] }]);
+  assert.deepEqual(pagePlacement(xml), [{ vertices: 3, unplaced: ["bus", "loan", "book"], lost: ["bus", "loan", "book"],
+    sized: ["bus"], floats: [], open: true }]);
 
   const r = await draw(xml, [XML_GRID]);
   const g = geometries(r.payload.xml);
@@ -435,6 +538,8 @@ test("the messages: the note after a layout, the warning names at most eight sha
   assert.equal(xmlGridMessages({ laidOut: 1, shapes: 3, mixed: [], ignored: [] }).note,
     "The server placed the 3 shapes on their cells and routed the connectors. " +
     "To change the diagram, send the whole XML again the same way: cells (row, col), no positions, the same ids.");
+  assert.match(xmlGridMessages({ laidOut: 0, shapes: 0, mixed: [], failed: ["a", "b"] }).warning,
+    /^The server could not place 2 shapes \(a, b\), so they are not drawn\. Send the diagram again with a position for each of them/);
 });
 
 test("the XML reference for the grid: the section before the patterns, under the tool-result limit", function()
