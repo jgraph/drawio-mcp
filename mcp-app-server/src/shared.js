@@ -18,8 +18,8 @@ import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
 import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import { createIconResolver } from "../../shared/icon-resolver.js";
 import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
-import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES, MAX_NODES as SEMANTIC_MAX_NODES, MAX_NODES_WITHOUT_LANES as SEMANTIC_MAX_NODES_WITHOUT_LANES } from "../../shared/semantic/index.js";
-import { describeTool as describeSemanticTool, describeSchema as describeSemanticSchema, describeSizeRule as describeSemanticSizeRule, DESCRIBED_BY as SEMANTIC_DESCRIBED_BY } from "../../shared/semantic/description.js";
+import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES } from "../../shared/semantic/index.js";
+import { describeTool as describeSemanticTool, describeSchema as describeSemanticSchema, DESCRIBED_BY as SEMANTIC_DESCRIBED_BY } from "../../shared/semantic/description.js";
 import { readList as readSemanticList, typeName as semanticTypeName, fieldText as semanticFieldText } from "../../shared/semantic/spec.js";
 import pkg from "../package.json" with { type: "json" };
 
@@ -525,6 +525,13 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
         background: #fdf0ef;
         color: #c0392b;
         font-size: 13px;
+      }
+
+      /* not a failure: what happens instead (a description too large) */
+      #error.notice {
+        border-color: var(--color-border, var(--viewer-btn-border));
+        background: transparent;
+        color: inherit;
       }
 
       #mermaid-preview {
@@ -1466,8 +1473,16 @@ app.onhostcontextchanged = function()
 function showError(message)
 {
   loadingEl.style.display = "none";
+  errorEl.classList.remove("notice");
   errorEl.style.display = "block";
   errorEl.textContent = message;
+}
+
+// What happens instead of the diagram, where that is no failure.
+function showNotice(message)
+{
+  showError(message);
+  errorEl.classList.add("notice");
 }
 
 function waitForGraphViewer()
@@ -9226,7 +9241,18 @@ app.ontoolresult = function(result)
   {
     endStreaming();
     var errorMsg = (textBlock && textBlock.text) ? textBlock.text : "Unknown error";
-    showError("Tool error: " + errorMsg);
+
+    // create_semantic_diagram's size rule: the model draws the diagram with
+    // create_diagram next, so the user sees a note here, not an error
+    if (errorMsg.indexOf(${JSON.stringify(SEMANTIC_TOO_LARGE_NEXT)}) >= 0)
+    {
+      showNotice("This diagram is too large to lay out from a description, so it is drawn shape by shape instead.");
+    }
+    else
+    {
+      showError("Tool error: " + errorMsg);
+    }
+
     return;
   }
 
@@ -10741,6 +10767,17 @@ export const SEMANTIC_TYPES_READY = ["flowchart", "swimlane"];
 const SEMANTIC_HINTS = "ask";
 
 /**
+ * What the tool tells the model after the size rule refused a description
+ * (shared/semantic/index.js says it is too large). As XML: sent on as
+ * "larger", models took create_diagram's Mermaid with ELK for a large
+ * flowchart, which lost every judgement. No number, so a model doesn't cut
+ * the description down to it. The viewer finds this sentence in the error
+ * and shows the user a note instead of an error.
+ */
+export const SEMANTIC_TOO_LARGE_NEXT = "Draw it with create_diagram instead, as XML you place yourself, with all of " +
+  "its content. Don't shorten the description to fit.";
+
+/**
  * The semantic types to offer from a comma-separated list
  * (DRAWIO_SEMANTIC_TYPES): the supported ones, in the order given. Unset,
  * the default; "on" (or "true", "1"), the types that passed the judgement,
@@ -10923,7 +10960,6 @@ function semanticInputSchema(offered)
 {
   var schema = describeSemanticSchema(offered, { hints: SEMANTIC_HINTS });
   var props = schema.properties;
-  var sizeRule = describeSemanticSizeRule(offered, SEMANTIC_MAX_NODES, SEMANTIC_MAX_NODES_WITHOUT_LANES);
   // a list is described where the measured schema describes it, and not otherwise
   var describe = function(zodSchema, prop)
   {
@@ -10938,10 +10974,11 @@ function semanticInputSchema(offered)
       var name = semanticTypeName(value);
 
       return (offered.indexOf(name) >= 0) ? name : value;
-    }, z.enum(offered)).describe("The diagram type." + ((sizeRule != null) ? " " + sizeRule +
-      // as XML: sent on as "larger", models took create_diagram's Mermaid
-      // with ELK for a large flowchart, which lost every judgement
-      "; draw larger ones with create_diagram, as XML you place yourself." : "")),
+    // The size rules (MAX_NODES, MAX_NODES_WITHOUT_LANES) aren't named here:
+    // with the limit in this text Sonnet left steps out to stay under it, so
+    // the model describes the whole diagram and the server sends one that is
+    // too large to create_diagram (SEMANTIC_TOO_LARGE_NEXT).
+    }, z.enum(offered)).describe("The diagram type."),
     title: z.preprocess(looseText, z.string().optional()).describe("A title shown above the diagram."),
     nodes: describe(z.preprocess(jsonList, semanticItems(props.nodes, namedItem)), props.nodes),
     edges: describe(z.preprocess(jsonList, semanticItems(props.edges, edgeItem).optional()), props.edges),
@@ -11274,8 +11311,7 @@ export function createServer(html, options = {})
 
         if (r.error != null)
         {
-          var failed = [{ type: "text", text: r.error + ((r.tooLarge != null) ?
-            " Draw this one with create_diagram instead, as XML you place yourself." : "") }];
+          var failed = [{ type: "text", text: r.error + ((r.tooLarge != null) ? " " + SEMANTIC_TOO_LARGE_NEXT : "") }];
 
           if (r.warnings.length > 0)
           {

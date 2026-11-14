@@ -31,7 +31,10 @@ export { TYPES };
 
 /**
  * The size rule: the most nodes a type is drawn with from a description when
- * the caller has another way to draw the diagram (`sizeRule` below). Blind
+ * the caller has another way to draw the diagram (`sizeRule` below). The
+ * limits stay on the server's side: the tool's description and its error
+ * don't name them, so the model describes the whole diagram and the size of
+ * that description decides. Blind
  * judgements of architecture diagrams went against the description above it:
  * the two held-out prompts of 23 to 28 nodes (nested cloud boundaries) won
  * none of 24 against XML the model placed itself, the four of 11 to 14 nodes
@@ -92,8 +95,9 @@ function now()
  *   with describeTool's "ask"), anything else as cells in each group's grid;
  *   sizeRule: true refuses a diagram with more nodes than MAX_NODES allows
  *   for its type, or MAX_NODES_WITHOUT_LANES for a flowchart without lanes
- *   (the error says so, and `tooLarge` has the numbers), for a caller whose
- *   model can draw the diagram another way; keepTurned: how a preview showed
+ *   (the error says it is too large without naming the limit, and
+ *   `tooLarge` has the numbers), for a caller whose model can draw the
+ *   diagram another way; keepTurned: how a preview showed
  *   the diagram before (stats.turned), kept unless the other way round is
  *   clearly better (shared/grid-layout.js, KEEP_MARGIN)
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
@@ -130,13 +134,14 @@ export async function semanticToXml(input, options)
   if (limit != null && d.nodes.length > limit.max)
   {
     // a swimlane diagram without lanes is a flowchart, as the description says
+    // The error names no number: a model that knows the limit writes to it
+    // and leaves steps out (Sonnet's descriptions of a large flowchart had 22
+    // and 23 nodes where they had 25 to 34 before the limit was named).
     return { xml: null, warnings: n.warnings, stats: null,
       tooLarge: limit.lanes ? { type: d.type, nodes: d.nodes.length, max: limit.max } :
         { type: d.type, nodes: d.nodes.length, max: limit.max, lanes: false },
-      error: limit.lanes ? "This " + d.type + " diagram has " + d.nodes.length + " nodes; from a description, " + d.type +
-        " diagrams are drawn with up to " + limit.max + "." :
-        "This flowchart has " + d.nodes.length + " nodes and no lanes; from a description, flowcharts without lanes " +
-        "are drawn with up to " + limit.max + " nodes." };
+      error: (limit.lanes ? "This " + d.type + " diagram" : "This flowchart without lanes") +
+        " is too large to lay out well from a description." };
   }
 
   if (entry.needsElk && (opts.elk == null || typeof opts.elk.layout !== "function"))

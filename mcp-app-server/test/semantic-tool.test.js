@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer, buildHtml, resolveSemanticTypes, SEMANTIC_TYPES_ON, SEMANTIC_TYPES_READY } from "../src/shared.js";
+import { createServer, buildHtml, resolveSemanticTypes, SEMANTIC_TYPES_ON, SEMANTIC_TYPES_READY, SEMANTIC_TOO_LARGE_NEXT } from "../src/shared.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "../src/semantic-bundle.js";
 import { semanticToXml, MAX_NODES, MAX_NODES_WITHOUT_LANES } from "../../shared/semantic/index.js";
 import { describeSchema } from "../../shared/semantic/description.js";
@@ -295,10 +295,10 @@ test("the switch offers flowcharts and swimlanes, with the schema the benchmark 
   const listed = plainSchema(tool.inputSchema);
   const measured = plainSchema(describeSchema(types, { hints: "ask" }));
 
-  // the server's own words on the two keys the bench's schema doesn't describe,
-  // with the size rule for flowcharts without lanes
-  assert.equal(listed.properties.type.description,
-    "The diagram type. flowchart without lanes: at most 24 nodes; draw larger ones with create_diagram, as XML you place yourself.");
+  // the server's own words on the two keys the bench's schema doesn't
+  // describe; the size rule isn't named, so the model doesn't write to it
+  assert.equal(listed.properties.type.description, "The diagram type.");
+  assert.doesNotMatch(JSON.stringify(tool), /\b24\b|at most \d+ nodes/);
   delete listed.properties.type.description;
   delete listed.properties.title.description;
   assert.deepEqual(listed, measured);
@@ -489,7 +489,8 @@ test("the engine draws any size unless the caller asks for the size rule", async
   assert.equal(drawn.error, null);
   assert.equal(refused.xml, null);
   assert.deepEqual(refused.tooLarge, { type: "architecture", nodes: max + 1, max: max });
-  assert.match(refused.error, /has 19 nodes.*up to 18/);
+  // no number, so a model doesn't cut its description down to it
+  assert.equal(refused.error, "This architecture diagram is too large to lay out well from a description.");
   assert.equal(fits.error, null);
 });
 
@@ -499,10 +500,9 @@ test("an architecture diagram above the size rule is sent to create_diagram", as
   const { tools } = await client.listTools();
   const tool = tools.find(function(t) { return t.name === "create_semantic_diagram"; });
 
-  // the model reads the rule before it writes the description
-  assert.equal(tool.inputSchema.properties.type.description,
-    "The diagram type. architecture and network: at most 18 nodes; flowchart without lanes: at most 24 nodes; " +
-    "draw larger ones with create_diagram, as XML you place yourself.");
+  // the model describes the whole diagram: the rule is the server's
+  assert.equal(tool.inputSchema.properties.type.description, "The diagram type.");
+  assert.doesNotMatch(JSON.stringify(tool), /\b18\b|\b24\b|at most \d+ nodes/);
 
   const call = function(type, count)
   {
@@ -514,7 +514,9 @@ test("an architecture diagram above the size rule is sent to create_diagram", as
     const refused = await call(type, 19);
 
     assert.equal(refused.isError, true, type);
-    assert.match(refused.content[0].text, /has 19 nodes.*up to 18\. Draw this one with create_diagram instead/);
+    assert.equal(refused.content[0].text, "This " + type + " diagram is too large to lay out well from a description. " +
+      SEMANTIC_TOO_LARGE_NEXT);
+    assert.doesNotMatch(refused.content[0].text, /\d/);
 
     const drawn = await call(type, 18);
 
@@ -567,7 +569,7 @@ test("a flowchart without lanes above 24 nodes is refused, with lanes it is draw
 
     assert.equal(refused.xml, null, type);
     assert.deepEqual(refused.tooLarge, { type: type, nodes: max + 1, max: max, lanes: false });
-    assert.match(refused.error, /This flowchart has 25 nodes and no lanes; .* up to 24 nodes\./);
+    assert.equal(refused.error, "This flowchart without lanes is too large to lay out well from a description.");
     assert.equal((await semanticToXml(large, { hints: "ask" })).error, null, "drawn without the rule");
     assert.equal((await semanticToXml(Object.assign({ type: type }, steps(max, false)),
       { hints: "ask", sizeRule: true })).error, null, type + " of 24");
@@ -591,7 +593,9 @@ test("the switch on sends a large flowchart without lanes to create_diagram", as
   const refused = await call(25, false);
 
   assert.equal(refused.isError, true);
-  assert.match(refused.content[0].text, /has 25 nodes and no lanes; .* up to 24 nodes\. Draw this one with create_diagram instead/);
+  assert.equal(refused.content[0].text, "This flowchart without lanes is too large to lay out well from a description. " +
+    "Draw it with create_diagram instead, as XML you place yourself, with all of its content. " +
+    "Don't shorten the description to fit.");
 
   for (const c of [[24, false], [30, true]])
   {
@@ -651,6 +655,40 @@ test("the engine comes after the script whose globals it reads, and the preview 
 
   // with the server's size rule, and the way it has shown the page so far
   assert.match(html, /DrawioSemantic\.semanticToXml\(args, \{ hints: "ask", sizeRule: true,\s+keepTurned: semanticShownTurned \}\)/);
+});
+
+test("the viewer shows a note, not an error, when the size rule sends a description on", async function()
+{
+  const html = buildHtml("var App = function() {};", "", null, {});
+  const client = await connect({ semanticTypes: ["flowchart"] });
+  const refused = await client.callTool({ name: "create_semantic_diagram",
+    arguments: Object.assign({ type: "flowchart" }, steps(MAX_NODES_WITHOUT_LANES.flowchart + 1, false)) });
+
+  // the viewer looks for the sentence the server ends the error with
+  assert.ok(refused.content[0].text.endsWith(SEMANTIC_TOO_LARGE_NEXT));
+  assert.ok(html.indexOf("if (errorMsg.indexOf(" + JSON.stringify(SEMANTIC_TOO_LARGE_NEXT) + ") >= 0)") >= 0);
+  assert.match(html, /showNotice\("This diagram is too large to lay out from a description, so it is drawn shape by shape instead\."\)/);
+  assert.match(html, /#error\.notice \{/);
+
+  // a note in the error's place, which any other error clears again
+  const errorEl = { style: {}, textContent: "", classList: new Set() };
+  errorEl.classList.remove = errorEl.classList.delete;
+  const context = { loadingEl: { style: {} }, errorEl: errorEl };
+  const source = function(name)
+  {
+    const start = html.indexOf("function " + name + "(");
+
+    return html.slice(start, html.indexOf("\n}\n", start) + 3);
+  };
+
+  vm.runInNewContext(source("showError") + source("showNotice"), context);
+  context.showNotice("note");
+  assert.equal(errorEl.textContent, "note");
+  assert.ok(errorEl.classList.has("notice"));
+  context.showError("Tool error: x");
+  assert.ok(!errorEl.classList.has("notice"));
+  assert.equal(errorEl.style.display, "block");
+  await client.close();
 });
 
 test("the Worker offers the types its HTML was built for", async function()
