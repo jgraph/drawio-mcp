@@ -328,8 +328,10 @@ const DECISION_FILL = 1.15;
  *
  * @param {object} item
  * @param {boolean} [dense] - narrower boxes, for a page that is shown small
+ * @param {number} [minWidth] - the width its kind had before a change: the
+ *   text wraps at that width, so a new box of the kind is as tall as it needs
  */
-function measureLeaf(item, dense)
+function measureLeaf(item, dense, minWidth)
 {
   const st = item.st;
   const geo = item.cell.geometry;
@@ -381,7 +383,7 @@ function measureLeaf(item, dense)
     {
       const base = (st.map.shape != null && /^cylinder/.test(st.map.shape)) ? { w: 120, h: 80 } :
         { w: (fontSize >= 16 && !dense) ? 160 : 140, h: 60 };
-      let width = w || base.w;
+      let width = w || Math.max(base.w, minWidth || 0);
       let count = 0;
 
       for (const l of lines)
@@ -425,10 +427,14 @@ function measureLeaf(item, dense)
   }
 }
 
-// Boxes of one kind share one size: the size of the fullest one.
-function unifySizes(order)
+// Boxes of one kind share one size: the size of the fullest one. On a change
+// (`kept`: the sizes of the kinds before, by kindKey) a kind keeps its size
+// and a box whose text no longer fits grows alone, so the boxes that didn't
+// change keep theirs. Returns the size of every kind, by kindKey.
+function unifySizes(order, kept)
 {
   const groups = new Map();
+  const sizes = new Map();
 
   for (const item of order)
   {
@@ -437,7 +443,7 @@ function unifySizes(order)
       continue;
     }
 
-    const key = item.st.names.join(",") + "|" + (item.st.map.shape || "") + "|" + (item.st.map.arcSize || "");
+    const key = kindKey(item.st);
 
     if (!groups.has(key))
     {
@@ -447,8 +453,9 @@ function unifySizes(order)
     groups.get(key).push(item);
   }
 
-  groups.forEach(function(list)
+  groups.forEach(function(list, key)
   {
+    const before = (kept != null) ? kept.get(key) : null;
     let w = 0;
     let h = 0;
 
@@ -458,12 +465,34 @@ function unifySizes(order)
       h = Math.max(h, it.h);
     }
 
+    if (before != null)
+    {
+      for (const it of list)
+      {
+        it.w = it.occW = Math.max(it.w, before.w);
+        it.h = it.occH = Math.max(it.h, before.h);
+      }
+
+      sizes.set(key, { w: before.w, h: before.h });
+      return;
+    }
+
     for (const it of list)
     {
       it.w = it.occW = w;
       it.h = it.occH = h;
     }
+
+    sizes.set(key, { w: w, h: h });
   });
+
+  return sizes;
+}
+
+// What makes boxes one kind for unifySizes: their shape and its corners.
+function kindKey(st)
+{
+  return st.names.join(",") + "|" + (st.map.shape || "") + "|" + (st.map.arcSize || "");
 }
 
 function padding(item, ctx)
@@ -2327,6 +2356,12 @@ function placeOnPage(content, lanes, ctx, turned, room)
     }
   }
 
+  // A change of a diagram laid out before (ctx.keep): every column and row
+  // the model numbered as before keeps at least its size and stays centered
+  // where it was, unless what comes before it now needs more room, so only
+  // what has to make room moves (keptAxis).
+  const keepX = (ctx.keep != null) ? keptAxis(ctx.keep.x, colValues, colW) : null;
+  const keepY = (ctx.keep != null) ? keptAxis(ctx.keep.y, rowValues, rowH) : null;
   const colX = [];
   const rowY = [];
   let x = rim.left + left[0];
@@ -2334,14 +2369,58 @@ function placeOnPage(content, lanes, ctx, turned, room)
 
   for (let c = 0; c < cols; c++)
   {
+    if (keepX != null && keepX[c] != null)
+    {
+      x = Math.max(x, keepX[c] - colW[c] / 2);
+    }
+
     colX.push(x);
     x += colW[c] + (c < cols - 1 ? colGap[c] : right[c]);
   }
 
   for (let r = 0; r < rows; r++)
   {
+    if (keepY != null && keepY[r] != null)
+    {
+      y = Math.max(y, keepY[r] - rowH[r] / 2);
+    }
+
     rowY.push(y);
     y += rowH[r] + (r < rows - 1 ? rowGap[r] : bottom[r]);
+  }
+
+  // A change that made the page tall enough to be cut off: the page is made
+  // as wide as asked for (ctx.keepWidth) without moving a shape against
+  // another, so the chat shows it whole. A lane diagram is made wider at its
+  // end, where the lanes reach; on any other page the columns move together,
+  // to the middle of the wider page, with the gaps beside them, so the lines
+  // run where they did. The chat fits the diagram again, which hides a shift
+  // that every shape shares, and the layout of the result is written
+  // without it (`shift`).
+  let shift = 0;
+  let padRight = 0;
+
+  if (ctx.keep != null && ctx.keepWidth > 0 && x + rim.right < ctx.keepWidth)
+  {
+    const more = ctx.keepWidth - (x + rim.right);
+
+    if (bands != null)
+    {
+      rim.right += more;
+    }
+    else
+    {
+      shift = Math.floor(more / 2);
+      padRight = more - shift;
+
+      for (let c = 0; c < cols; c++)
+      {
+        colX[c] += shift;
+      }
+
+      x += shift;
+      rim.right += padRight;
+    }
   }
 
   const width = Math.ceil(x + rim.right);
@@ -2427,8 +2506,8 @@ function placeOnPage(content, lanes, ctx, turned, room)
 
   for (let g = 0; g <= cols; g++)
   {
-    const from = (g === 0) ? ((bands != null && bands.rows) ? LANE_TITLE : 0) : colX[g - 1] + colW[g - 1] + (bands == null ? right[g - 1] : 0);
-    const to = (g === cols) ? width : colX[g] - (bands == null ? left[g] : 0);
+    const from = (g === 0) ? ((bands != null && bands.rows) ? LANE_TITLE : shift) : colX[g - 1] + colW[g - 1] + (bands == null ? right[g - 1] : 0);
+    const to = (g === cols) ? width - padRight : colX[g] - (bands == null ? left[g] : 0);
 
     vz.push({ from: from, to: to });
   }
@@ -2477,7 +2556,48 @@ function placeOnPage(content, lanes, ctx, turned, room)
   };
 
   return { width: width, height: height, grid: { cols: cols, rows: rows, leaves: leaves, frames: frames,
-    bands: bands != null, colX: colX, colW: colW, rowY: rowY, rowH: rowH, vz: vz, hz: hz, px: px, py: py, zone: zone } };
+    bands: bands != null, colX: colX, colW: colW, rowY: rowY, rowH: rowH, vz: vz, hz: hz, px: px, py: py, zone: zone,
+    colValues: colValues, rowValues: rowValues, shift: shift } };
+}
+
+/**
+ * The centers a change keeps on one axis of the page's grid: for every
+ * column (or row) of the new grid whose number the model gave before, the
+ * center it had, and its size grown to at least the size it had. `kept` is
+ * the axis of the earlier layout ({m, c, s}: the model's number, the center
+ * and the size), `values` the model's numbers of the new grid in order.
+ * Sizes never shrink on a change, so a step that went away leaves its room
+ * and the ones beside it stay; a number that is new gets the room it needs
+ * and moves what comes after it.
+ */
+function keptAxis(kept, values, sizes)
+{
+  if (!Array.isArray(kept) || kept.length === 0)
+  {
+    return null;
+  }
+
+  const byValue = new Map(kept.map(function(k) { return [k.m, k]; }));
+  const centers = [];
+  let any = false;
+
+  values.forEach(function(m, i)
+  {
+    const k = byValue.get(m);
+
+    if (k != null)
+    {
+      sizes[i] = Math.max(sizes[i], k.s);
+      centers.push(k.c);
+      any = true;
+    }
+    else
+    {
+      centers.push(null);
+    }
+  });
+
+  return any ? centers : null;
 }
 
 // A model that counts cells sometimes leaves a shape inside the block of a
@@ -3326,6 +3446,12 @@ function layoutPage(graph, options, stats)
   let icons = 0;
   let leaves = 0;
   let dense = false;
+  // A change of a diagram laid out before: the earlier layout (`keep`, read
+  // from its text by shared/semantic/keep.js), used while the page can still
+  // be drawn as one grid.
+  const keep = (options.keep != null && typeof options.keep === "object") ? options.keep : null;
+  let keepKinds = (keep != null && keep.kinds != null && typeof keep.kinds.get === "function") ? keep.kinds : null;
+  let kindSizes = null;
 
   function measure()
   {
@@ -3333,11 +3459,13 @@ function layoutPage(graph, options, stats)
     {
       if (item.children.length === 0)
       {
-        measureLeaf(item, dense);
+        const before = (keepKinds != null) ? keepKinds.get(kindKey(item.st)) : null;
+
+        measureLeaf(item, dense, before != null ? before.w : 0);
       }
     }
 
-    unifySizes(tree.order);
+    kindSizes = unifySizes(tree.order, keepKinds);
   }
 
   for (const item of tree.order)
@@ -3457,9 +3585,40 @@ function layoutPage(graph, options, stats)
   let best = null;
   let size = null;
 
+  // A change: the orientation, the spacing and the box widths stay as they
+  // were, every column and row the model numbered as before keeps its
+  // place, and only what needs more room moves (placeOnPage, keptAxis).
+  // Without one grid for the page there is nothing to keep it by, and the
+  // page is laid out anew.
+  if (keep != null && ctx.grid === "page" && (keep.policy === "" || keep.policy === "turned"))
+  {
+    ctx.tight = keep.tight === true;
+    dense = keep.dense === true;
+    measure();
+    ctx.keep = keep;
+    place(keep.policy);
+
+    if (ctx.grid === "page")
+    {
+      best = { policy: keep.policy, tight: ctx.tight, dense: dense, kept: true };
+    }
+    else
+    {
+      ctx.keep = null;
+    }
+  }
+
+  if (best == null && keepKinds != null)
+  {
+    keepKinds = null;
+    ctx.tight = false;
+    dense = false;
+    measure();
+  }
+
   // Less room first, then narrower boxes too: the text wraps more often, but
   // is larger on the screen when the page is shown at a larger scale.
-  for (const level of [{ tight: false, dense: false }, { tight: true, dense: false }, { tight: true, dense: true }])
+  for (const level of (best != null ? [] : [{ tight: false, dense: false }, { tight: true, dense: false }, { tight: true, dense: true }]))
   {
     const tight = level.tight;
 
@@ -3523,17 +3682,54 @@ function layoutPage(graph, options, stats)
 
   size = place(best.policy);
 
-  // Cut off at the bottom: wider, until it is shown whole.
+  // Cut off at the bottom: wider, until it is shown whole. On a change the
+  // columns keep their width and the page is made wider around them
+  // (ctx.keepWidth in placeOnPage): made wider across, every step would move.
   if (ctx.grid === "page")
   {
     const whole = { width: size.width, height: size.height + around };
 
     if (isCut(whole, ctx.frame) && (best.policy === "turned" || canWiden(whole, ctx.frame)))
     {
-      ctx.minWidth = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
-      size = place(best.policy);
-      ctx.minWidth = 0;
+      const width = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
+
+      if (best.kept)
+      {
+        ctx.keepWidth = width;
+        size = place(best.policy);
+        ctx.keepWidth = 0;
+      }
+      else
+      {
+        ctx.minWidth = width;
+        size = place(best.policy);
+        ctx.minWidth = 0;
+      }
     }
+  }
+
+  // What a change keeps (options.keep, written as text by
+  // shared/semantic/keep.js): the orientation, the spacing, the sizes of the
+  // kinds of boxes, and the center and size of every column and row by the
+  // model's number for it. Not rounded here: the text rounds down, so what
+  // is read back never pushes a row or column further than it was. Without
+  // the shift of a page made wider on a change: the next change makes it as
+  // wide as it then needs.
+  if (ctx.grid === "page" && ctx.page != null)
+  {
+    const grid = ctx.page.grid;
+    const axis = function(values, at, sizes, shift)
+    {
+      return values.map(function(m, i) { return { m: m, c: at[i] - shift + sizes[i] / 2, s: sizes[i] }; });
+    };
+
+    stats.keep = { policy: best.policy, tight: ctx.tight === true, dense: dense, kept: best.kept === true,
+      x: axis(grid.colValues, grid.colX, grid.colW, grid.shift || 0), y: axis(grid.rowValues, grid.rowY, grid.rowH, 0),
+      kinds: Array.from(kindSizes || []).map(function(e) { return { key: e[0], w: e[1].w, h: e[1].h }; }) };
+  }
+  else
+  {
+    stats.keep = null;
   }
 
   let y = 0;

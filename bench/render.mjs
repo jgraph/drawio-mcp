@@ -11,7 +11,11 @@
 // server returned) and <tag>-render.json (issues, sizes, the number of
 // vertices and the median font size of their styles, read from that XML).
 // The diagrams of edit turns (<tag>-edit-diagram.json, run.mjs --edits) are
-// rendered the same way, as <tag>-edit-inline.png and so on.
+// rendered the same way, as <tag>-edit-inline.png and so on. A changed
+// description that passed the layout of the first result back
+// (shared/semantic/keep.js) gets the layout of the first description as this
+// engine draws it, which is the one it got when the engine hasn't changed
+// since the run; one the model didn't copy exactly stays as it was.
 //
 // --routing viewer leaves the edges of semantic descriptions to the viewer
 // (create_diagram's routing: "libavoid") instead of the engine's own router,
@@ -26,6 +30,8 @@ import path from "node:path";
 import { APP_SERVER, require, parseArgs, outDir, connectStdio, newElk } from "./lib/common.mjs";
 import { fontStats } from "./lib/diagram-xml.mjs";
 import { semanticToXml } from "../shared/semantic/index.js";
+import { decodeKeep } from "../shared/semantic/keep.js";
+import { normalizeSpec } from "../shared/semantic/spec.js";
 
 const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
@@ -106,6 +112,30 @@ function modelXml(text)
   return m ? m[0] : null;
 }
 
+// The arguments of a changed description with the layout of the first one
+// as this engine draws it, when the model passed a layout it copied exactly.
+async function keptLayout(tag, args, hints)
+{
+  const first = tag.endsWith("-edit") ? path.join(out, tag.slice(0, -"-edit".length) + "-diagram.json") : null;
+
+  if (first == null || args == null || typeof args.layout !== "string" || !fs.existsSync(first))
+  {
+    return args;
+  }
+
+  const spec = normalizeSpec(args);
+
+  if (spec.diagram == null || decodeKeep(args.layout, spec.diagram).error != null)
+  {
+    return args;
+  }
+
+  const before = JSON.parse(fs.readFileSync(first, "utf8"));
+  const r = (before.tool === "create_semantic_diagram") ? await semanticToXml(before.arguments, { hints: hints }) : null;
+
+  return (r != null && r.layout != null) ? Object.assign({}, args, { layout: r.layout }) : args;
+}
+
 async function render(f)
 {
   const tag = f.replace("-diagram.json", "");
@@ -117,7 +147,8 @@ async function render(f)
   {
     // as in the run: without the placement hints when the variant had none,
     // as one grid for the page when it asked for them
-    const r = await semanticToXml(d.arguments, { elk: elk, hints: d.hints === "ask" ? "ask" : d.hints !== false,
+    const hints = d.hints === "ask" ? "ask" : d.hints !== false;
+    const r = await semanticToXml(await keptLayout(tag, d.arguments, hints), { elk: elk, hints: hints,
       route: !viewerRouting });
 
     if (r.xml == null)

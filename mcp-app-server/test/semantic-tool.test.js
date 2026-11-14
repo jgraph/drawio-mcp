@@ -300,7 +300,11 @@ test("the switch offers flowcharts and swimlanes, with the schema the benchmark 
   delete listed.properties.type.description;
   delete listed.properties.title.description;
   assert.deepEqual(listed, measured);
-  assert.deepEqual(Object.keys(tool.inputSchema.properties), ["type", "title", "nodes", "edges", "groups"]);
+  // the layout of the last result for a change, before the nodes, so the
+  // preview of a change draws them where they were
+  assert.deepEqual(Object.keys(tool.inputSchema.properties), ["type", "title", "layout", "nodes", "edges", "groups"]);
+  assert.match(tool.inputSchema.properties.layout.description, /On every change of a diagram: the layout of its last result, copied exactly/);
+  assert.match(tool.description, /keeping the ids, the cells of what stays and the layout\./);
   assert.deepEqual(tool.inputSchema.properties.nodes.items.required, ["id"]);
   assert.deepEqual(tool.inputSchema.properties.edges.items.required, ["from", "to"]);
   assert.equal(tool.inputSchema.properties.nodes.items.properties.row.type, "integer");
@@ -353,9 +357,12 @@ test("the result ends with the link for clients without the app and the note for
   const texts = result.content.map(function(c) { return c.text; });
 
   assert.equal(result.isError, undefined, JSON.stringify(result.content));
-  assert.equal(texts.length, 3);
-  assert.match(texts[1], /open it in the\s+draw\.io editor[\s\S]*https:\/\/app\.diagrams\.net\//);
-  assert.match(texts[2], /reply in at most two sentences/);
+  assert.equal(texts.length, 4);
+  // how to change it and keep the shapes in place, with the result's layout
+  assert.match(texts[1], /call create_semantic_diagram again with layout "[0-9a-z.]+" and the whole changed description: the same ids/);
+  assert.ok(texts[1].indexOf("layout \"" + JSON.parse(texts[0]).layout + "\"") > 0);
+  assert.match(texts[2], /open it in the\s+draw\.io editor[\s\S]*https:\/\/app\.diagrams\.net\//);
+  assert.match(texts[3], /reply in at most two sentences/);
   await client.close();
 });
 
@@ -386,7 +393,7 @@ test("lanes, groups as JSON text, source and target, and a row as text are read 
 
   const xml = JSON.parse(lanes.content[0].text).xml;
 
-  assert.equal(lanes.content.length, 3, "no warnings: " + JSON.stringify(lanes.content[1]));
+  assert.equal(lanes.content.length, 4, "no warnings: " + JSON.stringify(lanes.content[2]));
   assert.equal(cellOf(xml, "ask").parent, "Customer");
   assert.equal(cellOf(xml, "check").parent, "Agent");
   assert.match(xml, /source="ask" target="check"/);
@@ -405,7 +412,7 @@ test("lanes, groups as JSON text, source and target, and a row as text are read 
     edges: LANES.edges.concat([null]) }));
 
   assert.equal(odd.isError, undefined, JSON.stringify(odd.content));
-  assert.equal(odd.content.length, 3, "no warnings: " + JSON.stringify(odd.content[1]));
+  assert.equal(odd.content.length, 4, "no warnings: " + JSON.stringify(odd.content[2]));
   assert.deepEqual(cellOf(JSON.parse(odd.content[0].text).xml, "ask"), cellOf(JSON.parse(text.content[0].text).xml, "ask"));
   assert.match(JSON.parse(odd.content[0].text).xml, /value="2026"/);
 

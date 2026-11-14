@@ -16,7 +16,7 @@ import { ICON_TABLE, ICON_DATA } from "../icon-table.js";
 import { gridLayoutDiagram } from "../grid-layout.js";
 import { normalizeDiagram } from "../normalize-model.js";
 import { escapeXml, htmlLabel, IdPool } from "./xml-writer.js";
-import { EDGE, YES_COLOR, NO_COLOR, ROLES, fontSizes } from "./theme.js";
+import { EDGE, YES_COLOR, NO_COLOR, ROLES, fontSizes, fontSizesOf } from "./theme.js";
 import { textWidth } from "./text-width.js";
 
 let iconResolver = null;
@@ -506,7 +506,9 @@ export function compactXml(d, kind)
   const ids = new IdPool();
   const idOf = new Map();
   const shapes = d.nodes.length + d.groups.length;
-  const font = fontSizes(shapes);
+  // On a change the text keeps its size, also when the count of shapes
+  // crosses the line of fontSizes: every box would change its size.
+  const font = (kind.font != null) ? fontSizesOf(kind.font) || fontSizes(shapes) : fontSizes(shapes);
   const cells = [];
   const peopleIcon = kind.flow ? null : (PEOPLE_ICONS[mainProvider(d.nodes)] || null);
 
@@ -699,7 +701,7 @@ export function compactXml(d, kind)
 
   lines.push("</root>", "</mxGraphModel>");
 
-  return { xml: lines.join("\n"), warnings: warnings, shapes: shapes, fanned: fanned };
+  return { xml: lines.join("\n"), warnings: warnings, shapes: shapes, fanned: fanned, font: font.shape };
 }
 
 /**
@@ -721,18 +723,22 @@ export function placeCompactXml(xml, options)
 
 function layout(d, ctx, kind)
 {
+  // ctx.keep: the layout of the diagram before a change (keep.js), whose
+  // places the grid pass keeps for what didn't change
+  const keep = (ctx.keep != null && ctx.hints === "ask") ? ctx.keep : null;
   const place = function(compact)
   {
     return placeCompactXml(compact.xml, { direction: d.direction || null, mode: kind.flow ? "flow" : "tiers",
-      hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false });
+      hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false, keep: keep });
   };
-  let compact = compactXml(d, kind);
+  const how = (keep != null && keep.font > 0) ? Object.assign({}, kind, { font: keep.font }) : kind;
+  let compact = compactXml(d, how);
   let r = place(compact);
 
   // Lines to every member of a group stay where their tree is clean.
   if (compact.fanned > 0)
   {
-    const plain = compactXml(d, Object.assign({}, kind, { fan: false }));
+    const plain = compactXml(d, Object.assign({}, how, { fan: false }));
     const p = place(plain);
 
     if ((r.stats.crossings || 0) > (p.stats.crossings || 0) + FAN_CROSSINGS)
@@ -743,8 +749,10 @@ function layout(d, ctx, kind)
   }
 
   return { xml: r.xml, width: r.stats.width || 0, height: r.stats.height || 0, warnings: compact.warnings,
+    keep: r.stats.keep || null, font: compact.font,
     stats: { shapes: compact.shapes, edges: d.edges.length, hinted: r.stats.hinted || 0, grid: r.stats.grid || null, crossings: r.stats.crossings || 0,
-      through: r.stats.through || 0, turned: r.stats.policy === "turned", dense: r.stats.dense === true, compactChars: compact.xml.length } };
+      through: r.stats.through || 0, turned: r.stats.policy === "turned", dense: r.stats.dense === true,
+      kept: r.stats.keep != null && r.stats.keep.kept === true, compactChars: compact.xml.length } };
 }
 
 export function layoutArchitecture(d, ctx)

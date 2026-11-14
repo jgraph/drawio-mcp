@@ -21,12 +21,16 @@ export const PARTS = ["placement", "groups", "completeness"];
 // nothing out".
 export const PARTS_KEPT = ["placement"];
 
-function intro(complete)
+// keep: a change keeps what it doesn't touch in place, given the cells and
+// the layout of the last result (shared/semantic/keep.js), which only the
+// cells of one grid for the page have.
+function intro(complete, keep)
 {
   return "Creates and displays a draw.io diagram from a description of its content: you say what exists and how it connects, " +
     "the server lays it out, routes the lines and styles it. Never give coordinates, sizes or styles" +
     (complete ? "; leave nothing out. " : ". ") +
-    "To change the diagram, call this again with the whole changed description, keeping the ids.\n\n" +
+    "To change the diagram, call this again with the whole changed description, keeping the ids" +
+    (keep ? ", the cells of what stays and the layout.\n\n" : ".\n\n") +
     (complete ? "The keys of nodes, edges and groups are in the schema." :
       "Arguments: type, title, nodes, edges, groups; their keys are in the schema.");
 }
@@ -82,6 +86,16 @@ function partSet(options)
   return new Set(options != null && Array.isArray(options.parts) ? options.parts : PARTS_KEPT);
 }
 
+// Whether a change can keep the layout: only the cells of one grid for the
+// page are kept (hints "ask"), and ER schemas have none.
+function keepsLayout(types, options)
+{
+  return options != null && options.hints === "ask" && types.some(function(t)
+  {
+    return (DESCRIBED_BY[t] || t) !== "er";
+  });
+}
+
 /**
  * @param {string[]} types - the types to offer, in this order
  * @param {{hints?: boolean|"ask", parts?: string[]}} [options] - hints: false
@@ -93,7 +107,7 @@ function partSet(options)
 export function describeTool(types, options)
 {
   const part = partSet(options);
-  const parts = [intro(part.has("completeness"))];
+  const parts = [intro(part.has("completeness"), keepsLayout(types, options))];
   const done = new Set();
   let placed = false;
 
@@ -260,10 +274,25 @@ export function describeSchema(types, options)
   const properties =
   {
     type: { type: "string", enum: types.slice() },
-    title: { type: "string" },
+    title: { type: "string" }
+  };
+
+  // Before the nodes, so the viewer's preview of a change draws them where
+  // they were from the first one on.
+  if (keepsLayout(types, options))
+  {
+    // Sonnet left it out of a change in which it renumbered cells, as if
+    // it were the arrangement the change replaced.
+    properties.layout = { type: "string", description: "On every change of a diagram: the layout of its last result, " +
+      "copied exactly, also when you add, move or renumber cells. What keeps its cell then stays in place and only what " +
+      "the change needs room for moves; without it, every shape can move" };
+  }
+
+  Object.assign(properties,
+  {
     nodes: { type: "array", items: { type: "object", properties: node, required: ["id"] } },
     edges: { type: "array", items: { type: "object", properties: edge, required: ["from", "to"] } }
-  };
+  });
 
   // Descriptions of large diagrams left out steps and connections that the
   // same model drew when it wrote the XML itself.

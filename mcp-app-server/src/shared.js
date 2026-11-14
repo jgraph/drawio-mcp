@@ -2013,7 +2013,7 @@ var modelContextInFlight = Promise.resolve();
  * the diagram (plain XML without a pass, nothing sent before) or the XML is
  * too large.
  */
-function modelContextText(xml, mermaidText, layoutState, routed, alreadySent, maxChars, described)
+function modelContextText(xml, mermaidText, layoutState, routed, alreadySent, maxChars, described, layoutKey)
 {
   var laidOut = (layoutState === 'vertical' || layoutState === 'horizontal');
 
@@ -2047,9 +2047,12 @@ function modelContextText(xml, mermaidText, layoutState, routed, alreadySent, ma
   // A description is changed where it was written: a new layout of the
   // whole description keeps the ids. The XML is for what a description
   // can't say.
+  // With the layout of the result, the shapes a change doesn't touch stay
+  // where they are (shared/semantic/keep.js).
   if (described)
   {
-    how = 'To change what it contains, call create_semantic_diagram again with the whole changed description and the same ids. ' +
+    how = 'To change what it contains, call create_semantic_diagram again with the whole changed description and the same ids' +
+      ((layoutKey != null) ? ', the same row and col for what stays where it is, and layout "' + layoutKey + '". ' : '. ') +
       'To move or restyle single shapes, start from this XML and pass it to create_diagram as xml, without postLayout or routing so the positions stay.';
   }
 
@@ -2066,6 +2069,7 @@ function scheduleModelContext(xml)
   var layoutState = currentLayoutState;
   var routed = routingApplied;
   var described = shownFromDescription;
+  var layoutKey = shownFromDescription ? shownLayoutKey : null;
 
   if (modelContextTimer != null)
   {
@@ -2083,7 +2087,7 @@ function scheduleModelContext(xml)
     // Mermaid diagrams) still loading would make them the wrong width
     whenFontsReady(function()
     {
-      sendModelContext(xml, mermaidText, layoutState, routed, described);
+      sendModelContext(xml, mermaidText, layoutState, routed, described, layoutKey);
     }, 2000);
   }, 500);
 }
@@ -3293,7 +3297,7 @@ if (fixLayoutBtn != null)
   });
 }
 
-function sendModelContext(xml, mermaidText, layoutState, routed, described)
+function sendModelContext(xml, mermaidText, layoutState, routed, described, layoutKey)
 {
   var caps = app.getHostCapabilities();
 
@@ -3308,12 +3312,12 @@ function sendModelContext(xml, mermaidText, layoutState, routed, described)
 
   if (hostAcceptsContextImages(caps, window.openai != null))
   {
-    sendModelContextWithImage(xml, mermaidText, layoutState, routed, described);
+    sendModelContextWithImage(xml, mermaidText, layoutState, routed, described, layoutKey);
     return;
   }
 
   var xmlText = modelContextText(xml, mermaidText, layoutState, routed,
-    modelContextSent, MODEL_CONTEXT_MAX_CHARS, described);
+    modelContextSent, MODEL_CONTEXT_MAX_CHARS, described, layoutKey);
   var report = safeLayoutCheck(streamGraph);
   var text = modelContextTextWithCheck(report, xmlText);
 
@@ -3396,12 +3400,12 @@ function modelContextContent(img, report, text, described)
 // The image and the check are new on every render (the viewer's own layout
 // and routing, how the labels fit), so they are sent even when the XML is as
 // the model wrote it; the XML itself still only when it differs.
-function sendModelContextWithImage(xml, mermaidText, layoutState, routed, described)
+function sendModelContextWithImage(xml, mermaidText, layoutState, routed, described, layoutKey)
 {
   var seq = ++modelImageSeq;
-  lastModelImageArgs = [xml, mermaidText, layoutState, routed, described];
+  lastModelImageArgs = [xml, mermaidText, layoutState, routed, described, layoutKey];
   var text = modelContextText(xml, mermaidText, layoutState, routed,
-    modelContextSent, MODEL_CONTEXT_MAX_CHARS, described);
+    modelContextSent, MODEL_CONTEXT_MAX_CHARS, described, layoutKey);
 
   renderModelContextImage(streamGraph, function(img)
   {
@@ -8701,8 +8705,10 @@ function isXmlInMermaid(text)
 // at least twice the last run's time. The result renders the final diagram.
 
 // Whether the diagram shown came from a description: the model is then told
-// to change the description, not the XML (modelContextText).
+// to change the description, not the XML (modelContextText), and how to keep
+// its layout (the result's layout, shownLayoutKey).
 var shownFromDescription = false;
+var shownLayoutKey = null;
 var semanticPending = null;
 var semanticTimer = null;
 var lastSemanticKey = null;
@@ -9104,6 +9110,7 @@ app.ontoolinput = function(params)
   // A whole description: the preview shows all of it until the result,
   // which went through the server's passes, renders the diagram.
   shownFromDescription = isSemanticArgs(args);
+  shownLayoutKey = null;
 
   if (shownFromDescription)
   {
@@ -9247,6 +9254,7 @@ app.ontoolresult = function(result)
         if (parsed.described === true)
         {
           shownFromDescription = true;
+          shownLayoutKey = (typeof parsed.layout === 'string') ? parsed.layout : null;
         }
       }
     }
@@ -10895,6 +10903,21 @@ function edgeItem(item)
 }
 
 /**
+ * How a change of a diagram drawn from a description keeps its layout: the
+ * model passes the layout of this result back with the changed description
+ * (shared/semantic/keep.js). Without it every shape could move.
+ *
+ * @param {string} layout - the layout of the result
+ * @returns {string}
+ */
+function semanticChangeNote(layout)
+{
+  return "To change this diagram, call create_semantic_diagram again with layout \"" + layout + "\" and the whole changed " +
+    "description: the same ids, and the same row and col for what stays where it is. Pass this layout also when you add, " +
+    "move or renumber cells: then only what the change needs room for moves, and without it every shape can move.";
+}
+
+/**
  * The input schema of create_semantic_diagram for the types offered. The
  * keys, their types and what the model reads about them come from
  * describeSchema (shared/semantic/description.js), the schema the benchmark
@@ -10927,9 +10950,17 @@ function semanticInputSchema(offered)
     }, z.enum(offered)).describe("The diagram type." + ((sizeRule != null) ? " " + sizeRule +
       "; draw larger ones with create_diagram." : "")),
     title: z.preprocess(looseText, z.string().optional()).describe("A title shown above the diagram."),
-    nodes: describe(z.preprocess(jsonList, semanticItems(props.nodes, namedItem)), props.nodes),
-    edges: describe(z.preprocess(jsonList, semanticItems(props.edges, edgeItem).optional()), props.edges),
   };
+
+  // The layout of the last result, for a change (shared/semantic/keep.js).
+  // Any text: one that isn't a layout is drawn anew with a warning.
+  if (props.layout != null)
+  {
+    shape.layout = semanticProperty(props.layout, false);
+  }
+
+  shape.nodes = describe(z.preprocess(jsonList, semanticItems(props.nodes, namedItem)), props.nodes);
+  shape.edges = describe(z.preprocess(jsonList, semanticItems(props.edges, edgeItem).optional()), props.edges);
 
   if (props.groups != null)
   {
@@ -11270,11 +11301,24 @@ export function createServer(html, options = {})
         }
 
         // described: the viewer tells the model that the diagram was laid
-        // out from its description, and how to change it (modelContextText)
+        // out from its description, and how to change it (modelContextText).
+        // layout: what a change passes back to keep the shapes where they
+        // are (shared/semantic/keep.js); the server stores nothing.
         var payload = { xml: absolutizeImageUrls(finishDiagramXml(r.xml)), described: true, _buildId: buildId };
+
+        if (r.layout != null)
+        {
+          payload.layout = r.layout;
+        }
+
         var content = [{ type: "text", text: JSON.stringify(payload) }];
         var inline = await rendersInline();
         var hidden = hiddenUi();
+
+        if (r.layout != null)
+        {
+          content.push({ type: "text", text: semanticChangeNote(r.layout) });
+        }
 
         if (r.warnings.length > 0)
         {

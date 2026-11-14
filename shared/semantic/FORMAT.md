@@ -26,6 +26,7 @@ Status: `er`, `architecture`, `network`, `flowchart` and `swimlane` are implemen
 |---|---|
 | `type` | `er`, `class`, `flowchart`, `swimlane`, `architecture`, `network`, `state`, `sequence`, `orgchart`, `mindmap`. Common other names are read too (`erd`, `database`, `uml`, `cloud`, `aws`, `org chart`, `mind map`, …) |
 | `title` | optional, drawn above the diagram |
+| `layout` | optional, for a change only: the `layout` of the result of the last call, copied exactly (see **A change** below) |
 | `direction` | optional, `vertical` or `horizontal`, for the types that flow (flowchart, swimlane, state, architecture): where the top level runs. Read when given, but not offered in the tool's schema: without it the layout takes whichever is shown larger in the chat frame, and models that are offered the key set it without need |
 | `groups` | optional: `{id, label, kind, icon, parent, row, col}`. A lane, a VPC, a subnet, a tier, a package. `parent` nests a group in another. `lanes` is read as groups of kind `lane` |
 | `nodes` | `{id, label, kind, role, icon, group, sub, fields, methods, row, col}`, the keys a type uses |
@@ -112,5 +113,11 @@ A model knows where things belong (clients above services above data, a database
 ## The result
 
 The engine returns the diagram's draw.io XML, which goes back into the model's context like the XML of `create_diagram`: a change can be made by sending the whole changed description again (ids kept), or, for what the format can't say, by changing the XML and passing it to `create_diagram`. Warnings come with the result.
+
+### A change
+
+With the cells asked for (`hints: "ask"`), the result also has a `layout`: a short text of letters, digits and dots (`13g8k.24r8t29t8t2bt8t.2201o231….9s3w1oh13w1o.gs`, 40 to 150 characters) that holds where the diagram's columns and rows are and how large its boxes are (`keep.js`). A change passes it back as `layout` with the whole changed description. Then every column and row whose number the model kept stays where it was and keeps at least its size, the orientation, the spacing, the font size and the sizes of the boxes stay those of the first diagram, and what is new gets the room it needs, so only what comes after it moves. A step added at the end moves nothing; one put in between, with the columns after it numbered one further, moves the steps after it by one column; a node taken out leaves a gap rather than closing it. The server stores nothing: the text is all of the earlier layout, so a change works across servers, sessions and restarts.
+
+A layout is only used for a description with the same type and title, and only when it was copied exactly (a checksum at its end); otherwise the diagram is laid out anew and a warning says why. Without one, a change is laid out anew, as before.
 
 Cell ids follow the description: a node keeps its id, a table row is `table.field`, a relation `child-parent`, so the XML can be read and changed by the ids the model chose.

@@ -4,6 +4,7 @@
 // Parsing is the headless model of shared/mx-xml.js, read only.
 
 import { transformPages } from "../../shared/mx-xml.js";
+import { readList } from "../../shared/semantic/spec.js";
 import { median } from "./common.mjs";
 
 /** draw.io's default font size, used by every style without fontSize. */
@@ -89,10 +90,12 @@ export function fontStats(xml)
  * present in both (matched by id and label, then by a label that is unique
  * in both, then by id alone, which is a renamed shape), and how many of them
  * moved by more than `tolerance` px once the shift they all share (the
- * median shift) is removed.
+ * median shift) is removed. `inPlace`: how many of them didn't move at all
+ * (within `tolerance`, no shift removed), which is what a user sees stay.
  *
  * @returns {{before: number, after: number, common: number, moved: number,
- *   movedShare: number|null, added: number, removed: number}}
+ *   movedShare: number|null, inPlace: number, inPlaceShare: number|null,
+ *   added: number, removed: number}}
  */
 export function stability(beforeXml, afterXml, tolerance)
 {
@@ -161,8 +164,75 @@ export function stability(beforeXml, afterXml, tolerance)
   {
     return Math.hypot(p[1].x - p[0].x - dx, p[1].y - p[0].y - dy) > limit;
   }).length;
+  const inPlace = pairs.filter(function(p)
+  {
+    return Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y) <= limit;
+  }).length;
 
   return { before: before.length, after: after.length, common: pairs.length, moved: moved,
-    movedShare: pairs.length > 0 ? moved / pairs.length : null,
+    movedShare: pairs.length > 0 ? moved / pairs.length : null, inPlace: inPlace,
+    inPlaceShare: pairs.length > 0 ? inPlace / pairs.length : null,
     added: after.length - pairs.length, removed: before.length - pairs.length };
+}
+
+// A node of a description as what decides where it is drawn: its lane or
+// group, its cell, its label and kind.
+function nodeCells(args)
+{
+  const cells = new Map();
+
+  for (const n of readList(args != null ? args.nodes : null))
+  {
+    if (n != null && typeof n === "object" && n.id != null)
+    {
+      const group = (n.group != null) ? n.group : (n.lane != null ? n.lane : n.parent);
+
+      cells.set(String(n.id), JSON.stringify([String(group == null ? "" : group), Number(n.row), Number(n.col),
+        String(n.label == null ? n.id : n.label), String(n.kind == null ? "" : n.kind).toLowerCase()]));
+    }
+  }
+
+  return cells;
+}
+
+/**
+ * The shapes a change of a description didn't touch, and how many of them
+ * moved anyway: the nodes with the same id, lane or group, row, col, label
+ * and kind in both descriptions, drawn in both diagrams, that moved by more
+ * than `tolerance` px: `moved` with no shift removed, `shifted` once the
+ * shift they all share is removed (the median of theirs), since a page that
+ * grows at its top or left moves them all alike, which the chat, fitting the
+ * diagram again, doesn't show. What the engine moved, where stability()
+ * also counts what the model renumbered.
+ *
+ * @param {object} beforeArgs - the first description
+ * @param {object} afterArgs - the changed one
+ * @returns {{untouched: number, moved: number, shifted: number, share: number|null}}
+ */
+export function untouchedMoves(beforeArgs, afterArgs, beforeXml, afterXml, tolerance)
+{
+  const limit = (tolerance != null) ? tolerance : 10;
+  const a = nodeCells(beforeArgs);
+  const b = nodeCells(afterArgs);
+  const va = new Map(vertices(beforeXml).map(function(v) { return [v.id, v]; }));
+  const vb = new Map(vertices(afterXml).map(function(v) { return [v.id, v]; }));
+  const pairs = [];
+
+  for (const [id, cell] of a)
+  {
+    if (b.get(id) === cell && va.has(id) && vb.has(id))
+    {
+      pairs.push([va.get(id), vb.get(id)]);
+    }
+  }
+
+  const dx = median(pairs.map(function(p) { return p[1].x - p[0].x; })) || 0;
+  const dy = median(pairs.map(function(p) { return p[1].y - p[0].y; })) || 0;
+  const moved = pairs.filter(function(p) { return Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y) > limit; }).length;
+  const shifted = pairs.filter(function(p)
+  {
+    return Math.hypot(p[1].x - p[0].x - dx, p[1].y - p[0].y - dy) > limit;
+  }).length;
+
+  return { untouched: pairs.length, moved: moved, shifted: shifted, share: pairs.length > 0 ? moved / pairs.length : null };
 }

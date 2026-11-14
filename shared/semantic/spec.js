@@ -42,7 +42,7 @@ const TYPE_ALIASES =
 };
 
 const KNOWN_KEYS = new Set(["type", "title", "direction", "nodes", "groups", "lanes", "edges", "participants", "messages",
-  "fragments", "legend"]);
+  "fragments", "legend", "layout"]);
 
 // The types whose edges may end at a group (a call into a cluster, a
 // monitor that reads from every service of a namespace).
@@ -308,7 +308,7 @@ export function normalizeSpec(input, options)
 
   return {
     diagram: { type: type, title: str(spec.title), direction: DIRECTIONS[str(spec.direction).toLowerCase()] || "", groups: groups,
-      nodes: nodes, edges: edges },
+      nodes: nodes, edges: edges, layout: (typeof spec.layout === "string") ? spec.layout.trim() : "" },
     warnings: warnings,
     error: null
   };

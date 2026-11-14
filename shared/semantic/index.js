@@ -17,6 +17,7 @@ import { writeModel } from "./xml-writer.js";
 import { layoutEr } from "./er.js";
 import { layoutArchitecture, layoutFlow } from "./boxes.js";
 import { expandDiagramShorthand } from "../diagram-shorthand.js";
+import { encodeKeep, decodeKeep } from "./keep.js";
 
 const LAYOUTS =
 {
@@ -103,13 +104,27 @@ export async function semanticToXml(input, options)
     return { xml: null, error: "No layout engine (ELK) is available here.", warnings: n.warnings, stats: null };
   }
 
-  const r = await entry.layout(d, { elk: opts.elk, hints: opts.hints === "ask" ? "ask" : opts.hints !== false,
-    route: opts.route !== false });
+  // A change: the layout of the diagram before it (keep.js), from the result
+  // of the earlier call. One that can't be read is left out with a warning,
+  // and the diagram is laid out anew.
+  const hints = opts.hints === "ask" ? "ask" : opts.hints !== false;
+  const kept = (hints === "ask") ? decodeKeep(d.layout, d) : { keep: null, error: null };
+  const warnings = n.warnings.slice();
+
+  if (kept.error != null)
+  {
+    warnings.push("The layout \"" + d.layout.slice(0, 40) + (d.layout.length > 40 ? "…" : "") + "\" was not used (" +
+      kept.error + "); the diagram was laid out anew. On a change, pass the layout of the last result as it is.");
+  }
+
+  const r = await entry.layout(d, { elk: opts.elk, hints: hints, route: opts.route !== false, keep: kept.keep });
   // er.js writes tables in the shorthand the app server expands; boxes.js
   // returns XML that went through that expansion already
   const xml = (r.xml != null) ? r.xml : expandDiagramShorthand(writeModel(r.cells)).xml;
   const stats = Object.assign({ type: d.type, width: Math.round(r.width), height: Math.round(r.height),
     ms: Math.round((now() - t0) * 10) / 10 }, r.stats);
+  // What a change of this diagram keeps, for the next call
+  const layout = (r.keep != null) ? encodeKeep(r.keep, { type: d.type, title: d.title, font: r.font }) : null;
 
-  return { xml: xml, error: null, warnings: n.warnings.concat(r.warnings || []), stats: stats };
+  return { xml: xml, error: null, warnings: warnings.concat(r.warnings || []), stats: stats, layout: layout };
 }

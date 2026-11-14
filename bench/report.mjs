@@ -27,7 +27,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs, outDir, median, round, readJson, loadPrompts } from "./lib/common.mjs";
-import { stability } from "./lib/diagram-xml.mjs";
+import { stability, untouchedMoves } from "./lib/diagram-xml.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
@@ -92,10 +92,18 @@ const runs = files.filter(function(x) { return x.endsWith("-summary.json"); }).s
     const editRender = readJson(path.join(out, s.tag + "-edit-render.json"));
     const before = readText(s.tag + "-rendered.xml");
     const after = readText(s.tag + "-edit-rendered.xml");
+    // both drawn from a description: which of its nodes the change left as
+    // they were, and whether they stayed
+    const first = readJson(path.join(out, s.tag + "-diagram.json"));
+    const changed = readJson(path.join(out, s.tag + "-edit-diagram.json"));
+    const described = first != null && changed != null && first.tool === "create_semantic_diagram" &&
+      changed.tool === "create_semantic_diagram";
 
     run.edit = { ok: s.edit.ok, diagramSecs: s.edit.diagramSecs, endSecs: s.edit.endSecs, outputTokens: s.edit.outputTokens,
       totalTokens: s.edit.totalTokens, format: s.edit.format, usedReference: s.edit.usedReference,
-      issues: editRender ? editRender.issues : null, stability: (before && after) ? stability(before, after, 10) : null };
+      issues: editRender ? editRender.issues : null, stability: (before && after) ? stability(before, after, 10) : null,
+      untouched: (before && after && described) ? untouchedMoves(first.arguments, changed.arguments, before, after, 10) : null,
+      layoutPassed: described ? typeof changed.arguments.layout === "string" && changed.arguments.layout !== "" : null };
   }
 
   return run;
@@ -140,13 +148,24 @@ function editRow(list)
   const e = asked.map(function(r) { return r.edit; });
   const pick = function(k) { return e.map(function(x) { return x[k]; }); };
   const st = e.map(function(x) { return x.stability; }).filter(Boolean);
+  const un = e.map(function(x) { return x.untouched; }).filter(Boolean);
+  const passed = e.filter(function(x) { return x.layoutPassed != null; });
+  const total = function(list, k) { return list.reduce(function(n, x) { return n + x[k]; }, 0); };
 
   return { asked: asked.length, diagrams: e.filter(function(x) { return x.ok; }).length,
     diagramSecs: round(median(pick("diagramSecs")), 1), endSecs: round(median(pick("endSecs")), 1),
     outputTokens: round(median(pick("outputTokens")), 0), issues: median(pick("issues")),
     compared: st.length, common: median(st.map(function(s) { return s.common; })),
     moved: round(median(st.map(function(s) { return s.movedShare; })), 2),
-    movedMean: round(mean(st.map(function(s) { return s.movedShare; })), 2) };
+    movedMean: round(mean(st.map(function(s) { return s.movedShare; })), 2),
+    inPlace: round(median(st.map(function(s) { return s.inPlaceShare; })), 2),
+    inPlaceMean: round(mean(st.map(function(s) { return s.inPlaceShare; })), 2),
+    // summed over the runs: a change leaves 2 to 30 nodes as they were
+    untouched: un.length > 0 ? total(un, "untouched") : null,
+    untouchedMoved: un.length > 0 ? total(un, "moved") : null,
+    untouchedShifted: un.length > 0 ? total(un, "shifted") : null,
+    untouchedShare: un.length > 0 && total(un, "untouched") > 0 ? round(total(un, "moved") / total(un, "untouched"), 2) : null,
+    layoutPassed: passed.length > 0 ? passed.filter(function(x) { return x.layoutPassed; }).length + "/" + passed.length : null };
 }
 
 const byType = groupBy(runs, function(r) { return [r.type, r.model, r.variant].join("|"); }).map(function(g)
@@ -301,18 +320,24 @@ if (editsByType.length > 0)
   md.push("## Edit turns", "",
     "The follow-up request in the same session, measured from the moment it was sent. Moved: of the vertices in both " +
     "diagrams, the share whose position changed by more than 10 px once the shift they all share is removed (median " +
-    "and mean over the runs); common: the median number of such vertices.", "");
+    "and mean over the runs); in place: the share that didn't move at all (within 10 px, no shift removed); common: " +
+    "the median number of such vertices. Untouched: for changes of a description, the nodes with the same id, lane, " +
+    "cell, label and kind in both descriptions (summed over the runs), and how many of them moved by more than 10 px, " +
+    "with no shift removed and once the shift they share is removed (a page that grows at its top moves them all alike, " +
+    "which the chat, fitting the diagram again, doesn't show); " +
+    "layout passed: the changes that passed the layout of the first result back.", "");
   table(md, ["type", "model", "variant", "edits asked", "changed diagrams", "diagram s", "end s", "output tokens", "findings",
-    "compared", "common", "moved", "moved (mean)"], editsByType.map(function(r)
+    "compared", "common", "moved", "moved (mean)", "in place", "in place (mean)", "untouched", "untouched moved", "untouched moved, shift removed",
+    "layout passed"], editsByType.map(function(r)
   {
     return [r.type, r.model, r.variant, r.asked, r.diagrams, r.diagramSecs, r.endSecs, r.outputTokens, r.issues, r.compared,
-      r.common, r.moved, r.movedMean];
+      r.common, r.moved, r.movedMean, r.inPlace, r.inPlaceMean, r.untouched, r.untouchedMoved, r.untouchedShifted, r.layoutPassed];
   }));
   table(md, ["prompt", "split", "model", "variant", "changed diagrams", "diagram s", "end s", "output tokens", "findings",
-    "common", "moved"], editsByPrompt.map(function(r)
+    "common", "moved", "in place", "untouched", "untouched moved", "untouched moved, shift removed"], editsByPrompt.map(function(r)
   {
     return [r.prompt, r.split, r.model, r.variant, r.diagrams + "/" + r.asked, r.diagramSecs, r.endSecs, r.outputTokens,
-      r.issues, r.common, r.moved];
+      r.issues, r.common, r.moved, r.inPlace, r.untouched, r.untouchedMoved, r.untouchedShifted];
   }));
 }
 
