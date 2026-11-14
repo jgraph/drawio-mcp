@@ -59,17 +59,21 @@ export const MAX_NODES_WITHOUT_LANES = { flowchart: 24, swimlane: 24 };
  * is drawn with, or null for no limit.
  *
  * @param {{type: string, nodes: Array<{group: string}>}} d
+ * @param {boolean} pendingLanes - a node names a group the description
+ *   doesn't declare yet, in a description still streaming in: it counts as
+ *   in a lane, since the schema lists the groups after the nodes and a model
+ *   may write them last
  * @returns {{max: number, lanes: boolean}|null} lanes: false for the rule
  *   of flowcharts without lanes
  */
-function sizeLimit(d)
+function sizeLimit(d, pendingLanes)
 {
   if (MAX_NODES[d.type] != null)
   {
     return { max: MAX_NODES[d.type], lanes: true };
   }
 
-  const inLane = d.nodes.some(function(n) { return n.group !== ""; });
+  const inLane = pendingLanes || d.nodes.some(function(n) { return n.group !== ""; });
 
   return (MAX_NODES_WITHOUT_LANES[d.type] != null && !inLane) ? { max: MAX_NODES_WITHOUT_LANES[d.type], lanes: false } : null;
 }
@@ -87,7 +91,7 @@ function now()
  *
  * @param {object|string} input - the description (FORMAT.md) or its JSON text
  * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean|"ask", route?: boolean,
- *   sizeRule?: boolean, keepTurned?: boolean}} [options] -
+ *   sizeRule?: boolean, partial?: boolean, keepTurned?: boolean}} [options] -
  *   elk: an optional ELK instance (`new ELK()` from elkjs, or the global ELK
  *   in the browser), used for large schemas; hints: false ignores the
  *   placement hints (row, col) of the description, "ask" reads them as the
@@ -97,9 +101,12 @@ function now()
  *   for its type, or MAX_NODES_WITHOUT_LANES for a flowchart without lanes
  *   (the error says it is too large without naming the limit, and
  *   `tooLarge` has the numbers), for a caller whose model can draw the
- *   diagram another way; keepTurned: how a preview showed
- *   the diagram before (stats.turned), kept unless the other way round is
- *   clearly better (shared/grid-layout.js, KEEP_MARGIN)
+ *   diagram another way; partial: true for a description still streaming
+ *   in (the preview), where a node that names a group not declared yet
+ *   counts as in a lane for the size rule, since the groups may come last;
+ *   keepTurned: how a preview showed the diagram before (stats.turned),
+ *   kept unless the other way round is clearly better (shared/grid-layout.js,
+ *   KEEP_MARGIN)
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
  *   stats: object|null, tooLarge?: {type: string, nodes: number, max: number, lanes?: false}}>}
  */
@@ -129,7 +136,7 @@ export async function semanticToXml(input, options)
     return { xml: null, error: "The diagram has no nodes.", warnings: n.warnings, stats: null };
   }
 
-  const limit = (opts.sizeRule === true) ? sizeLimit(d) : null;
+  const limit = (opts.sizeRule === true) ? sizeLimit(d, opts.partial === true && n.inUnknownGroup > 0) : null;
 
   if (limit != null && d.nodes.length > limit.max)
   {

@@ -582,6 +582,37 @@ test("a flowchart without lanes above 24 nodes is refused, with lanes it is draw
   assert.equal(lanes.tooLarge, undefined);
 });
 
+test("the preview draws on a large lane diagram whose lanes stream in after its nodes", async function()
+{
+  // the schema lists groups last: a partial description has the nodes,
+  // which name their lanes, but no lanes yet
+  const full = Object.assign({ type: "swimlane" }, steps(36, true));
+  const partial = { type: "swimlane", nodes: full.nodes, edges: full.edges };
+  const preview = await semanticToXml(partial, { hints: "ask", sizeRule: true, partial: true });
+
+  assert.equal(preview.error, null);
+  assert.ok(preview.xml != null);
+  assert.equal(preview.tooLarge, undefined);
+
+  // the server reads the whole description: lanes named and never declared
+  // draw a flowchart without lanes, which the rule refuses
+  const server = await semanticToXml(partial, { hints: "ask", sizeRule: true });
+
+  assert.equal(server.xml, null);
+  assert.deepEqual(server.tooLarge, { type: "swimlane", nodes: 36, max: 24, lanes: false });
+  assert.equal((await semanticToXml(full, { hints: "ask", sizeRule: true })).error, null);
+
+  // a flowchart whose nodes name no lane is refused in the preview too
+  for (const type of ["flowchart", "swimlane"])
+  {
+    const large = await semanticToXml(Object.assign({ type: type }, steps(25, false)),
+      { hints: "ask", sizeRule: true, partial: true });
+
+    assert.equal(large.xml, null, type);
+    assert.deepEqual(large.tooLarge, { type: type, nodes: 25, max: 24, lanes: false });
+  }
+});
+
 test("the switch on sends a large flowchart without lanes to create_diagram", async function()
 {
   const client = await connect({ semanticTypes: ["flowchart", "swimlane"] });
@@ -654,7 +685,7 @@ test("the engine comes after the script whose globals it reads, and the preview 
   }
 
   // with the server's size rule, and the way it has shown the page so far
-  assert.match(html, /DrawioSemantic\.semanticToXml\(args, \{ hints: "ask", sizeRule: true,\s+keepTurned: semanticShownTurned \}\)/);
+  assert.match(html, /DrawioSemantic\.semanticToXml\(args, \{ hints: "ask", sizeRule: true, partial: true,\s+keepTurned: semanticShownTurned \}\)/);
 });
 
 test("the viewer shows a note, not an error, when the size rule sends a description on", async function()

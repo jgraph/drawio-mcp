@@ -367,6 +367,6 @@ test("only one grid for the page keeps its way round", async function()
 
 test("the viewer passes on the way round it has shown, from a layout on one grid for the page", function()
 {
-  assert.match(source, /sizeRule: true,\n\s+keepTurned: semanticShownTurned \}\)\.then\(function\(r\)/);
+  assert.match(source, /sizeRule: true, partial: true,\n\s+keepTurned: semanticShownTurned \}\)\.then\(function\(r\)/);
   assert.match(source, /if \(r\.stats != null && r\.stats\.grid === 'page'\)\n\s+\{\n\s+semanticShownTurned = r\.stats\.turned === true;/);
 });

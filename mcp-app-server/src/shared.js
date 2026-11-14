@@ -8838,8 +8838,11 @@ function runSemanticPreview()
 
   // as the server lays it out: row and col are cells of one grid for the
   // page, and a description above the size rule, which the server will
-  // refuse, isn't drawn on (the model is sent to create_diagram)
-  DrawioSemantic.semanticToXml(args, { hints: ${JSON.stringify(SEMANTIC_HINTS)}, sizeRule: true,
+  // refuse, isn't drawn on (the model is sent to create_diagram). Partial:
+  // the schema lists the groups after the nodes, so a node that names a lane
+  // not there yet counts as in a lane, and a large swimlane diagram whose
+  // lanes come last is drawn on.
+  DrawioSemantic.semanticToXml(args, { hints: ${JSON.stringify(SEMANTIC_HINTS)}, sizeRule: true, partial: true,
     keepTurned: semanticShownTurned }).then(function(r)
   {
     semanticRunMs = Date.now() - t0;

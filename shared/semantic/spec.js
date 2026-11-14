@@ -162,7 +162,9 @@ export function fieldText(f)
  * @param {object|string} input - the description, or its JSON text
  * @param {{hints?: boolean}} [options] - hints: false drops the placement
  *   hints (row, col) of nodes and groups
- * @returns {{diagram: object|null, warnings: string[], error: string|null}}
+ * @returns {{diagram: object|null, warnings: string[], error: string|null, inUnknownGroup?: number}}
+ *   inUnknownGroup: how many nodes name a group the description doesn't
+ *   declare (their group is "" in the diagram)
  */
 export function normalizeSpec(input, options)
 {
@@ -239,6 +241,9 @@ export function normalizeSpec(input, options)
 
   const nodes = [];
   const nodeIds = new Set();
+  // nodes that name a group the description doesn't declare (yet: in a
+  // description still streaming in, the groups may come after the nodes)
+  let inUnknownGroup = 0;
 
   for (const n of readList(spec.nodes))
   {
@@ -257,6 +262,7 @@ export function normalizeSpec(input, options)
     if (group !== "" && !groupIds.has(group))
     {
       warnings.push("The node \"" + id + "\" names the unknown group \"" + group + "\".");
+      inUnknownGroup++;
     }
 
     nodes.push({
@@ -310,6 +316,7 @@ export function normalizeSpec(input, options)
     diagram: { type: type, title: str(spec.title), direction: DIRECTIONS[str(spec.direction).toLowerCase()] || "", groups: groups,
       nodes: nodes, edges: edges },
     warnings: warnings,
-    error: null
+    error: null,
+    inUnknownGroup: inUnknownGroup
   };
 }
