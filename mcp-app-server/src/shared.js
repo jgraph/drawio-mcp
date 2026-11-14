@@ -11187,6 +11187,21 @@ export function createServer(html, options = {})
       {
         grid = layoutXmlOnGrid(normalizedXml);
         normalizedXml = grid.xml;
+
+        // The pass planned the lines with the room they need, and a layout
+        // or routing pass in the viewer would undo that: in the bench Sonnet
+        // passed routing "libavoid" with 21 of 36 diagrams of cells. So a
+        // diagram the pass placed is shown as placed, and the model is told.
+        if (grid.laidOut > 0)
+        {
+          grid.ignored = [postLayout ? "postLayout" : null, routing ? "routing" : null].filter(function(o)
+          {
+            return o != null;
+          });
+          postLayout = null;
+          direction = null;
+          routing = null;
+        }
       }
 
       normalizedXml = finishDiagramXml(normalizedXml);

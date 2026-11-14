@@ -7,7 +7,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer, resolveSemanticTypes, SEMANTIC_TYPES_READY } from "../src/shared.js";
 import { XML_GRID, layoutXmlOnGrid, pagePlacement, xmlGridMessages } from "../src/xml-grid.js";
 import { readReference, OMITTED_SECTIONS, GRID_OMITTED_SECTIONS, GRID_SECTION_BEFORE, GRID_PLACE_SENTENCE,
-  GRID_PLACE_INSTEAD } from "../src/references.js";
+  GRID_PLACE_INSTEAD, GRID_ROUTING_SENTENCES } from "../src/references.js";
 import { semanticToXml } from "../../shared/semantic/index.js";
 
 // The grid pass for create_diagram's XML, behind the switch
@@ -33,10 +33,10 @@ async function connect(options)
   return client;
 }
 
-async function draw(xml, types)
+async function draw(xml, types, options)
 {
   const client = await connect({ semanticTypes: types });
-  const result = await client.callTool({ name: "create_diagram", arguments: { xml: xml } });
+  const result = await client.callTool({ name: "create_diagram", arguments: Object.assign({ xml: xml }, options) });
 
   await client.close();
 
@@ -238,6 +238,33 @@ test("a diagram with positions passes byte-identical with the switch on", async 
   assert.deepEqual(layoutXmlOnGrid(PLACED), { xml: PLACED, laidOut: 0, shapes: 0, mixed: [], stats: null });
 });
 
+test("routing and postLayout are left out for a diagram the pass placed, and kept for a placed one", async function()
+{
+  const cells = await draw(LANES, [XML_GRID], { routing: "libavoid", postLayout: "elk", direction: "horizontal" });
+
+  assert.equal(cells.payload.routing, undefined);
+  assert.equal(cells.payload.postLayout, undefined);
+  assert.equal(cells.payload.direction, undefined);
+  assert.ok(cells.texts.some(function(t)
+  {
+    return /^The server placed the \d+ shapes on their cells and routed the connectors, without the `postLayout` and `routing` you passed, which would undo that\. To change/.test(t);
+  }));
+
+  const one = await draw(LANES, [XML_GRID], { routing: "libavoid" });
+
+  assert.equal(one.payload.routing, undefined);
+  assert.ok(one.texts.some(function(t) { return /, without the `routing` you passed, which would undo that\./.test(t); }));
+
+  // the same geometry as without the options
+  assert.equal(cells.payload.xml, (await draw(LANES, [XML_GRID])).payload.xml);
+
+  // the model's own placement keeps its options, with the switch on too
+  const placed = await draw(PLACED, [XML_GRID], { routing: "libavoid" });
+
+  assert.equal(placed.payload.routing, "libavoid");
+  assert.ok(!placed.texts.some(function(t) { return /without the/.test(t); }));
+});
+
 test("shapes without a position beside shapes with one: nothing moves, and the model is told", async function()
 {
   const xml = model([
@@ -405,6 +432,9 @@ test("the messages: the note after a layout, the warning names at most eight sha
   const many = xmlGridMessages({ laidOut: 0, shapes: 0, mixed: ["a", "b", "c", "d", "e", "f", "g", "h", "i"] });
 
   assert.match(many.warning, /^9 shapes have no position \(a, b, c, d, e, f, g, h, …\) while the others have one, so they are not drawn/);
+  assert.equal(xmlGridMessages({ laidOut: 1, shapes: 3, mixed: [], ignored: [] }).note,
+    "The server placed the 3 shapes on their cells and routed the connectors. " +
+    "To change the diagram, send the whole XML again the same way: cells (row, col), no positions, the same ids.");
 });
 
 test("the XML reference for the grid: the section before the patterns, under the tool-result limit", function()
@@ -429,6 +459,18 @@ test("the XML reference for the grid: the section before the patterns, under the
   }
 
   assert.ok(plain.indexOf("\n## Edge routing & layout passes\n") > 0);
+
+  // the sentences that send the model to routing and postLayout are replaced
+  for (const pair of GRID_ROUTING_SENTENCES)
+  {
+    assert.ok(plain.indexOf(pair[0]) > 0);
+    assert.equal(plain.indexOf(pair[1]), -1);
+    assert.equal(grid.indexOf(pair[0]), -1);
+    assert.ok(grid.indexOf(pair[1]) > 0);
+  }
+
+  assert.equal(grid.indexOf("Edge routing & layout passes"), -1);
+  assert.equal(grid.indexOf("routing: \"libavoid\"`**"), -1);
 });
 
 test("the entries read the switch for the reference as they do for the types, and bundle no engine for it", function()

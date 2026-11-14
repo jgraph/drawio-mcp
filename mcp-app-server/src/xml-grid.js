@@ -245,17 +245,23 @@ export function layoutXmlOnGrid(xml)
  * again the same way, and shapes without a position on a page with
  * positions aren't drawn.
  *
- * @param {{laidOut: number, shapes: number, mixed: string[]}} r - layoutXmlOnGrid's result
+ * @param {{laidOut: number, shapes: number, mixed: string[], ignored?: string[]}} r - layoutXmlOnGrid's
+ *   result; ignored: the options of the call the server left out for a diagram it placed (postLayout, routing)
  * @returns {{note: string|null, warning: string|null}}
  */
 export function xmlGridMessages(r)
 {
   var note = null;
   var warning = null;
+  var ignored = (r.ignored || []).map(function(o)
+  {
+    return "`" + o + "`";
+  });
 
   if (r.laidOut > 0)
   {
-    note = "The server placed the " + r.shapes + " shapes on their cells and routed the connectors. " +
+    note = "The server placed the " + r.shapes + " shapes on their cells and routed the connectors" +
+      (ignored.length > 0 ? ", without the " + ignored.join(" and ") + " you passed, which would undo that" : "") + ". " +
       "To change the diagram, send the whole XML again the same way: cells (row, col), no positions, the same ids.";
   }
 
