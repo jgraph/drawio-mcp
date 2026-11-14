@@ -21,6 +21,7 @@ import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
 import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES, MAX_NODES as SEMANTIC_MAX_NODES } from "../../shared/semantic/index.js";
 import { describeTool as describeSemanticTool, describeSchema as describeSemanticSchema, describeSizeRule as describeSemanticSizeRule, DESCRIBED_BY as SEMANTIC_DESCRIBED_BY } from "../../shared/semantic/description.js";
 import { readList as readSemanticList, typeName as semanticTypeName, fieldText as semanticFieldText } from "../../shared/semantic/spec.js";
+import { XML_GRID, layoutXmlOnGrid, xmlGridMessages } from "./xml-grid.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -10733,6 +10734,9 @@ const SEMANTIC_HINTS = "ask";
  * also in a list ("on,er"); empty or "off", none. A type that is described
  * as another one (swimlane as a flowchart, network as an architecture)
  * brings that one along, so the description names a type of the enum.
+ * "xml-grid" (XML_GRID) is no type of create_semantic_diagram: it switches
+ * on the grid pass for XML in create_diagram (src/xml-grid.js), cells
+ * instead of positions; "on" doesn't include it.
  *
  * @param {string|undefined} value
  * @returns {string[]}
@@ -10756,7 +10760,7 @@ export function resolveSemanticTypes(value)
       out.push(by);
     }
 
-    if (SEMANTIC_SUPPORTED_TYPES.indexOf(t) >= 0 && out.indexOf(t) < 0)
+    if ((SEMANTIC_SUPPORTED_TYPES.indexOf(t) >= 0 || t === XML_GRID) && out.indexOf(t) < 0)
     {
       out.push(t);
     }
@@ -10961,6 +10965,11 @@ export function createServer(html, options = {})
     iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null,
     semanticTypes = SEMANTIC_TYPES_ON } = options;
   const linkBase = editorLinkBase(drawioBaseUrl);
+  // The grid pass for XML (src/xml-grid.js): the description asks for cells
+  // instead of positions, and the handler places a diagram of cells. Pass
+  // the XML reference with the grid section (readReference's grid option)
+  // along with it.
+  const xmlGrid = semanticTypes.indexOf(XML_GRID) >= 0;
   // The version clients see in serverInfo is the package version, so it moves
   // with each release instead of drifting from package.json/server.json.
   const server = new McpServer({ name: "drawio-mcp-app", version: pkg.version });
@@ -11007,8 +11016,10 @@ export function createServer(html, options = {})
         "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one.\n\n" +
         "**Choose the format first.** Use `xml` for diagrams of boxes and lines up to about 30 shapes: flowcharts, pipelines, decision trees, " +
         "org charts, ER schemas, UML class, state and use case diagrams, mind maps, timelines, architecture, cloud and network diagrams, " +
-        "swimlanes, UI mockups, floor plans and anything with stencils. You place every shape yourself, laid out for the chat view " +
-        "(see the XML reference). Use `mermaid` for sequenceDiagram, gantt, gitGraph, pie, journey, quadrantChart, " +
+        "swimlanes, UI mockups, floor plans and anything with stencils. " + (xmlGrid ?
+          "For boxes and lines, give each shape a cell instead of a position: the server sizes and places them and routes the lines " +
+          "(see the XML reference). " : "You place every shape yourself, laid out for the chat view (see the XML reference). ") +
+        "Use `mermaid` for sequenceDiagram, gantt, gitGraph, pie, journey, quadrantChart, " +
         "xychart-beta, sankey-beta, requirementDiagram, C4Context/C4Container/C4Component, block-beta, packet-beta, kanban, " +
         "radar-beta, treemap-beta, treeView-beta, venn-beta, ishikawa-beta, zenuml, wardley-beta, eventmodeling, and for " +
         "flowcharts, class and state diagrams of more than about 30 shapes (flowcharts with postLayout elk). " +
@@ -11018,10 +11029,14 @@ export function createServer(html, options = {})
         "containers, layers and dark mode. For AWS, Azure, GCP and Kubernetes icons write `icon=aws lambda` in the style; " +
         "call `search_shapes` first for other industry icons (Cisco, P&ID, electrical) or logos.\n\n" +
         "XML essentials: <mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>…</root></mxGraphModel>. " +
-        "Every cell has a unique id. Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
-        "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
+        "Every cell has a unique id. " + (xmlGrid ?
+          "Vertices: vertex=\"1\" with their cell in the style (row=1;col=2; in one grid for the whole diagram) and no mxGeometry. " +
+          "Edges: edge=\"1\" with source and target, edgeStyle=orthogonalEdgeStyle, no geometry. " :
+          "Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
+          "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. ") +
         "Put html=1 in every style and XML-escape HTML in values (&lt; &gt; &amp; &quot;). No XML comments. " +
-        "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape.",
+        (xmlGrid ? "Don't add waypoints, postLayout or routing to a diagram of cells." :
+          "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape."),
       inputSchema:
       {
         xml: z
@@ -11162,6 +11177,33 @@ export function createServer(html, options = {})
 
       normalizedXml = icons.xml;
 
+      // Cells instead of positions (with the switch, src/xml-grid.js): a
+      // diagram whose shapes have no position is placed on the cells the
+      // model named and its connectors routed, by the semantic engine's
+      // grid pass. A diagram with positions passes byte-identical.
+      var grid = null;
+
+      if (xmlGrid)
+      {
+        grid = layoutXmlOnGrid(normalizedXml);
+        normalizedXml = grid.xml;
+
+        // The pass planned the lines with the room they need, and a layout
+        // or routing pass in the viewer would undo that: in the bench Sonnet
+        // passed routing "libavoid" with 21 of 36 diagrams of cells. So a
+        // diagram the pass placed is shown as placed, and the model is told.
+        if (grid.laidOut > 0)
+        {
+          grid.ignored = [postLayout ? "postLayout" : null, routing ? "routing" : null].filter(function(o)
+          {
+            return o != null;
+          });
+          postLayout = null;
+          direction = null;
+          routing = null;
+        }
+      }
+
       normalizedXml = finishDiagramXml(normalizedXml);
 
       var xmlPayload = { xml: absolutizeImageUrls(normalizedXml) };
@@ -11181,10 +11223,22 @@ export function createServer(html, options = {})
         content.push({ type: "text", text: swapNote });
       }
 
+      var gridMessages = (grid != null) ? xmlGridMessages(grid) : { note: null, warning: null };
+
+      if (gridMessages.note != null)
+      {
+        content.push({ type: "text", text: gridMessages.note });
+      }
+
       // Validate and append warnings/errors so the LLM can self-correct
       var validation = validateDiagramXml(normalizedXml);
 
       validation.warnings = validation.warnings.concat(unresolvedIconWarnings(icons.unresolved));
+
+      if (gridMessages.warning != null)
+      {
+        validation.warnings.push(gridMessages.warning);
+      }
 
       if (validation.errors.length > 0 || validation.warnings.length > 0)
       {

@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { buildHtml, processAppBundle, resolveSemanticTypes } from "./shared.js";
 import { readReference } from "./references.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
+import { XML_GRID } from "./xml-grid.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,7 +75,11 @@ const pakoDeflateJs = fs.readFileSync(
 // Read the shared XML reference (single source of truth for all prompts),
 // with this server's chat-view sections (see references.js)
 const sharedDir = path.join(__dirname, "..", "..", "shared");
-const xmlReference = readReference(sharedDir, "xml-reference.md", "chat-view-xml.md");
+// With "xml-grid" in DRAWIO_SEMANTIC_TYPES (read below), the reference has
+// the section on cells instead of positions that create_diagram's
+// description then points to.
+const xmlReference = readReference(sharedDir, "xml-reference.md", "chat-view-xml.md",
+  { grid: resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES).indexOf(XML_GRID) >= 0 });
 
 // Read the shared Mermaid reference (returned by get_drawio_reference so
 // LLMs get concrete per-type syntax hints).
@@ -155,7 +160,10 @@ console.log(`Build ID: ${buildId}`);
 // types:
 //   DRAWIO_SEMANTIC_TYPES=on npx wrangler deploy --env staging
 const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+// The engine is for the preview of create_semantic_diagram; the grid pass
+// for XML (XML_GRID) runs on the server only.
+const semanticJs = semanticTypes.some(function(t) { return t !== XML_GRID; }) ?
+  bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {

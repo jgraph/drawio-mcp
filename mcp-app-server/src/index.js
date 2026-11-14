@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { readReference } from "./references.js";
 import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState, resolveSemanticTypes } from "./shared.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
+import { XML_GRID } from "./xml-grid.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
 
@@ -148,10 +149,22 @@ if (process.env.VIEWER_PATH)
   }
 }
 
+// The semantic diagram types create_semantic_diagram offers: unset, the ones
+// switched on in shared.js (SEMANTIC_TYPES_ON, none yet, so the tool isn't
+// listed); DRAWIO_SEMANTIC_TYPES=on offers the types that passed the blind
+// judgement (flowcharts and swimlanes), a comma-separated list the types it
+// names (er, architecture, network, flowchart, swimlane: to try one, or for
+// the bench), "off" none. With a type offered, the viewer gets the engine
+// for its preview while a description streams in. "xml-grid" in the list
+// switches on the grid pass for XML in create_diagram (src/xml-grid.js), and
+// the XML reference below gets its section.
+const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
+
 // Read the shared XML reference once at startup (single source of truth),
 // with this server's chat-view sections (see references.js)
 const sharedDir = path.join(__dirname, "..", "..", "shared");
-const xmlReference = readReference(sharedDir, "xml-reference.md", "chat-view-xml.md");
+const xmlReference = readReference(sharedDir, "xml-reference.md", "chat-view-xml.md",
+  { grid: semanticTypes.indexOf(XML_GRID) >= 0 });
 
 // Same for the Mermaid syntax reference — returned by get_drawio_reference
 // so the LLM gets concrete per-type syntax hints for every supported
@@ -178,15 +191,10 @@ const iconServiceUrl = resolveIconServiceUrl(process.env.DRAWIO_ICON_SERVICE_URL
 // in the tool server. buildHtml throws below unless it is an http(s) URL.
 const drawioBaseUrl = process.env.DRAWIO_BASE_URL;
 
-// The semantic diagram types create_semantic_diagram offers: unset, the ones
-// switched on in shared.js (SEMANTIC_TYPES_ON, none yet, so the tool isn't
-// listed); DRAWIO_SEMANTIC_TYPES=on offers the types that passed the blind
-// judgement (flowcharts and swimlanes), a comma-separated list the types it
-// names (er, architecture, network, flowchart, swimlane: to try one, or for
-// the bench), "off" none. With a type offered, the viewer gets the engine
-// for its preview while a description streams in.
-const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+// The engine is for the preview of create_semantic_diagram; the grid pass
+// for XML (XML_GRID) runs on the server only.
+const semanticJs = semanticTypes.some(function(t) { return t !== XML_GRID; }) ?
+  bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {
