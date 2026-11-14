@@ -1,6 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
+import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer, buildHtml } from "../src/shared.js";
@@ -450,6 +451,79 @@ test("create_diagram expands a class whose rows hold generics", async function()
   assert.doesNotMatch(sent, /role=/);
   assert.match(sent, /<mxCell id="Order\.items" value="- items: List&lt;Item>"[^>]*parent="Order"/);
   assert.match(sent, /<mxCell id="q" value="Retries > 3\?" style="rhombus;/);
+});
+
+// ─── ER tables written out ──────────────────────────────────────
+
+// The chat-view reference teaches ER tables written out, cell by cell, and
+// the rows shorthand for class diagrams only. With ER tables as rows, the ER
+// diagrams of create_diagram lost the blind judgement against production's
+// written-out ones (November 2026, eight ER prompts, three runs each: Sonnet
+// 0.33, Opus 0.23); written out again they scored 0.65 and 0.58.
+function chatViewBullet(name)
+{
+  const reference = readFileSync(new URL("../../shared/chat-view-xml.md", import.meta.url), "utf-8");
+
+  return reference.split("\n").find(function(line)
+  {
+    return line.startsWith("- **" + name + ":**");
+  });
+}
+
+function codesOf(bullet)
+{
+  return (bullet.match(/`[^`]+`/g) || []).map(function(code)
+  {
+    return code.slice(1, -1);
+  });
+}
+
+test("the chat-view reference writes ER tables out and class diagrams as rows", function()
+{
+  const er = chatViewBullet("ER schemas");
+  const uml = chatViewBullet("UML class diagrams");
+
+  assert.ok(er, "no ER bullet in shared/chat-view-xml.md");
+  assert.ok(uml, "no class bullet in shared/chat-view-xml.md");
+  assert.doesNotMatch(er, /rows="/);
+  assert.ok(codesOf(er).some(function(code) { return code.startsWith("swimlane;") && /childLayout=stackLayout/.test(code); }), er);
+  assert.ok(codesOf(er).some(function(code) { return code.startsWith("text;"); }), er);
+  assert.match(uml, /rows="/);
+});
+
+test("an ER table written out as the reference teaches is left as it is", async function()
+{
+  const codes = codesOf(chatViewBullet("ER schemas"));
+  const tableStyle = codes.find(function(code) { return code.startsWith("swimlane;"); });
+  const rowStyle = codes.find(function(code) { return code.startsWith("text;"); });
+
+  function table(id, x, rows)
+  {
+    return '<mxCell id="' + id + '" value="' + id + '" style="' + tableStyle + '" vertex="1" parent="1">' +
+      '<mxGeometry x="' + x + '" y="40" width="200" height="' + (26 + rows.length * 26) + '" as="geometry"/></mxCell>' +
+      rows.map(function(row, i)
+      {
+        return '<mxCell id="' + id + "." + row[0] + '" value="' + row[1] + '" style="' + rowStyle + '" vertex="1" parent="' + id + '">' +
+          '<mxGeometry y="' + (26 + i * 26) + '" width="200" height="26" as="geometry"/></mxCell>';
+      }).join("");
+  }
+
+  const xml = model(table("loan", 40, [["id", "PK id"], ["book_id", "FK book_id"]]) + table("book", 400, [["id", "PK id"], ["title", "title"]]) +
+    '<mxCell id="r1" style="edgeStyle=entityRelationEdgeStyle;html=1;startArrow=ERmany;endArrow=ERmandOne;" edge="1" parent="1" source="loan.book_id" target="book.id"><mxGeometry relative="1" as="geometry"/></mxCell>');
+  const expanded = expandDiagramShorthand(xml);
+
+  assert.equal(expanded.xml, xml);
+  assert.equal(expanded.changed, 0);
+
+  const result = await client.callTool({ name: "create_diagram", arguments: { xml: xml } });
+  const sent = JSON.parse(result.content[0].text).xml;
+
+  assert.equal(result.isError, undefined);
+  assert.equal(attr(cell(sent, "loan"), "style"), tableStyle);
+  assert.equal(attr(cell(sent, "loan.book_id"), "parent"), "loan");
+  assert.deepEqual(geometry(cell(sent, "loan.book_id")), { x: undefined, y: 52, width: 200, height: 26 });
+  assert.equal(attr(cell(sent, "r1"), "source"), "loan.book_id");
+  assert.equal(attr(cell(sent, "r1"), "target"), "book.id");
 });
 
 test("the viewer's copy expands the raw tool input as the server does", function()
