@@ -72,6 +72,11 @@ test("a diagram drawn from a description is changed in the description, the XML 
   assert.match(routed, /call create_semantic_diagram again with the whole changed description and the same ids/);
   assert.match(routed, /To move or restyle single shapes, start from this XML and pass it to create_diagram as xml/);
   assert.ok(routed.endsWith("\n\n" + xml));
+  // with the result's layout: what the change passes back to keep the shapes in place
+  const kept = modelContextText(xml, null, "none", true, false, 60000, true, "10e4n.23c3w.21e1o.9s3w1o.cl");
+
+  assert.match(kept, /the same ids, the same row and col for what stays where it is, and layout "10e4n\.23c3w\.21e1o\.9s3w1o\.cl"\. /);
+  assert.doesNotMatch(routed, /layout "/);
   // an XML diagram keeps its text
   assert.doesNotMatch(modelContextText(xml, null, "none", true, false, 60000, false), /description/);
 });

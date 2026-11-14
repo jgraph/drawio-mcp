@@ -263,6 +263,31 @@ test("a node that has no cell yet waits for it, so the preview doesn't flip betw
   assert.deepEqual(previewArgs(lanes(STEPS.concat([{ id: "pay" }, { id: "done" }]))).nodes, STEPS);
 });
 
+test("a change is previewed with the layout of the result before it, so its shapes stay where they were", async function()
+{
+  const first = await semanticToXml(lanes(STEPS), { hints: "ask" });
+  // the layout comes before the nodes in the schema, so it is there from the start
+  const partial = Object.assign({ layout: first.layout }, lanes(STEPS.concat([{ id: "pay", label: "Pay back", kind: "step",
+    group: "agent", row: 2, col: 3 }, { id: "done", label: "Refu" }])));
+  const shown = previewArgs(partial);
+
+  assert.equal(shown.layout, first.layout);
+  assert.equal(shown.nodes.length, 4);
+
+  const preview = await semanticToXml(shown, { hints: "ask" });
+  const at = function(xml, id)
+  {
+    return new RegExp("<mxCell id=\"" + id + "\"[^>]*>\\s*<mxGeometry x=\"([\\d.]+)\" y=\"([\\d.]+)\"").exec(xml).slice(1, 3);
+  };
+
+  assert.deepEqual(preview.warnings, []);
+
+  for (const n of STEPS)
+  {
+    assert.deepEqual(at(preview.xml, n.id), at(first.xml, n.id), n.id);
+  }
+});
+
 test("a description is previewed as written when its last node has a cell, or none has", function()
 {
   const whole = lanes(STEPS);

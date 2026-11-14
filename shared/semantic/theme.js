@@ -33,6 +33,17 @@ export function fontSizes(shapeCount)
 }
 
 /**
+ * The font sizes of fontSizes whose shapes have this size, or null: what a
+ * change of a diagram keeps.
+ *
+ * @param {number} shape - 14 or 16
+ */
+export function fontSizesOf(shape)
+{
+  return shape === 16 ? fontSizes(13) : shape === 14 ? fontSizes(0) : null;
+}
+
+/**
  * The fill, stroke and font keys of a role.
  *
  * @param {string} role - a key of ROLES; unknown roles are steps
