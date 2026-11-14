@@ -465,6 +465,6 @@ test("the viewer's copy expands the raw tool input as the server does", function
   assert.equal(context.expand(erDiagram).xml, expandDiagramShorthand(erDiagram).xml);
   assert.equal(context.expand(cut).xml, expandDiagramShorthand(cut).xml);
   assert.equal(context.expand(cut, { partial: true }).xml, cut);
-  assert.match(html, /expandDiagramShorthand\(absolutizeImageUrls\(healedXml\), \{ partial: true \}\)/,
+  assert.match(html, /expandDiagramShorthand\(healedXml, \{ partial: true \}\)/,
     "the streaming path expands partial XML as partial");
 });

@@ -15,9 +15,9 @@ import { normalizeDiagram } from "../../shared/normalize-model.js";
 import { addLabelPerimeters, fitEdgeLabels } from "../../shared/label-perimeter.js";
 import { snapWaypoints } from "../../shared/edge-waypoints.js";
 import { repairDiagramXml, leakedArguments } from "../../shared/repair-xml.js";
+import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import { createIconResolver } from "../../shared/icon-resolver.js";
 import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
-import { createDiagramShorthand, expandDiagramShorthand } from "../../shared/diagram-shorthand.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -660,6 +660,12 @@ ${normalizeDiagramXml.toString()}
 ${normalizeOptionValue.toString()}
 ${absolutizeImageUrls.toString()}
 
+// Table rows (rows="PK id|…") and role styles (role=step, …) expanded into
+// draw.io cells and styles, as the server does (shared/diagram-shorthand.js),
+// so that the diagram draws the same from the raw tool input while it streams.
+${createDiagramShorthand.toString()}
+var expandDiagramShorthand = createDiagramShorthand().expand;
+
 // --- Icons by name (shared/icon-resolver.js) ---
 // \`icon=aws lambda\` in a style becomes the official icon while the XML
 // streams in, as the server does for the result. The icons that are data URIs
@@ -690,12 +696,6 @@ function expandIcons(xml)
     return xml;
   }
 }
-
-// Table rows (rows="PK id|…") and role styles (role=step, …) expanded into
-// draw.io cells and styles, as the server does (shared/diagram-shorthand.js),
-// so that the diagram draws the same from the raw tool input while it streams.
-${createDiagramShorthand.toString()}
-var expandDiagramShorthand = createDiagramShorthand().expand;
 
 // --- XML healing for partial/streaming XML ---
 
@@ -8733,8 +8733,7 @@ app.ontoolinputpartial = function(params)
     return;
   }
 
-  healedXml = expandIcons(healedXml);
-  healedXml = expandDiagramShorthand(absolutizeImageUrls(healedXml), { partial: true }).xml;
+  healedXml = absolutizeImageUrls(expandIcons(expandDiagramShorthand(healedXml, { partial: true }).xml));
 
   // Update loading text during streaming
   if (loadingEl.style.display !== 'none')
@@ -8906,7 +8905,9 @@ app.ontoolinput = function(params)
 
   try
   {
-    finalizeStreamingView(expandIcons(xml), layoutOpts);
+    // Table rows and roles first, then icons by name, in the server's order
+    // (finalizeStreamingView expands the shorthand again, which changes nothing).
+    finalizeStreamingView(expandIcons(expandDiagramShorthand(xml).xml), layoutOpts);
   }
   catch (e)
   {
