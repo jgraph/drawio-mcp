@@ -89,9 +89,13 @@ async function callTool(args)
   }
 
   const shapes = (r.xml.match(/\bvertex="1"/g) || []).length;
-  const content = [{ type: "text", text: resultXml ? JSON.stringify({ xml: r.xml }) :
-    "The diagram is drawn: " + shapes + " shapes. To change it, call this tool again with the whole changed " +
-    "description and the same ids." }];
+  // the layout a change passes back to keep the shapes in place, as the
+  // app server's tool has it (shared/semantic/keep.js)
+  const content = [{ type: "text", text: resultXml ? JSON.stringify(r.layout != null ? { xml: r.xml, layout: r.layout } : { xml: r.xml }) :
+    "The diagram is drawn: " + shapes + " shapes. " + ((r.layout != null) ? "To change it, call this tool again with layout \"" +
+      r.layout + "\" and the whole changed description: the same ids, and the same row and col for what stays where it is. " +
+      "Pass this layout also when you add, move or renumber cells: then only what the change needs room for moves, and " +
+      "without it every shape can move." : "To change it, call this tool again with the whole changed description and the same ids.") }];
 
   if (warnings.length > 0)
   {
