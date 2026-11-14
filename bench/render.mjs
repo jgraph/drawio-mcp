@@ -108,6 +108,22 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bench-chrome-"));
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
   args: ["--no-sandbox", "--disable-gpu", "--window-size=1280,1000"], userDataDir: profile });
 
+// The viewer caps the inline frame at 90% of screen.availHeight, at most 800
+// px (inlineHeightCap in the app server). chrome-headless-shell reports the
+// window's 1280 x 1000; headless Chrome reports 800 x 600, which caps the
+// frame at 540 px and cuts tall diagrams off in the inline images.
+{
+  const probe = await browser.newPage();
+  const screenHeight = await probe.evaluate(function() { return screen.availHeight; });
+  await probe.close();
+
+  if (Math.round(screenHeight * 0.9) < 800)
+  {
+    console.log("WARNING: this browser reports screen.availHeight " + screenHeight + ", so the inline frame is capped at " +
+      Math.max(480, Math.round(screenHeight * 0.9)) + " px instead of 800. Use chrome-headless-shell for renders that are judged.");
+  }
+}
+
 /** The XML in a text, when it holds a whole mxGraphModel. */
 function modelXml(text)
 {

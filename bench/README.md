@@ -19,7 +19,7 @@ Variants (`run.mjs`):
 
 ## Setup
 
-The bench needs Node 20+, the `claude` CLI (signed in) and a Chrome or `chrome-headless-shell` for the renders. Its two packages (`elkjs`, `puppeteer-core`) install here (`npm ci` in `bench/`) or anywhere else with `NODE_PATH` pointing at that `node_modules`. The app server's own packages must be installed (`npm ci` in `mcp-app-server/`), since the renders run its viewer.
+The bench needs Node 20+, the `claude` CLI (signed in) and `chrome-headless-shell` for the renders. Headless Chrome reports a screen of 800 × 600, so the viewer caps the inline frame at 540 px instead of 800 and cuts tall diagrams off in the images the judge sees (`render.mjs` warns); `chrome-headless-shell` reports the window's 1280 × 1000. Its two packages (`elkjs`, `puppeteer-core`) install here (`npm ci` in `bench/`) or anywhere else with `NODE_PATH` pointing at that `node_modules`. The app server's own packages must be installed (`npm ci` in `mcp-app-server/`), since the renders run its viewer.
 
 Output goes to `bench/out/` (ignored), `--out DIR` or `BENCH_OUT`.
 
@@ -71,6 +71,20 @@ node report.mjs
 ```
 
 The rule, declared before the runs: for each model (Sonnet and Opus, three runs per prompt, judged blind by Opus on the inline images in both orders), staging passes when `report.mjs`'s gate with its defaults (below: share at least 0.5, every prompt at least 0.3, staging's layout-check findings not above production's, the pairs a size rule sends on left out) passes on the flowchart prompts, for the first diagrams and for the changed diagrams. A fail on the changed diagrams counts as a clear loss of quality. Staging is a candidate for production only when both models pass and its median time to the diagram is lower; the other four prompts are reported, not gated. Production served `fee698b` (1.9.0, built 10 November 2026, main before #100 to #103) and staging `3a1818f` (main `310aa3c` with #106, #107, #109 and #110 merged), so the `create_diagram` of the two differs too.
+
+**Result (14 November 2026): the gate fails for Sonnet, so the switch is not used in production.** 132 sessions, every diagram with its server's build id; the details are in `shared/semantic/AGENTS.md`, ninth measurement.
+
+| Flowchart prompts, 21 runs per model and server | Sonnet | Opus |
+|---|---|---|
+| Seconds to the diagram (median), production / staging | 67 / 17 | 283 / 156 |
+| Seconds to the changed diagram (median) | 30 / 10 | 68 / 33 |
+| Output tokens (median) | 10,787 / 4,806 | 32,652 / 17,792 |
+| Diagrams, timeouts, tool errors | all 21, 0, 0 on both | all 21, 0, 0 on both |
+| Layout-check findings per diagram (mean) | 1.38 / 0.67 | 0.86 / 0.19 |
+| Judge's share for staging, first diagram | 0.64, vending 0 and triage 0.17 under the floor: **fail** | 0.75, lowest 0.33: pass |
+| … changed diagram | 0.64, vending 0 and triage 0 under the floor: **fail** | 0.56, lowest 0.33: pass |
+
+The lane diagrams won (Sonnet 22 of 24 first diagrams, Opus 20 of 24); the flowcharts without lanes lost for Sonnet and are at the floor for Opus. The large flowchart without lanes was sent on to `create_diagram` by the size rule (Sonnet 3 of 3 runs, Opus 2 of 3, its third run went there directly) and is left out of the gate. With the switch on, the models took the description for 41 of 42 flowcharts and `create_diagram` for all 24 other prompts.
 
 ## When a type is switched on
 
