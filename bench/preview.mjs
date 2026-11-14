@@ -14,7 +14,10 @@
 // for the result, the engine's own layout) and how often it turned, whether
 // the streamed diagram ends with the same cells as the result alone,
 // whether the model is told that the diagram came from its description, what
-// the layout check found, and script errors. <tag>-preview-streaming.png,
+// the layout check found, and script errors. A description the size rule
+// refused (<tag>-refused.json from run.mjs) is shown the same way, and the
+// row says what the frame shows instead of the diagram (`shown`: a note or
+// an error). <tag>-preview-streaming.png,
 // <tag>-preview-input.png and <tag>-preview-result.png show the frame half
 // way, with the whole input and with the result.
 //
@@ -63,7 +66,8 @@ console.log("types: " + offered.join(", ") + " | description " + tool.descriptio
 
 const files = fs.readdirSync(out).filter(function(f)
 {
-  if (!f.endsWith("-diagram.json") || f.endsWith("-edit-diagram.json") || (match != null && !match.test(f)))
+  if (!(f.endsWith("-diagram.json") || f.endsWith("-refused.json")) || f.endsWith("-edit-diagram.json") ||
+    (match != null && !match.test(f)))
   {
     return false;
   }
@@ -220,10 +224,11 @@ function viewerState()
     described: (typeof shownFromDescription !== "undefined") ? shownFromDescription : null };
 }
 
-// The model as drawn: parent, terminals, geometry, waypoints and style of every cell.
+// The model as drawn: parent, terminals, geometry, waypoints and style of
+// every cell; none where the frame shows an error or a note instead.
 function viewerCells()
 {
-  var cells = streamGraph.getModel().cells;
+  var cells = (typeof streamGraph !== "undefined" && streamGraph != null) ? streamGraph.getModel().cells : {};
   var result = {};
 
   for (var id in cells)
@@ -266,7 +271,7 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 async function show(file, streamed)
 {
   const d = readJson(path.join(out, file));
-  const tag = file.replace("-diagram.json", "");
+  const tag = file.replace(/-diagram\.json$|\.json$/, "");
   const res = await server.call("tools/call", { name: "create_semantic_diagram", arguments: d.arguments });
   const page = await browser.newPage();
   const errors = [];
@@ -337,11 +342,12 @@ async function show(file, streamed)
 
     await page.evaluate(function(r) { window.__notify("ui/notifications/tool-result", r); }, res.result);
 
-    // the viewer's update for the model follows the rendering; a second one may follow the first
+    // the viewer's update for the model follows the rendering; a second one
+    // may follow the first. An error has no diagram, so no update follows.
     let context = [];
     const t1 = Date.now();
 
-    while (Date.now() - t1 < 30000)
+    while (res.result.isError !== true && Date.now() - t1 < 30000)
     {
       await sleep(500);
       context = await page.evaluate(function() { return window.__ctx; });
@@ -367,10 +373,20 @@ async function show(file, streamed)
 
     if (streamed)
     {
+      await sleep(res.result.isError === true ? 600 : 0);
       await element.screenshot({ path: path.join(out, tag + "-preview-result.png") });
     }
 
-    return { cells: cells, row: { tag: tag, error: res.result.isError === true,
+    // what the frame shows in place of a diagram
+    const shownInstead = await frame.evaluate(function()
+    {
+      var e = document.getElementById("error");
+
+      return (e != null && e.style.display === "block") ? (e.classList.contains("notice") ? "note: " : "error: ") +
+        e.textContent : null;
+    });
+
+    return { cells: cells, row: { tag: tag, error: res.result.isError === true, shown: shownInstead,
       steps: steps.join(" "), lanes: lanes.join("") + (streamed ? " " + (input.lanes || "-") + " " + (atResult || "-") : ""),
       withLanes: /[rc]/.test(lanes.join("") + atResult), turns: changes(shown),
       turnedAtResult: beforeResult.length > 0 && atResult !== "" && beforeResult[beforeResult.length - 1] !== atResult,
@@ -442,4 +458,6 @@ console.log("\n" + rows.length + " descriptions" +
   " | script errors " + rows.reduce(function(sum, r) { return sum + (r.errors || []).length + (r.resultAlone.errors || []).length; }, 0) +
   " | layout ms, median " + (times.length > 0 ? times[Math.floor(times.length / 2)] : "-") +
   ", max " + (times.length > 0 ? times[times.length - 1] : "-") +
+  " | refused " + count(function(r) { return r.error === true; }) + ", shown as a note " +
+  count(function(r) { return r.error === true && /^note: /.test(r.shown || ""); }) +
   " | failed " + count(function(r) { return r.failed != null; }));
