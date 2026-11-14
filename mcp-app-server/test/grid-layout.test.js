@@ -4,7 +4,7 @@ import { gridLayoutDiagram } from "../../shared/grid-layout.js";
 import { semanticToXml, SUPPORTED_TYPES } from "../../shared/semantic/index.js";
 import { compactXml } from "../../shared/semantic/boxes.js";
 import { normalizeSpec } from "../../shared/semantic/spec.js";
-import { describeTool, describeSchema } from "../../shared/semantic/description.js";
+import { describeTool, describeSchema, PARTS, PARTS_KEPT } from "../../shared/semantic/description.js";
 import { normalizeDiagram } from "../../shared/normalize-model.js";
 import { repairDiagramXml } from "../../shared/repair-xml.js";
 
@@ -1214,15 +1214,48 @@ test("the description stays within the limit for every way of offering hints, an
   assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /one grid for the whole diagram/);
   assert.equal(describeSchema(["er"]).properties.groups, undefined);
 
-  // large diagrams: six columns and more rows, nothing left out, a group for all its members
+  // large diagrams: six columns and more rows. Of the three parts of the
+  // wording that were measured one by one, this one is kept (PARTS_KEPT)
+  assert.deepEqual(PARTS_KEPT, ["placement"]);
   assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /at most 6 cols, a large diagram grows down, to 8 rows/);
-  assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /leave nothing out/);
-  assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /An edge to a group means all its members/);
   assert.match(asked.properties.nodes.items.properties.row.description, /Up to 8 rows are shown whole/);
   assert.match(asked.properties.nodes.items.properties.col.description, /At most 6/);
-  assert.match(asked.properties.nodes.description, /none merged and none left out/);
-  assert.match(asked.properties.edges.description, /Every connection the request names/);
-  assert.match(asked.properties.edges.items.properties.to.description, /a group stands for all its members/);
+  // the other two read as before: no "leave nothing out", and a group as an
+  // end is allowed but not asked for
+  assert.doesNotMatch(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /leave nothing out|An edge to a group means all its members/);
+  assert.equal(asked.properties.nodes.description, undefined);
+  assert.equal(asked.properties.edges.items.properties.to.description, "id of a node or group");
+  assert.equal(describeTool(SUPPORTED_TYPES, { hints: "ask" }), describeTool(SUPPORTED_TYPES, { hints: "ask", parts: PARTS_KEPT }));
+  assert.deepEqual(asked, describeSchema(SUPPORTED_TYPES, { hints: "ask", parts: PARTS_KEPT }));
   assert.equal(describeSchema(["er"]).properties.nodes.description, undefined);
   assert.doesNotMatch(describeSchema(["er"]).properties.edges.items.properties.to.description, /group/);
+});
+
+test("the parts of the description can be measured one by one", function()
+{
+  const text = function(parts) { return describeTool(SUPPORTED_TYPES, { hints: "ask", parts: parts }); };
+  const schema = function(parts) { return describeSchema(SUPPORTED_TYPES, { hints: "ask", parts: parts }); };
+
+  assert.deepEqual(PARTS, ["placement", "groups", "completeness"]);
+  // none: the third measurement's wording
+  assert.match(text([]), /as if you placed\s+the shapes yourself; about 5 cols × 6 rows show well/);
+  assert.doesNotMatch(text([]), /leave nothing out|An edge to a group means all its members|at most 6 cols/);
+  assert.match(schema([]).properties.nodes.items.properties.row.description, /More than 6 rows are cut off in the chat/);
+  // all of them: the fourth's
+  assert.match(text(PARTS), /at most 6 cols, a large diagram grows down, to 8 rows/);
+  assert.match(text(PARTS), /leave nothing out/);
+  assert.match(text(PARTS), /An edge to a group means all its members/);
+  assert.match(schema(PARTS).properties.nodes.description, /none merged and none left out/);
+  assert.match(schema(PARTS).properties.edges.description, /Every connection the request names/);
+  assert.match(schema(PARTS).properties.edges.items.properties.to.description, /a group stands for all its members/);
+  // one alone changes its own sentences only
+  assert.match(text(["groups"]), /An edge to a group means all its members/);
+  assert.doesNotMatch(text(["groups"]), /leave nothing out|at most 6 cols/);
+  assert.match(text(["completeness"]), /leave nothing out/);
+  assert.doesNotMatch(text(["completeness"]), /An edge to a group means all its members|at most 6 cols/);
+  // an edge to a group is about architecture: a flowchart reads the same with and without it
+  assert.equal(describeTool(["flowchart", "swimlane"], { hints: "ask", parts: ["placement", "groups"] }),
+    describeTool(["flowchart", "swimlane"], { hints: "ask", parts: ["placement"] }));
+  assert.deepEqual(describeSchema(["flowchart", "swimlane"], { hints: "ask", parts: ["placement", "groups"] }),
+    describeSchema(["flowchart", "swimlane"], { hints: "ask", parts: ["placement"] }));
 });

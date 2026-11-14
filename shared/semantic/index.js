@@ -29,6 +29,17 @@ const LAYOUTS =
 
 export { TYPES };
 
+/**
+ * The size rule: the most nodes a type is drawn with from a description when
+ * the caller has another way to draw the diagram (`sizeRule` below). Blind
+ * judgements of architecture diagrams went against the description above it:
+ * the two held-out prompts of 23 to 28 nodes (nested cloud boundaries) won
+ * none of 24 against XML the model placed itself, the four of 11 to 14 nodes
+ * 20 of 48. Over all prompts, the descriptions of the normal ones had 10 to
+ * 17 nodes, those of the large ones 23 to 32 (bench/README.md).
+ */
+export const MAX_NODES = { architecture: 18, network: 18 };
+
 /** The types this engine lays out (the rest of TYPES is planned). */
 export const SUPPORTED_TYPES = Object.keys(LAYOUTS);
 
@@ -46,9 +57,12 @@ function now()
  *   in the browser), used for large schemas; hints: false ignores the
  *   placement hints (row, col) of the description, "ask" reads them as the
  *   cells of one grid for the whole diagram (what the description asks for
- *   with describeTool's "ask"), anything else as cells in each group's grid
+ *   with describeTool's "ask"), anything else as cells in each group's grid;
+ *   sizeRule: true refuses a diagram with more nodes than MAX_NODES allows
+ *   for its type (the error says so, and `tooLarge` has the numbers), for a
+ *   caller whose model can draw the diagram another way
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
- *   stats: object|null}>}
+ *   stats: object|null, tooLarge?: {type: string, nodes: number, max: number}}>}
  */
 export async function semanticToXml(input, options)
 {
@@ -74,6 +88,14 @@ export async function semanticToXml(input, options)
   if (d.nodes.length === 0)
   {
     return { xml: null, error: "The diagram has no nodes.", warnings: n.warnings, stats: null };
+  }
+
+  if (opts.sizeRule === true && MAX_NODES[d.type] != null && d.nodes.length > MAX_NODES[d.type])
+  {
+    return { xml: null, warnings: n.warnings, stats: null,
+      tooLarge: { type: d.type, nodes: d.nodes.length, max: MAX_NODES[d.type] },
+      error: "This " + d.type + " diagram has " + d.nodes.length + " nodes; from a description, " + d.type +
+        " diagrams are drawn with up to " + MAX_NODES[d.type] + "." };
   }
 
   if (entry.needsElk && (opts.elk == null || typeof opts.elk.layout !== "function"))

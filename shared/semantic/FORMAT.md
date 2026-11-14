@@ -70,7 +70,7 @@ A model knows where things belong (clients above services above data, a database
 - An edge is `inheritance`, `implementation`, `association`, `aggregation`, `composition` or `dependency`, from the subclass, implementer or owner; `fromCard` / `toCard` and `label` on associations.
 - Layout: a grid by inheritance tree, parents above children, as shared/chat-view-xml.md lays out class diagrams; inheritance lines join into one trunk per parent.
 
-### `flowchart` and `swimlane`: processes and decisions (implemented, measured in `bench/`, not offered yet)
+### `flowchart` and `swimlane`: processes and decisions (implemented, passed the judgement in `bench/`, offered behind the app server's switch)
 
 - A node is a step: `kind` `start`, `end`, `step`, `decision`, `error`, `data`, `external`, `retry`, `note` (and what models write for them: `task`, `gateway`, `failure`, …); the kind sets the shape and the role.
 - An edge is a transition with an optional `label`; `Yes` / `No` on the branches of a decision color the label.
@@ -84,6 +84,7 @@ A model knows where things belong (clients above services above data, a database
 - An edge may name a group as an end, and then means every member of it (a gateway that routes to every service, a bus all of them publish to). Where the members stand in one row or column of the grid and the other end in the next one, it is drawn to each of them as one tree with the label once; otherwise, and for the third connection of a group and for the same connection with several groups (logs from everything), as one line to the frame. Between a group and something inside it there is no line to draw: it becomes a line of text under the diagram (`logs: everything in VPC → CloudWatch`).
 - An edge is a call or a link with an optional `label` (a protocol, a port); `kind` `async` (events, messages) is dashed. In a `network`, links are cables without arrowheads.
 - Layout without hints: tiers by the connections (every node one rank after its deepest predecessor, the order in a rank by what it connects to), every rank centered, a chain of single components beside a frame folded into one rank. Which way each nesting level runs is tried as a whole (all down, all to the right, alternating) and the one that is shown largest in the chat frame wins.
+- Size: a tool that has another way to draw the diagram takes these two types up to 18 nodes (`MAX_NODES`, `semanticToXml`'s `sizeRule`) and sends larger ones there. Large cloud diagrams with nested boundaries lost every blind judgement against XML the model placed itself; the engine alone draws any size.
 
 ### `state`: state machines (planned)
 

@@ -126,7 +126,14 @@ export function typeName(value)
   return TYPE_ALIASES[type] || type;
 }
 
-function fieldText(f)
+/**
+ * A row of a table as its text: a string as it is, an object ({name, type,
+ * key or pk / fk}) as "PK name: type".
+ *
+ * @param {*} f - an entry of `fields` or `methods`
+ * @returns {string}
+ */
+export function fieldText(f)
 {
   if (f != null && typeof f === "object")
   {
