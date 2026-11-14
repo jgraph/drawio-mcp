@@ -160,7 +160,10 @@ console.log(`Build ID: ${buildId}`);
 // types:
 //   DRAWIO_SEMANTIC_TYPES=on npx wrangler deploy --env staging
 const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+// The engine is for the preview of create_semantic_diagram; the grid pass
+// for XML (XML_GRID) runs on the server only.
+const semanticJs = semanticTypes.some(function(t) { return t !== XML_GRID; }) ?
+  bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {

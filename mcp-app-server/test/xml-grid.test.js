@@ -431,7 +431,7 @@ test("the XML reference for the grid: the section before the patterns, under the
   assert.ok(plain.indexOf("\n## Edge routing & layout passes\n") > 0);
 });
 
-test("the entries read the switch for the reference as they do for the types", function()
+test("the entries read the switch for the reference as they do for the types, and bundle no engine for it", function()
 {
   const read = function(name)
   {
@@ -441,4 +441,11 @@ test("the entries read the switch for the reference as they do for the types", f
   // the Node server at startup, the Worker's build before the deploy
   assert.match(read("index.js"), /readReference\(sharedDir, "xml-reference\.md", "chat-view-xml\.md",\s*\{ grid: semanticTypes\.indexOf\(XML_GRID\) >= 0 \}\)/);
   assert.match(read("build-html.js"), /readReference\(sharedDir, "xml-reference\.md", "chat-view-xml\.md",\s*\{ grid: resolveSemanticTypes\(process\.env\.DRAWIO_SEMANTIC_TYPES\)\.indexOf\(XML_GRID\) >= 0 \}\)/);
+
+  // the engine goes into the HTML for the semantic tool's preview, not for
+  // the grid pass, which runs on the server
+  ["index.js", "build-html.js"].forEach(function(name)
+  {
+    assert.match(read(name), /const semanticJs = semanticTypes\.some\(function\(t\) \{ return t !== XML_GRID; \}\) \?\s*bundleSemanticEngine\(/);
+  });
 });

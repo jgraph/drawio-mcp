@@ -191,7 +191,10 @@ const iconServiceUrl = resolveIconServiceUrl(process.env.DRAWIO_ICON_SERVICE_URL
 // in the tool server. buildHtml throws below unless it is an http(s) URL.
 const drawioBaseUrl = process.env.DRAWIO_BASE_URL;
 
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+// The engine is for the preview of create_semantic_diagram; the grid pass
+// for XML (XML_GRID) runs on the server only.
+const semanticJs = semanticTypes.some(function(t) { return t !== XML_GRID; }) ?
+  bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {
