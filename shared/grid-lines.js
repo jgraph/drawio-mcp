@@ -12,6 +12,11 @@
 //   planLines(grid, edges, options) → plan      routes and the room they need
 //   drawLines(plan, geometry)       → lines     points, ports, label positions
 //
+// Lines of one bundle (edge.bundle: the lines from one shape to every member
+// of a group, or to one shape from several) are one tree: they may run on
+// each other, share a track where they do and one place on the side of the
+// shape they have in common.
+//
 // Abstract coordinates: column c is the line X = 2c + 1, the gap before it
 // X = 2c (so X = 0 and X = 2 * cols are the rims), rows likewise in Y. A
 // route is a walk over these lines, and a run is a straight piece of it.
@@ -24,6 +29,10 @@ export const TRACK_MARGIN = 16;
 
 // The same inside a frame's border, where room is short.
 const FRAME_MARGIN = 12;
+
+// Between a frame's border and the shapes inside, on a side where a line
+// ends at the frame.
+const FRAME_END = 30;
 
 // Two lines of different shapes that pass each other on one row or column
 // keep this distance.
@@ -42,6 +51,10 @@ const COST =
   title: 90,      // through a frame's title
   full: 60        // one more line on a side that has no room for it
 };
+
+// Length along a piece that a line of the same bundle already runs on: the
+// trunk is there, so following it is almost free.
+const SHARED_PX = 0.15;
 
 const DX = [1, 0, -1, 0];   // E, S, W, N
 const DY = [0, 1, 0, -1];
@@ -189,7 +202,7 @@ export function portReach(item, side)
  *   px, py (the position of every abstract line, for lengths), bands (true
  *   for lanes: frames are then no obstacles) }
  * @param {object[]} edges - { from, to (items), labelW, labelH, decision,
- *   index }
+ *   index, bundle (lines with the same value are one tree, or null) }
  * @param {{track?: number, margin?: number}} [options]
  * @returns {{lines: object[], room: {col: number[], row: number[]},
  *   track: number, margin: number}}
@@ -251,6 +264,27 @@ export function planLines(grid, edges, options)
   const thruV = new Int16Array(N);
   const turn = new Int16Array(N);
   const sides = new Map();
+  const drawn = { segH: segH, segV: segV, thruH: thruH, thruV: thruV, turn: turn };
+
+  // The same for the lines of every bundle alone: what a line shares with
+  // its own bundle is neither beside it nor crossed by it.
+  const bundles = new Map();
+
+  function bundleOf(e)
+  {
+    if (e.bundle == null)
+    {
+      return null;
+    }
+
+    if (!bundles.has(e.bundle))
+    {
+      bundles.set(e.bundle, { segH: new Int16Array(N), segV: new Int16Array(N), thruH: new Int16Array(N),
+        thruV: new Int16Array(N), turn: new Int16Array(N) });
+    }
+
+    return bundles.get(e.bundle);
+  }
 
   function usedSide(item, side)
   {
@@ -289,10 +323,8 @@ export function planLines(grid, edges, options)
     return Math.floor(2 * portReach(item, side) / 10) + 1;
   }
 
-  function book(line, sign)
+  function mark(maps, path, sign)
   {
-    const path = line.path;
-
     for (let i = 0; i + 1 < path.length; i++)
     {
       const a = path[i];
@@ -300,11 +332,11 @@ export function planLines(grid, edges, options)
 
       if (a.Y === b.Y)
       {
-        segH[Math.min(a.X, b.X) + a.Y * NX] += sign;
+        maps.segH[Math.min(a.X, b.X) + a.Y * NX] += sign;
       }
       else
       {
-        segV[a.X + Math.min(a.Y, b.Y) * NX] += sign;
+        maps.segV[a.X + Math.min(a.Y, b.Y) * NX] += sign;
       }
 
       if (i > 0)
@@ -314,17 +346,29 @@ export function planLines(grid, edges, options)
 
         if ((p.Y === a.Y) !== (a.Y === b.Y))
         {
-          turn[n] += sign;
+          maps.turn[n] += sign;
         }
         else if (a.Y === b.Y)
         {
-          thruH[n] += sign;
+          maps.thruH[n] += sign;
         }
         else
         {
-          thruV[n] += sign;
+          maps.thruV[n] += sign;
         }
       }
+    }
+  }
+
+  function book(line, sign)
+  {
+    const own = bundleOf(line.e);
+
+    mark(drawn, line.path, sign);
+
+    if (own != null)
+    {
+      mark(own, line.path, sign);
     }
 
     useSide(line.e.from, line.exit, { out: true, other: line.e.to, line: line }, sign);
@@ -375,18 +419,30 @@ export function planLines(grid, edges, options)
     let goal = -1;
     let goalCost = Infinity;
     let goalDir = 0;
+    const own = bundleOf(e);
 
+    // A line of its own bundle on a side takes no place there: both use one.
     function exitCost(side)
     {
       const used = usedSide(e.from, side);
       let c = 0;
+      let others = 0;
+      let shared = false;
 
       for (const u of used)
       {
+        if (own != null && u.line.e.bundle === e.bundle)
+        {
+          shared = true;
+
+          continue;
+        }
+
+        others++;
         c += u.out ? (u.other === e.to ? 2 : (e.decision ? 60 : 14)) : 30;
       }
 
-      if (used.length >= capacity(e.from, side))
+      if (!shared && others >= capacity(e.from, side))
       {
         c += COST.full;
       }
@@ -398,13 +454,23 @@ export function planLines(grid, edges, options)
     {
       const used = usedSide(e.to, side);
       let c = 0;
+      let others = 0;
+      let shared = false;
 
       for (const u of used)
       {
+        if (own != null && u.line.e.bundle === e.bundle)
+        {
+          shared = true;
+
+          continue;
+        }
+
+        others++;
         c += u.out ? 30 : (u.other === e.from ? 2 : 6);
       }
 
-      if (used.length >= capacity(e.to, side))
+      if (!shared && others >= capacity(e.to, side))
       {
         c += COST.full;
       }
@@ -414,7 +480,8 @@ export function planLines(grid, edges, options)
 
     function nodeCost(n, X, Y, dir)
     {
-      let c = COST.cross * ((dir & 1) === 0 ? thruV[n] : thruH[n]) + COST.cross * 0.5 * turn[n];
+      const through = ((dir & 1) === 0) ? thruV[n] - (own != null ? own.thruV[n] : 0) : thruH[n] - (own != null ? own.thruH[n] : 0);
+      let c = COST.cross * through + COST.cross * 0.5 * (turn[n] - (own != null ? own.turn[n] : 0));
       const around = framesAt[n];
 
       if (around != null)
@@ -535,10 +602,11 @@ export function planLines(grid, edges, options)
         }
 
         const horizontal = (dir & 1) === 0;
-        const used = horizontal ? segH[Math.min(n, n2)] : segV[Math.min(n, n2)];
+        const mine = (own == null) ? 0 : (horizontal ? own.segH[Math.min(n, n2)] : own.segV[Math.min(n, n2)]);
+        const used = (horizontal ? segH[Math.min(n, n2)] : segV[Math.min(n, n2)]) - mine;
         const inCell = horizontal ? (Y & 1) === 1 : (X & 1) === 1;
         let c = key + bend + nodeCost(n2, X2, Y2, dir) + used * (inCell ? COST.inCell : COST.beside) +
-          COST.px * (horizontal ? Math.abs(px[X2] - px[X]) : Math.abs(py[Y2] - py[Y]));
+          COST.px * (mine > 0 ? SHARED_PX : 1) * (horizontal ? Math.abs(px[X2] - px[X]) : Math.abs(py[Y2] - py[Y]));
 
         // up or down across the top of a frame, where its title is
         if (!horizontal && (Math.max(Y, Y2) & 1) === 1 && titleAt[X + Math.max(Y, Y2) * NX] === 1)
@@ -727,6 +795,32 @@ export function planLines(grid, edges, options)
     }
   }
 
+  // A line that ends at a frame ends at its border, with room to the shapes
+  // inside: one that ends right beside a shape reads as a line to that shape.
+  if (!grid.bands)
+  {
+    for (const line of lines)
+    {
+      for (const end of [{ item: line.e.from, side: line.exit }, { item: line.e.to, side: line.entry }])
+      {
+        if (end.item.children.length === 0 || end.side === "N")
+        {
+          continue;
+        }
+
+        if (!room.frames.has(end.item))
+        {
+          room.frames.set(end.item, { left: 0, right: 0, top: 0, bottom: 0 });
+        }
+
+        const sidesOf = room.frames.get(end.item);
+        const name = (end.side === "E") ? "right" : (end.side === "W") ? "left" : "bottom";
+
+        sidesOf[name] = Math.max(sidesOf[name], FRAME_END);
+      }
+    }
+  }
+
   for (let g = 0; g <= grid.cols; g++)
   {
     room.col[g] = count.col[g] > 0 ? 2 * margin + (count.col[g] - 1) * track : 0;
@@ -764,7 +858,9 @@ export function planLines(grid, edges, options)
       }
     }
 
-    if (best != null)
+    // Where it passes from one row to the next, the label stands between
+    // the rows, where no shape is beside the line.
+    if (best != null && !(2 * Math.ceil(best.hi / 2) - 2 > best.lo))
     {
       const g = best.line / 2;
 
@@ -1065,15 +1161,40 @@ function collectSides(lines)
 
 function spreadSide(rec, track)
 {
-  const n = rec.runs.length;
+  rec.runs.sort(function(a, b) { return a.rank - b.rank; });
+
+  // The lines of a bundle share one place.
+  const places = [];
+  const placeOf = new Map();
+  let n = 0;
+
+  for (const r of rec.runs)
+  {
+    const b = r.owner.e.bundle;
+
+    if (b != null && placeOf.has(b))
+    {
+      places.push(placeOf.get(b));
+    }
+    else
+    {
+      if (b != null)
+      {
+        placeOf.set(b, n);
+      }
+
+      places.push(n++);
+    }
+  }
+
   const reach = portReach(rec.item, rec.side);
   const step = (n > 1) ? Math.min(track, 2 * reach / (n - 1)) : 0;
 
-  rec.runs.sort(function(a, b) { return a.rank - b.rank; });
+  rec.count = n;
   rec.reach = reach;
   rec.step = step;
   rec.slack = reach - (n - 1) * step / 2;
-  rec.offs = rec.runs.map(function(r, i) { return (i - (n - 1) / 2) * step; });
+  rec.offs = places.map(function(i) { return (i - (n - 1) / 2) * step; });
 }
 
 // Orders the runs of every line and gives each its track: in a gap a
@@ -1114,28 +1235,62 @@ function assignTracks(lines, track)
 
       const close = function()
       {
-        const ordered = orderRuns(group);
+        // The runs of one bundle that meet here are one piece of its tree:
+        // one track for them, ordered as their longest run.
+        const pieces = [];
+        const open = new Map();
+
+        for (const r of group)
+        {
+          const b = r.owner.e.bundle;
+          let piece = (b != null && open.has(b)) ? open.get(b) : null;
+
+          if (piece == null || r.lo > piece.hi)
+          {
+            piece = { lo: r.lo, hi: r.hi, runs: [], lead: r, track: 0 };
+            pieces.push(piece);
+
+            if (b != null)
+            {
+              open.set(b, piece);
+            }
+          }
+
+          piece.runs.push(r);
+          piece.hi = Math.max(piece.hi, r.hi);
+
+          if (r.hi - r.lo > piece.lead.hi - piece.lead.lo)
+          {
+            piece.lead = r;
+          }
+        }
+
+        const pieceOf = new Map(pieces.map(function(p) { return [p.lead, p]; }));
+        const ordered = orderRuns(pieces.map(function(p) { return p.lead; })).map(function(r) { return pieceOf.get(r); });
         let tracks = 0;
 
-        ordered.forEach(function(r, i)
+        ordered.forEach(function(p, i)
         {
-          r.rank = rank++;
-          r.track = 0;
-
           for (let k = 0; k < i; k++)
           {
             const o = ordered[k];
 
-            if (o.lo <= r.hi && r.lo <= o.hi)
+            if (o.lo <= p.hi && p.lo <= o.hi)
             {
-              r.track = Math.max(r.track, o.track + 1);
+              p.track = Math.max(p.track, o.track + 1);
             }
           }
 
-          tracks = Math.max(tracks, r.track + 1);
+          for (const r of p.runs)
+          {
+            r.rank = rank++;
+            r.track = p.track;
+          }
+
+          tracks = Math.max(tracks, p.track + 1);
         });
 
-        for (const r of ordered)
+        for (const r of group)
         {
           r.tracks = tracks;
           r.off = (r.track - (tracks - 1) / 2) * track;
@@ -1298,7 +1453,7 @@ export function drawLines(plan, geo)
 
     if (A.shift == null && B.shift == null)
     {
-      const target = (A.runs.length < B.runs.length) ? a : (B.runs.length < A.runs.length) ? b : (a + b) / 2;
+      const target = (A.count < B.count) ? a : (B.count < A.count) ? b : (a + b) / 2;
 
       A.shift = clamp(target - a, -A.slack, A.slack);
       B.shift = clamp(target - b, -B.slack, B.slack);
@@ -1332,6 +1487,30 @@ export function drawLines(plan, geo)
       }
     }
   }
+
+  // The lines of a bundle keep one place on the side they share, also when
+  // one of them is straight and was moved.
+  sides.forEach(function(m)
+  {
+    m.forEach(function(rec)
+    {
+      for (const r of rec.runs)
+      {
+        if (r.fixed == null || r.owner.e.bundle == null)
+        {
+          continue;
+        }
+
+        for (const o of rec.runs)
+        {
+          if (o !== r && o.owner.e.bundle === r.owner.e.bundle && o.fixed == null && o.jog == null)
+          {
+            o.fixed = r.fixed;
+          }
+        }
+      }
+    });
+  });
 
   function across(run)
   {
@@ -1416,6 +1595,12 @@ export function drawLines(plan, geo)
         const b = runs[j];
 
         if (a.lo > b.hi || b.lo > a.hi)
+        {
+          continue;
+        }
+
+        // one tree
+        if (a.owner.e.bundle != null && a.owner.e.bundle === b.owner.e.bundle)
         {
           continue;
         }
@@ -1517,13 +1702,19 @@ export function drawLines(plan, geo)
       label: null });
   }
 
-  // Crossings, for the statistics.
+  // Crossings, for the statistics. Where the lines of a bundle part is a
+  // branch of their tree, not a crossing.
   let crossings = 0;
 
   for (let i = 0; i < out.length; i++)
   {
     for (let j = i + 1; j < out.length; j++)
     {
+      if (out[i].e.bundle != null && out[i].e.bundle === out[j].e.bundle)
+      {
+        continue;
+      }
+
       const a = out[i].points;
       const b = out[j].points;
 

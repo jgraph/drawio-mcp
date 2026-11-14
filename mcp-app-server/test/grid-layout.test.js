@@ -304,6 +304,7 @@ test("an architecture is drawn with official icons, nested frames and dashed eve
   assert.equal(b.get("api").parent, "private");
   assert.equal(b.get("private").parent, "vpc");
   assert.match(b.get("users").style, /mxgraph\.aws4\.users/, "people take the provider's icon");
+  assert.ok(/fontStyle=0;/.test(b.get("api").style) && /fontColor=default;/.test(b.get("api").style), "one text color for every icon's name");
   assert.match(/<mxCell id="api-queue"[^>]*style="([^"]*)"/.exec(r.xml)[1], /dashed=1/);
   assert.doesNotMatch(r.xml, /\b(icon|role|row|col)=/, "no shorthand is left");
   assert.doesNotMatch(r.xml, /<!--/);
@@ -563,10 +564,14 @@ test("lanes are bands of the page's grid: rows, or columns when the model turns 
   assert.ok(absolute(lb, "n1").y < absolute(lb, "n2").y && absolute(lb, "n2").y < absolute(lb, "n7").y, "the steps run down");
   assert.ok(l.stats.width < 800, "as wide as the chat frame: " + l.stats.width);
 
-  // but not when the chat would cut the columns off at the bottom
+  // fourteen steps too: as rows they are shown at a quarter of their size,
+  // as columns the page is made wider until the chat shows it whole
   const tall = await semanticToXml(steps(14), { hints: "ask" });
+  const whole = Math.min(736 / tall.stats.width, 664 / tall.stats.height);
 
-  assert.match(boxesOf(tall.xml).get("a").style, /horizontal=0/, "fourteen steps stay in rows");
+  assert.doesNotMatch(boxesOf(tall.xml).get("a").style, /horizontal=0/, "fourteen steps in columns");
+  assert.ok(736 / tall.stats.width <= whole * 1.05, "shown whole: " + tall.stats.width + " × " + tall.stats.height);
+  assert.ok(whole > 0.4, "at almost twice the size of the rows: " + whole);
 
   // lanes that share rows and columns can't be bands
   const mixed = JSON.parse(JSON.stringify(PAGE_LANES));
@@ -639,9 +644,15 @@ function linesOf(xml)
 
 // What is wrong with the lines of a diagram: a piece that is not at a right
 // angle, one that runs through a shape it doesn't connect, two lines on each
-// other.
-function lineFaults(xml)
+// other. The lines of a bundle (ids in one of the lists of `bundles`) share
+// their trunk.
+function lineFaults(xml, bundles)
 {
+  const mates = function(a, b)
+  {
+    return (bundles || []).some(function(list) { return list.indexOf(a) >= 0 && list.indexOf(b) >= 0; });
+  };
+
   const b = boxesOf(xml);
   const lines = Array.from(linesOf(xml).values());
   const leaves = Array.from(b.keys()).filter(function(id)
@@ -689,7 +700,8 @@ function lineFaults(xml)
   {
     for (const o of pieces.slice(i + 1))
     {
-      if (o.line !== a.line && o.vertical === a.vertical && Math.abs(o.at - a.at) < 4 && Math.min(a.hi, o.hi) - Math.max(a.lo, o.lo) > 1)
+      if (o.line !== a.line && !mates(o.line.id, a.line.id) && o.vertical === a.vertical && Math.abs(o.at - a.at) < 4 &&
+        Math.min(a.hi, o.hi) - Math.max(a.lo, o.lo) > 1)
       {
         faults.push(a.line.id + " and " + o.line.id + " run on each other");
       }
@@ -720,13 +732,16 @@ test("lines on the page's grid run at right angles, through no shape and never o
   const hub = grid(3, 3, [{ from: "b2", to: "a1" }, { from: "b2", to: "c1" }, { from: "b2", to: "a3" }, { from: "b2", to: "c3" },
     { from: "a1", to: "c3" }, { from: "a2", to: "c2" }, { from: "b1", to: "b3" }]);
 
+  // the four lines of the hub are one tree (see the bundles below)
+  const tree = ["b2-a1", "b2-c1", "b2-a3", "b2-c3"];
+
   for (const d of [PAGE, PAGE_LANES, crossed, hub])
   {
     const r = await semanticToXml(d, { hints: "ask" });
 
     assert.equal(r.stats.grid, "page");
     assert.equal(r.stats.through, 0);
-    assert.deepEqual(lineFaults(r.xml), []);
+    assert.deepEqual(lineFaults(r.xml, d === hub ? [tree] : null), []);
     assert.equal(linesOf(r.xml).size, d.edges.length);
   }
 });
@@ -842,6 +857,324 @@ test("a page the chat would cut off at the bottom gets wider until it is shown w
   assert.deepEqual(lineFaults(r.xml), []);
 });
 
+test("a tall page is shown whole below half its size too, with the notes under it", async function()
+{
+  const d = { type: "architecture", groups: [{ id: "g", label: "Group" }], nodes: [], edges: [] };
+
+  for (let i = 1; i <= 48; i++)
+  {
+    d.nodes.push({ id: "n" + i, label: "Service " + i, row: Math.ceil(i / 3), col: ((i - 1) % 3) + 1, group: i > 45 ? "g" : undefined });
+
+    if (i > 1)
+    {
+      d.edges.push({ from: "n" + (i - 1), to: "n" + i });
+    }
+  }
+
+  d.edges.push({ from: "g", to: "n47", label: "logs" });
+
+  const r = await semanticToXml(d, { hints: "ask" });
+  const b = boxesOf(r.xml);
+  let right = 0;
+  let bottom = 0;
+
+  for (const id of b.keys())
+  {
+    const box = absolute(b, id);
+
+    right = Math.max(right, box.x + box.w);
+    bottom = Math.max(bottom, box.y + box.h);
+  }
+
+  const whole = Math.min(736 / right, 664 / bottom);
+
+  assert.equal(r.stats.grid, "page");
+  assert.ok(b.has("notes"), "the connection of the group with its member is a note");
+  assert.ok(whole < 0.5 && whole >= 0.3, "smaller than half: " + whole);
+  assert.ok(736 / right <= whole * 1.05, "shown whole: " + right + " × " + bottom);
+  assert.ok(absolute(b, "n1").y === absolute(b, "n3").y && absolute(b, "n1").x < absolute(b, "n2").x, "in the model's cells");
+});
+
+// ─── Large pages ─────────────────────────────────────────────────
+
+test("a decision is as narrow as its question allows, on two or three lines", async function()
+{
+  const d =
+  {
+    type: "flowchart",
+    nodes: [
+      { id: "s", label: "Start", kind: "start", row: 1, col: 1 },
+      { id: "d", label: "Is the customer account older than 30 days?", kind: "decision", row: 2, col: 1 },
+      { id: "p", label: "Process", row: 3, col: 1 }, { id: "e", label: "End", kind: "end", row: 4, col: 1 }],
+    edges: [{ from: "s", to: "d" }, { from: "d", to: "p", label: "Yes" }, { from: "p", to: "e" }]
+  };
+  const r = await semanticToXml(d, { hints: "ask" });
+  const b = boxesOf(r.xml);
+
+  assert.match(r.xml, /Is the customer&lt;br&gt;account older&lt;br&gt;than 30 days\?/);
+  assert.ok(b.get("d").w <= 180, "about as wide as a step: " + b.get("d").w);
+  assert.ok(b.get("d").h > 90 && b.get("d").h <= 120, "and a line higher: " + b.get("d").h);
+});
+
+test("a page that is shown small gets narrower boxes, and a flowchart is turned when its steps then show larger", async function()
+{
+  const page = function(columns, rows, type)
+  {
+    const d = grid(columns, rows, []);
+
+    d.type = type;
+    d.nodes.forEach(function(n, i)
+    {
+      if (i > 0)
+      {
+        d.edges.push({ from: d.nodes[i - 1].id, to: n.id });
+      }
+    });
+
+    return d;
+  };
+  const small = await semanticToXml(page(3, 3, "architecture"), { hints: "ask" });
+  const large = await semanticToXml(page(6, 6, "architecture"), { hints: "ask" });
+
+  assert.equal(small.stats.dense, false);
+  assert.equal(large.stats.dense, true);
+  assert.equal(boxesOf(large.xml).get("a1").w, 140);
+  assert.ok(large.stats.width <= 1000, "six columns in 1000 px: " + large.stats.width);
+
+  // seven columns of six rows: the tiers of an architecture stay rows, the
+  // steps of a flowchart run down instead
+  const tiers = await semanticToXml(page(7, 6, "architecture"), { hints: "ask" });
+  const flow = await semanticToXml(page(7, 6, "flowchart"), { hints: "ask" });
+  const fb = boxesOf(flow.xml);
+
+  assert.equal(tiers.stats.turned, false);
+  assert.equal(flow.stats.turned, true);
+  assert.ok(absolute(fb, "a1").y < absolute(fb, "b1").y && absolute(fb, "a1").x < absolute(fb, "a2").x, "rows as columns");
+  assert.ok(flow.stats.width < tiers.stats.width - 100, flow.stats.width + " and " + tiers.stats.width);
+  assert.deepEqual(lineFaults(flow.xml), []);
+});
+
+test("the label of a line that runs down past a row stands between the rows, without widening the gap", async function()
+{
+  const edges = [{ from: "a1", to: "b3", label: "replicates to standby" }, { from: "a2", to: "b2" }];
+  const labeled = await semanticToXml(grid(2, 3, edges), { hints: "ask" });
+  const plain = await semanticToXml(grid(2, 3, [{ from: "a1", to: "b3" }, { from: "a2", to: "b2" }]), { hints: "ask" });
+  const b = boxesOf(labeled.xml);
+  const line = linesOf(labeled.xml).get("a1-b3");
+
+  assert.equal(absolute(b, "b1").x, absolute(boxesOf(plain.xml), "b1").x, "the gap is as wide as without the label");
+
+  // where the label is: so far along the line
+  let left = (line.label + 1) / 2 * line.length;
+  let at = null;
+
+  for (let i = 0; i + 1 < line.points.length && at == null; i++)
+  {
+    const p = line.points[i];
+    const q = line.points[i + 1];
+    const len = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
+
+    if (left <= len)
+    {
+      at = { x: p.x + (q.x - p.x) * left / len, y: p.y + (q.y - p.y) * left / len };
+    }
+
+    left -= len;
+  }
+
+  const rows = ["a1", "a2", "a3"].map(function(id) { return absolute(b, id); });
+
+  assert.ok(rows.every(function(r) { return at.y + 9 <= r.y || at.y - 9 >= r.y + r.h; }), "between two rows: " + JSON.stringify(at));
+});
+
+// ─── Bundles ─────────────────────────────────────────────────────
+
+const HUBS =
+{
+  type: "architecture",
+  groups: [{ id: "svc", label: "Services" }, { id: "data", label: "Data" }],
+  nodes: [
+    { id: "gw", label: "Gateway", row: 1, col: 2 }, { id: "mon", label: "Monitoring", row: 1, col: 5 },
+    { id: "a", label: "Alpha", group: "svc", row: 2, col: 1 }, { id: "b", label: "Beta", group: "svc", row: 2, col: 2 },
+    { id: "c", label: "Gamma", group: "svc", row: 2, col: 3 }, { id: "e", label: "Delta", group: "svc", row: 2, col: 4 },
+    { id: "bus", label: "Bus", kind: "queue", row: 3, col: 5 },
+    { id: "db1", label: "Orders", kind: "database", group: "data", row: 4, col: 1 },
+    { id: "db2", label: "Users", kind: "database", group: "data", row: 4, col: 2 },
+    { id: "db3", label: "Events", kind: "database", group: "data", row: 5, col: 1 },
+    { id: "bak", label: "Backup", row: 5, col: 4 }],
+  edges: [
+    { from: "gw", to: "svc", label: "routes" }, { from: "svc", to: "bus", label: "events", kind: "async" },
+    { from: "mon", to: "svc", label: "scrapes" }, { from: "data", to: "bak", label: "nightly" }]
+};
+
+test("a connection with a group whose members stand in a row is drawn to every member, as one tree", async function()
+{
+  const r = await semanticToXml(HUBS, { hints: "ask" });
+  const lines = linesOf(r.xml);
+  const routes = ["gw-a", "gw-b", "gw-c", "gw-e"];
+  const events = ["a-bus", "b-bus", "c-bus", "e-bus"];
+
+  assert.ok(!r.error, r.error);
+  assert.equal(r.stats.through, 0);
+
+  for (const id of routes.concat(events))
+  {
+    assert.ok(lines.has(id), id);
+  }
+
+  assert.ok(!lines.has("gw-svc") && !lines.has("svc-bus"));
+  assert.equal(r.xml.match(/value="routes"/g).length, 1, "the label stands once");
+  assert.equal(r.xml.match(/value="events"/g).length, 1);
+  assert.doesNotMatch(r.xml, /bundle=/, "the key is for the layout alone");
+  assert.equal(r.xml.match(/dashed=1/g).length, 4, "every line of the bundle has its look");
+
+  // the lines of a tree share their trunk, and nothing else runs on anything
+  assert.deepEqual(lineFaults(r.xml, [routes, events]), []);
+  assert.ok(lineFaults(r.xml).length > 0, "the trunk is shared");
+
+  // one place on the hub for the lines that leave it on one side
+  const exits = new Map();
+
+  for (const id of events)
+  {
+    const end = lines.get(id).points[lines.get(id).points.length - 1];
+    const key = Math.round(end.x) + "/" + Math.round(end.y);
+
+    exits.set(key, (exits.get(key) || 0) + 1);
+  }
+
+  assert.ok(exits.size < events.length, "the bus is entered at " + Array.from(exits.keys()).join(", "));
+});
+
+test("further connections of a group, and a group in several rows, keep one line to the frame, clear of the shapes", async function()
+{
+  const r = await semanticToXml(HUBS, { hints: "ask" });
+  const b = boxesOf(r.xml);
+  const lines = linesOf(r.xml);
+
+  // the third connection of the services
+  assert.ok(lines.has("mon-svc") && !lines.has("mon-a"));
+
+  // the databases stand in two rows
+  assert.ok(lines.has("data-bak") && !lines.has("db1-bak"));
+
+  // where the line leaves the frame, the border is 30 px from the shapes
+  const frame = absolute(b, "data");
+  const from = lines.get("data-bak").points[0];
+  const members = ["db1", "db2", "db3"].map(function(id) { return absolute(b, id); });
+
+  assert.ok(Math.abs(from.x - frame.x - frame.w) < 1 || Math.abs(from.y - frame.y - frame.h) < 1, "it starts on the border: " + JSON.stringify(from));
+
+  for (const m of members)
+  {
+    const dx = Math.max(m.x - from.x, from.x - m.x - m.w, 0);
+    const dy = Math.max(m.y - from.y, from.y - m.y - m.h, 0);
+
+    assert.ok(dx + dy >= 28, "clear of the members: " + JSON.stringify(from) + " and " + JSON.stringify(m));
+  }
+
+  // the same connection with several groups is about the groups
+  const logs = JSON.parse(JSON.stringify(HUBS));
+
+  logs.edges = [{ from: "svc", to: "mon", label: "logs" }, { from: "data", to: "mon", label: "logs" }];
+
+  const l = linesOf((await semanticToXml(logs, { hints: "ask" })).xml);
+
+  assert.deepEqual(Array.from(l.keys()).sort(), ["data-mon", "svc-mon"]);
+
+  // and a connection the description writes per member is not drawn twice
+  const both = JSON.parse(JSON.stringify(HUBS));
+
+  both.edges = [{ from: "gw", to: "svc", label: "routes" }, { from: "gw", to: "b", label: "admin" }];
+
+  const t = linesOf((await semanticToXml(both, { hints: "ask" })).xml);
+
+  assert.deepEqual(Array.from(t.keys()).sort(), ["gw-a", "gw-b", "gw-c", "gw-e"]);
+});
+
+test("a labeled line to the frame beside its shape has room for the label before the border", async function()
+{
+  const block = function(label)
+  {
+    return { type: "architecture", groups: [{ id: "svc", label: "Services" }],
+      nodes: [{ id: "bus", label: "Bus", kind: "queue", row: 1, col: 1 },
+        { id: "a", label: "Alpha", group: "svc", row: 1, col: 2 }, { id: "b", label: "Beta", group: "svc", row: 1, col: 3 },
+        { id: "c", label: "Gamma", group: "svc", row: 2, col: 2 }, { id: "e", label: "Delta", group: "svc", row: 2, col: 3 }],
+      edges: [{ from: "svc", to: "bus", label: label }] };
+  };
+  const gap = async function(label)
+  {
+    const r = await semanticToXml(block(label), { hints: "ask" });
+    const b = boxesOf(r.xml);
+    const lines = linesOf(r.xml);
+
+    assert.ok(lines.has("svc-bus"), "one line to the frame of a group in two rows");
+    assert.deepEqual(lineFaults(r.xml), []);
+
+    return absolute(b, "svc").x - absolute(b, "bus").x - absolute(b, "bus").w;
+  };
+  const plain = await gap("");
+  const labeled = await gap("publish and consume");
+
+  // 12 px text of 19 characters is about 110 px wide
+  assert.ok(labeled >= 120 && labeled > plain + 40, "between the bus and the border: " + labeled + " after " + plain);
+});
+
+test("three or more lines of one kind and label from one shape are a tree with the label once", async function()
+{
+  const d = grid(3, 2, [{ from: "b1", to: "a2", label: "reads" }, { from: "b1", to: "b2", label: "reads" }, { from: "b1", to: "c2", label: "reads" }]);
+  const r = await semanticToXml(d, { hints: "ask" });
+
+  assert.equal(r.xml.match(/value="reads"/g).length, 1);
+  assert.deepEqual(lineFaults(r.xml, [["b1-a2", "b1-b2", "b1-c2"]]), []);
+
+  // two are two lines, each with its label; so are three with labels of their own
+  d.edges.pop();
+  assert.equal((await semanticToXml(d, { hints: "ask" })).xml.match(/value="reads"/g).length, 2);
+
+  d.edges = [{ from: "b1", to: "a2", label: "reads" }, { from: "b1", to: "b2", label: "writes" }, { from: "b1", to: "c2", label: "locks" }];
+
+  const own = await semanticToXml(d, { hints: "ask" });
+
+  assert.deepEqual(lineFaults(own.xml), []);
+
+  // a flowchart has no bundles: every transition is a line of its own
+  const flow = grid(3, 2, [{ from: "b1", to: "a2" }, { from: "b1", to: "b2" }, { from: "b1", to: "c2" }]);
+
+  flow.type = "flowchart";
+  assert.deepEqual(lineFaults((await semanticToXml(flow, { hints: "ask" })).xml), []);
+});
+
+test("a connection between a group and something inside it is a note under the diagram", async function()
+{
+  for (const title of ["", "Shop"])
+  {
+    const d = JSON.parse(JSON.stringify(PAGE));
+
+    d.title = title;
+    d.edges.push({ from: "vpc", to: "db", label: "logs" }, { from: "app", to: "priv" });
+
+    const r = await semanticToXml(d, { hints: "ask" });
+    const b = boxesOf(r.xml);
+    const lines = linesOf(r.xml);
+
+    assert.ok(!r.error, r.error);
+    assert.equal(r.stats.grid, "page");
+    assert.ok(!lines.has("vpc-db") && !lines.has("app-priv"), "no line from a frame into itself");
+    assert.equal(lines.size, PAGE.edges.length);
+    assert.match(r.xml, /value="logs: everything in VPC → Orders&lt;br&gt;App → everything in Private subnet"/);
+    assert.doesNotMatch(r.xml, /note=1/, "the key is for the layout alone");
+
+    for (const id of b.keys())
+    {
+      if (id !== "notes")
+      {
+        assert.ok(absolute(b, id).y + absolute(b, id).h <= b.get("notes").y, "the note is below " + id);
+      }
+    }
+  }
+});
+
 test("the compact XML of a description has no positions and uses the shorthands of the XML path", function()
 {
   const xml = compactXml(normalizeSpec(SHOP).diagram, { flow: false, links: false }).xml;
@@ -880,4 +1213,16 @@ test("the description stays within the limit for every way of offering hints, an
   assert.ok(schema.properties.groups.items.properties.row != null);
   assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /one grid for the whole diagram/);
   assert.equal(describeSchema(["er"]).properties.groups, undefined);
+
+  // large diagrams: six columns and more rows, nothing left out, a group for all its members
+  assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /at most 6 cols, a large diagram grows down, to 8 rows/);
+  assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /leave nothing out/);
+  assert.match(describeTool(SUPPORTED_TYPES, { hints: "ask" }), /An edge to a group means all its members/);
+  assert.match(asked.properties.nodes.items.properties.row.description, /Up to 8 rows are shown whole/);
+  assert.match(asked.properties.nodes.items.properties.col.description, /At most 6/);
+  assert.match(asked.properties.nodes.description, /none merged and none left out/);
+  assert.match(asked.properties.edges.description, /Every connection the request names/);
+  assert.match(asked.properties.edges.items.properties.to.description, /a group stands for all its members/);
+  assert.equal(describeSchema(["er"]).properties.nodes.description, undefined);
+  assert.doesNotMatch(describeSchema(["er"]).properties.edges.items.properties.to.description, /group/);
 });

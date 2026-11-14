@@ -61,10 +61,17 @@ const LANE_TITLE = 30;
 const TURN_MARGIN = 0.1;
 
 // A page without lanes is turned (rows as columns) only for a clear gain: its
-// rows are the tiers the model had in mind.
+// rows are the tiers the model had in mind. A flowchart reads the same both
+// ways, and one of seven or eight columns is shown a third larger when its
+// steps run down the page instead.
 const TURN_MARGIN_PAGE = 0.2;
+const TURN_MARGIN_FLOW = 0.03;
+
+// How much more of the frame a page has to fill before its boxes are made
+// narrower (140 px instead of 160 px at 16 px text).
+const DENSE_MARGIN = 0.02;
 const ICON_SIZE = 60;
-const HINT_KEYS = ["row", "col", "lane"];
+const HINT_KEYS = ["row", "col", "lane", "note"];
 
 // ─── Styles and labels ───────────────────────────────────────────
 
@@ -310,7 +317,19 @@ function itemOfCell(cell, items)
 
 // ─── Sizes ───────────────────────────────────────────────────────
 
-function measureLeaf(item)
+// How much of a decision its text may take: the widest line's share of the
+// width plus the text's share of the height. 1 is the outline; a little over
+// it reads well and keeps the columns of a flowchart narrow, as in the
+// diagrams models place themselves (160 × 90 with two lines of text).
+const DECISION_FILL = 1.15;
+
+/**
+ * The size of a cell without one, from its text.
+ *
+ * @param {object} item
+ * @param {boolean} [dense] - narrower boxes, for a page that is shown small
+ */
+function measureLeaf(item, dense)
 {
   const st = item.st;
   const geo = item.cell.geometry;
@@ -343,8 +362,15 @@ function measureLeaf(item)
     }
     else if (st.names.indexOf("rhombus") >= 0 || st.map.shape === "rhombus")
     {
-      w = w || Math.min(240, Math.max(160, Math.ceil(widest * 1.35 + 50)));
-      h = h || Math.max(90, lines.length * Math.round(fontSize * 1.3) + 56);
+      let text = 0;
+
+      for (const l of lines)
+      {
+        text += Math.round(l.size * 1.3);
+      }
+
+      h = h || Math.max(90, text + 48);
+      w = w || Math.min(240, Math.max(160, Math.ceil(widest / Math.max(0.4, DECISION_FILL - text / h) / 10) * 10));
     }
     else if (st.map.shape === "umlActor")
     {
@@ -354,7 +380,7 @@ function measureLeaf(item)
     else
     {
       const base = (st.map.shape != null && /^cylinder/.test(st.map.shape)) ? { w: 120, h: 80 } :
-        { w: fontSize >= 16 ? 160 : 140, h: 60 };
+        { w: (fontSize >= 16 && !dense) ? 160 : 140, h: 60 };
       let width = w || base.w;
       let count = 0;
 
@@ -1093,9 +1119,10 @@ function isCut(size, frame)
 // A grid for the whole page that would be cut off is made wider instead,
 // until the viewer shows it whole (widening costs nothing: the frame has the
 // room beside a tall diagram). So it counts with the scale of the whole,
-// down to this scale; below it the text gets too small and the top of the
-// diagram at a readable size is the better view.
-const WHOLE_FROM = 0.5;
+// down to this scale. It was 0.5 until three large diagrams between 0.42 and
+// 0.46 were judged both ways: shown whole they scored 7 to 8, cut off 3 to
+// 4, since what is cut off counts as missing.
+const WHOLE_FROM = 0.3;
 
 function canWiden(size, frame)
 {
@@ -2163,7 +2190,40 @@ function placeOnPage(content, lanes, ctx, turned, room)
     const a = e.from;
     const b = e.to;
 
-    if (!(e.labelW > 0) || a.children.length > 0 || b.children.length > 0 || a.gr == null || b.gr == null)
+    if (!(e.labelW > 0))
+    {
+      continue;
+    }
+
+    // So does one from a shape to the frame beside it: its label stands
+    // between the shape and the border, not on the border.
+    if ((a.children.length > 0) !== (b.children.length > 0))
+    {
+      const f = (a.children.length > 0) ? a : b;
+      const l = (f === a) ? b : a;
+
+      if (bands != null || l.gr == null || f.r0 == null)
+      {
+        continue;
+      }
+
+      if (l.gr >= f.r0 && l.gr <= f.r1 && (l.gc === f.c0 - 1 || l.gc === f.c1 + 1))
+      {
+        const c = Math.min(l.gc, f.c1);
+
+        colGap[c] = Math.max(colGap[c], Math.ceil(e.labelW + 20 + right[c] + left[c + 1]));
+      }
+      else if (l.gc >= f.c0 && l.gc <= f.c1 && (l.gr === f.r0 - 1 || l.gr === f.r1 + 1))
+      {
+        const r = Math.min(l.gr, f.r1);
+
+        rowGap[r] = Math.max(rowGap[r], (e.labelH || 18) + 30 + bottom[r] + top[r + 1]);
+      }
+
+      continue;
+    }
+
+    if (a.children.length > 0 || b.children.length > 0 || a.gr == null || b.gr == null)
     {
       continue;
     }
@@ -3237,7 +3297,15 @@ function layoutPage(graph, options, stats)
 
     const st = parseStyle(cell.style);
     const lines = labelLines(cell.value, Number(st.map.fontSize) || 12);
+    const bundle = (st.map.bundle != null && st.map.bundle !== "") ? String(st.map.bundle) : null;
     let labelW = 0;
+
+    // `bundle=` is for this pass alone, like `row=` and `col=`.
+    if (st.map.bundle != null)
+    {
+      dropKey(st, "bundle");
+      model.setStyle(cell, styleText(st));
+    }
 
     for (const l of lines)
     {
@@ -3251,18 +3319,31 @@ function layoutPage(graph, options, stats)
       labelH += Math.round(l.size * 1.3);
     }
 
-    edges.push({ cell: cell, from: from, to: to, labelW: labelW, labelH: labelH, index: edges.length,
+    edges.push({ cell: cell, from: from, to: to, labelW: labelW, labelH: labelH, index: edges.length, bundle: bundle,
       decision: from.st.names.indexOf("rhombus") >= 0, routed: st.map.edgeStyle === "orthogonalEdgeStyle" });
   }
 
   let icons = 0;
   let leaves = 0;
+  let dense = false;
+
+  function measure()
+  {
+    for (const item of tree.order)
+    {
+      if (item.children.length === 0)
+      {
+        measureLeaf(item, dense);
+      }
+    }
+
+    unifySizes(tree.order);
+  }
 
   for (const item of tree.order)
   {
     if (item.children.length === 0)
     {
-      measureLeaf(item);
       leaves++;
 
       if (isOutsideLabel(item.st))
@@ -3272,7 +3353,7 @@ function layoutPage(graph, options, stats)
     }
   }
 
-  unifySizes(tree.order);
+  measure();
 
   const hasDecision = tree.order.some(function(it) { return it.st.names.indexOf("rhombus") >= 0; });
   const hasLanes = tree.order.some(function(it) { return it.lane; });
@@ -3297,7 +3378,13 @@ function layoutPage(graph, options, stats)
   const content = tree.roots.filter(function(it) { return floats.indexOf(it) < 0; });
 
   const lanes = content.filter(function(c) { return c.lane && c.children.length > 0; });
-  const heading = floats.length > 0 ? floats[0] : null;
+  // The first text is the heading, unless it says it is a note (`note=1`).
+  const heading = floats.filter(function(f) { return f.st.map.note == null; })[0] || null;
+  // What the heading and the notes add to the height the chat has to show.
+  const around = (heading != null ? heading.h + 10 : 0) + floats.reduce(function(sum, f)
+  {
+    return sum + (f !== heading ? f.h + 6 : 0);
+  }, floats.some(function(f) { return f !== heading; }) ? 10 : 0);
 
   const isPool = lanes.length >= 2 && lanes.length === content.length;
 
@@ -3370,14 +3457,24 @@ function layoutPage(graph, options, stats)
   let best = null;
   let size = null;
 
-  for (const tight of [false, true])
+  // Less room first, then narrower boxes too: the text wraps more often, but
+  // is larger on the screen when the page is shown at a larger scale.
+  for (const level of [{ tight: false, dense: false }, { tight: true, dense: false }, { tight: true, dense: true }])
   {
+    const tight = level.tight;
+
     ctx.tight = tight;
+
+    if (dense !== level.dense)
+    {
+      dense = level.dense;
+      measure();
+    }
 
     for (const policy of policies)
     {
       const s = place(policy);
-      const whole = { width: s.width, height: s.height + (heading != null ? heading.h + 10 : 0) };
+      const whole = { width: s.width, height: s.height + around };
       let length = 0;
 
       edges.forEach(function(e)
@@ -3391,19 +3488,22 @@ function layoutPage(graph, options, stats)
       // The model's own orientation wins unless the other one shows clearly
       // more, and shows it whole: in the blind judgements a lane diagram cut
       // off at the bottom lost against a small one that was complete.
-      const widened = ctx.grid === "page" && canWiden(whole, ctx.frame);
+      // A turned page is never shown cut off, so it is widened at any scale.
+      const widened = ctx.grid === "page" && isCut(whole, ctx.frame) &&
+        (policy === "turned" || canWiden(whole, ctx.frame));
       const score = (widened ? fit(whole, ctx.frame) : shown(whole, ctx.frame)) -
         0.05 * (edges.length > 0 ? length / edges.length / 200 : 0) -
-        (policy === "turned" ? (isPool ? TURN_MARGIN : TURN_MARGIN_PAGE) : 0);
+        (policy === "turned" ? (isPool ? TURN_MARGIN : (ctx.mode === "flow" ? TURN_MARGIN_FLOW : TURN_MARGIN_PAGE)) : 0);
 
       if (policy === "turned" && isCut(whole, ctx.frame) && !widened)
       {
         continue;
       }
 
-      if (best == null || score > best.score + 1e-9)
+      // Narrower boxes have to show the page clearly larger.
+      if (best == null || score > best.score + (level.dense && !best.dense ? DENSE_MARGIN : 1e-9))
       {
-        best = { score: score, policy: policy, tight: tight, fits: fit(whole, ctx.frame) >= 1 };
+        best = { score: score, policy: policy, tight: tight, dense: level.dense, fits: fit(whole, ctx.frame) >= 1 };
       }
     }
 
@@ -3414,14 +3514,21 @@ function layoutPage(graph, options, stats)
   }
 
   ctx.tight = best.tight;
+
+  if (dense !== best.dense)
+  {
+    dense = best.dense;
+    measure();
+  }
+
   size = place(best.policy);
 
   // Cut off at the bottom: wider, until it is shown whole.
   if (ctx.grid === "page")
   {
-    const whole = { width: size.width, height: size.height + (heading != null ? heading.h + 10 : 0) };
+    const whole = { width: size.width, height: size.height + around };
 
-    if (canWiden(whole, ctx.frame))
+    if (isCut(whole, ctx.frame) && (best.policy === "turned" || canWiden(whole, ctx.frame)))
     {
       ctx.minWidth = Math.ceil(ctx.frame.width / (1.02 * fit(whole, ctx.frame)));
       size = place(best.policy);
@@ -3442,7 +3549,7 @@ function layoutPage(graph, options, stats)
   content.forEach(function(c) { c.y += y; });
   y += size.height + 16;
 
-  floats.slice(1).forEach(function(f)
+  floats.filter(function(f) { return f !== heading; }).forEach(function(f)
   {
     f.x = 0;
     f.y = y;
@@ -3490,6 +3597,7 @@ function layoutPage(graph, options, stats)
   stats.mode = ctx.mode;
   stats.policy = ctx.policy;
   stats.tight = ctx.tight === true;
+  stats.dense = dense;
   stats.grid = ctx.grid;
   stats.hinted = tree.order.filter(function(it) { return it.row != null || it.col != null; }).length;
   stats.edges = routed.routed;

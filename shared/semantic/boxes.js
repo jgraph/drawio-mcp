@@ -111,6 +111,10 @@ function mainProvider(nodes)
   return best;
 }
 
+// A decision's label breaks where a line gets longer than this many times
+// the font size (120 px at 16 px).
+const DECISION_WRAP = 7.5;
+
 // Lanes take light tints in turn, so that neighbours differ.
 const LANE_TINTS = ["#F7F8FA", "#F4F8FF", "#F6FBF7", "#FFFBF2", "#F9F6FF", "#FFF7F5"];
 
@@ -176,6 +180,293 @@ function isNo(label)
   return /^(no|n|false|rejected|fail(ed|ure)?|invalid|declined|denied)$/i.test(label.trim());
 }
 
+// ─── Notes ───────────────────────────────────────────────────────
+
+/**
+ * An edge between a group and something inside it (logs from everything in
+ * the organization to its logging service) has no line: it would start on a
+ * frame and end in it. It becomes a note under the diagram.
+ *
+ * @param {object} d - the normalized description
+ * @returns {{edges: object[], notes: string[]}}
+ */
+function splitNotes(d)
+{
+  const nodeById = new Map(d.nodes.map(function(n) { return [n.id, n]; }));
+  const groupById = new Map(d.groups.map(function(g) { return [g.id, g]; }));
+  const isGroup = function(id) { return groupById.has(id) && !nodeById.has(id); };
+  const nameOf = function(id)
+  {
+    const item = isGroup(id) ? groupById.get(id) : nodeById.get(id);
+
+    return (isGroup(id) ? "everything in " : "") + ((item != null && item.label) || id);
+  };
+  const within = function(id, group)
+  {
+    let at = nodeById.has(id) ? nodeById.get(id).group : (groupById.has(id) ? groupById.get(id).parent : "");
+
+    for (let i = 0; at !== "" && at != null && i < 20; i++)
+    {
+      if (at === group)
+      {
+        return true;
+      }
+
+      at = groupById.has(at) ? groupById.get(at).parent : "";
+    }
+
+    return false;
+  };
+  const edges = [];
+  const notes = [];
+
+  for (const e of d.edges)
+  {
+    if ((isGroup(e.from) && within(e.to, e.from)) || (isGroup(e.to) && within(e.from, e.to)))
+    {
+      notes.push((e.label !== "" ? e.label + ": " : "") + nameOf(e.from) + " → " + nameOf(e.to));
+    }
+    else
+    {
+      edges.push(e);
+    }
+  }
+
+  return { edges: edges, notes: notes };
+}
+
+// ─── Bundles ─────────────────────────────────────────────────────
+
+// A group with more members than this keeps one line to its frame, and so
+// does every connection of a group after its first two: the main flows reach
+// every member, the rest (scraping, tracing, deploying) the frame.
+const BUNDLE_MAX = 8;
+const BUNDLES_PER_GROUP = 2;
+
+// A connection drawn to every member may cost this many more crossings than
+// one line to the frame (a bus between services and their databases crosses
+// every line between them); else the frame keeps the line.
+const FAN_CROSSINGS = 1;
+
+/**
+ * Whether the members stand in one row or one column of the grid, with the
+ * hub in the next row or column that holds anything: a trunk between the two
+ * then reaches every member with a short stub. Into a block of several rows
+ * the lines would run between the members, and from further away they would
+ * cross whatever stands between (in the first version a bus under the
+ * databases sent six lines through their row).
+ */
+function isComb(hub, list, nodes)
+{
+  if (hub.row == null || hub.col == null || !list.every(function(n) { return n.row != null && n.col != null; }))
+  {
+    return false;
+  }
+
+  for (const key of ["row", "col"])
+  {
+    const at = list[0][key];
+
+    if (list.every(function(n) { return n[key] === at; }) && hub[key] !== at)
+    {
+      const lo = Math.min(hub[key], at);
+      const hi = Math.max(hub[key], at);
+
+      return !nodes.some(function(n) { return n[key] != null && n[key] > lo && n[key] < hi; });
+    }
+  }
+
+  return false;
+}
+
+// Lines without arrowheads have no direction.
+const LINK_KINDS = /^(network|link|cable|wired|wireless|line|bidirectional|both)$/;
+
+/**
+ * The lines to draw for the edges of an architecture or network diagram.
+ * An edge between a shape and a group means every member of the group:
+ * where the members stand in one row or column and the shape in the next
+ * one, it becomes a line to each of them (in the blind judgements one line
+ * to the frame read as a connection to the nearest member). Those lines, and three
+ * or more edges of one kind and label that share an end, are a bundle: the
+ * grid pass draws them as one tree with a common trunk, and the label
+ * stands once, on the line to the nearest shape.
+ *
+ * @param {object} d - the normalized description
+ * @param {boolean} links - a network: no line has a direction
+ * @param {boolean} fan - false: an edge with a group stays one line to its frame
+ * @returns {{from: string, to: string, label: string, kind: string, bundle: number|null}[]}
+ */
+function bundleEdges(d, links, fan)
+{
+  const nodeById = new Map(d.nodes.map(function(n) { return [n.id, n]; }));
+  const groupIds = new Set(d.groups.map(function(g) { return g.id; }));
+  const nested = new Set(d.groups.map(function(g) { return g.parent; }));
+  const members = new Map();
+  const out = [];
+  let next = 1;
+
+  for (const n of d.nodes)
+  {
+    if (n.group !== "")
+    {
+      if (!members.has(n.group))
+      {
+        members.set(n.group, []);
+      }
+
+      members.get(n.group).push(n);
+    }
+  }
+
+  const distance = function(a, b)
+  {
+    return (a.row != null && b.row != null && a.col != null && b.col != null) ?
+      Math.abs(a.row - b.row) + Math.abs(a.col - b.col) : 0;
+  };
+
+  // The label of a bundle stands on the line to the shape nearest its hub.
+  const labelOnce = function(parts, hub, label)
+  {
+    let nearest = parts[0];
+
+    for (const p of parts)
+    {
+      p.label = "";
+
+      if (distance(p.other, hub) < distance(nearest.other, hub))
+      {
+        nearest = p;
+      }
+    }
+
+    nearest.label = label;
+  };
+
+  const written = new Set(d.edges.map(function(e) { return e.from + "\n" + e.to; }));
+  const isGroup = function(id) { return groupIds.has(id) && !nodeById.has(id); };
+
+  // A shape with the same connection to several groups (logs from
+  // everything) keeps its lines to the frames.
+  const toGroups = new Map();
+  const ambientKey = function(e)
+  {
+    return (isGroup(e.from) ? "from\n" + e.to : "to\n" + e.from) + "\n" + e.kind + "\n" + e.label.trim().toLowerCase();
+  };
+
+  for (const e of d.edges)
+  {
+    if (isGroup(e.from) !== isGroup(e.to))
+    {
+      toGroups.set(ambientKey(e), (toGroups.get(ambientKey(e)) || 0) + 1);
+    }
+  }
+
+  const expanded = new Map();
+
+  for (const e of d.edges)
+  {
+    const fromGroup = isGroup(e.from);
+    const toGroup = isGroup(e.to);
+    const group = fromGroup ? e.from : e.to;
+    const hub = nodeById.get(fromGroup ? e.to : e.from);
+    const list = (fan && fromGroup !== toGroup && hub != null && hub.group !== group && !nested.has(group) &&
+      toGroups.get(ambientKey(e)) === 1 && (expanded.get(group) || 0) < BUNDLES_PER_GROUP) ? (members.get(group) || []) : [];
+
+    if (list.length < 2 || list.length > BUNDLE_MAX || !isComb(hub, list, d.nodes))
+    {
+      out.push({ from: e.from, to: e.to, label: e.label, kind: e.kind, bundle: null });
+
+      continue;
+    }
+
+    expanded.set(group, (expanded.get(group) || 0) + 1);
+
+    const parts = [];
+
+    for (const m of list)
+    {
+      const from = fromGroup ? m.id : e.from;
+      const to = fromGroup ? e.to : m.id;
+
+      // not twice where the description names the member too
+      if (!written.has(from + "\n" + to))
+      {
+        parts.push({ from: from, to: to, label: "", kind: e.kind, bundle: next, other: m });
+      }
+    }
+
+    if (parts.length > 0)
+    {
+      labelOnce(parts, hub, e.label);
+      parts.forEach(function(p) { out.push(p); });
+      next++;
+    }
+  }
+
+  // Edges written one by one that share an end, a kind and a label.
+  const fans = new Map();
+
+  for (const l of out)
+  {
+    if (l.bundle != null || !nodeById.has(l.from) || !nodeById.has(l.to) || l.from === l.to)
+    {
+      continue;
+    }
+
+    const undirected = links || LINK_KINDS.test(l.kind);
+
+    for (const end of ["from", "to"])
+    {
+      const key = (undirected ? "" : end) + "\n" + l[end] + "\n" + l.kind + "\n" + l.label.trim().toLowerCase();
+
+      if (!fans.has(key))
+      {
+        fans.set(key, { hub: nodeById.get(l[end]), parts: [] });
+      }
+
+      fans.get(key).parts.push({ line: l, other: nodeById.get(end === "from" ? l.to : l.from) });
+    }
+  }
+
+  Array.from(fans.values()).sort(function(a, b) { return b.parts.length - a.parts.length; }).forEach(function(fan)
+  {
+    const seen = new Set();
+    const free = fan.parts.filter(function(p)
+    {
+      const fresh = p.line.bundle == null && !seen.has(p.other);
+
+      seen.add(p.other);
+
+      return fresh;
+    });
+
+    if (free.length < 3)
+    {
+      return;
+    }
+
+    const label = free[0].line.label;
+    let nearest = free[0];
+
+    for (const p of free)
+    {
+      p.line.bundle = next;
+      p.line.label = "";
+
+      if (distance(p.other, fan.hub) < distance(nearest.other, fan.hub))
+      {
+        nearest = p;
+      }
+    }
+
+    nearest.line.label = label;
+    next++;
+  });
+
+  return out;
+}
+
 // ─── Cells ───────────────────────────────────────────────────────
 
 function hintKeys(item)
@@ -202,10 +493,12 @@ function cellXml(c)
  * The description as compact XML without geometry.
  *
  * @param {object} d - the normalized description (spec.js)
- * @param {{flow: boolean, links: boolean}} kind - flow: a flowchart
- *   (kinds are steps and decisions, groups are lanes); links: a network
- *   (lines without arrows)
- * @returns {{xml: string, warnings: string[], shapes: number}}
+ * @param {{flow: boolean, links: boolean, fan?: boolean}} kind - flow: a
+ *   flowchart (kinds are steps and decisions, groups are lanes); links: a
+ *   network (lines without arrows); fan: false keeps an edge with a group
+ *   one line to its frame
+ * @returns {{xml: string, warnings: string[], shapes: number, fanned: number}} fanned: the lines
+ *   that edges with a group added
  */
 export function compactXml(d, kind)
 {
@@ -302,7 +595,9 @@ export function compactXml(d, kind)
     {
       if (icons().resolve(n.icon) != null)
       {
-        style = "icon=" + n.icon.replace(/[;=]/g, " ") + ";";
+        // One text color for every icon's name: some sets bring their own
+        // (grey and bold for Google Cloud's products, not for its services).
+        style = "icon=" + n.icon.replace(/[;=]/g, " ") + ";fontStyle=0;fontColor=default;";
         wrapAt = 120;
       }
       else
@@ -330,6 +625,13 @@ export function compactXml(d, kind)
       else
       {
         style = roleKeys(role);
+
+        // A question in a diamond stands on two or three short lines, so the
+        // diamond stays narrow.
+        if (role === "decision")
+        {
+          wrapAt = DECISION_WRAP * font.shape;
+        }
       }
     }
 
@@ -340,7 +642,12 @@ export function compactXml(d, kind)
   const edgeStyle = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=" + EDGE.stroke + ";fontColor=" +
     EDGE.font + ";fontSize=" + font.edge + ";";
 
-  d.edges.forEach(function(e)
+  const split = splitNotes(d);
+  const connections = kind.flow ? split.edges :
+    bundleEdges(Object.assign({}, d, { edges: split.edges }), kind.links, kind.fan !== false);
+  const fanned = connections.length - split.edges.length;
+
+  connections.forEach(function(e)
   {
     let style = edgeStyle;
 
@@ -349,9 +656,14 @@ export function compactXml(d, kind)
       style += "dashed=1;";
     }
 
-    if (kind.links || /^(network|link|cable|wired|wireless|line|bidirectional|both)$/.test(e.kind))
+    if (kind.links || LINK_KINDS.test(e.kind))
     {
       style += "endArrow=none;";
+    }
+
+    if (e.bundle != null)
+    {
+      style += "bundle=" + e.bundle + ";";
     }
 
     if (kind.flow && e.label !== "" && (isYes(e.label) || isNo(e.label)))
@@ -378,9 +690,16 @@ export function compactXml(d, kind)
     lines.push(cellXml(c));
   }
 
+  // `note=1` is for the layout: a text under the diagram, never its heading.
+  if (split.notes.length > 0)
+  {
+    lines.push(cellXml({ id: ids.take("notes"), value: split.notes.map(htmlLabel).join("<br>"), parent: "1",
+      style: "text;html=1;align=left;verticalAlign=top;fontSize=" + font.edge + ";fontColor=" + EDGE.font + ";note=1;" }));
+  }
+
   lines.push("</root>", "</mxGraphModel>");
 
-  return { xml: lines.join("\n"), warnings: warnings, shapes: shapes };
+  return { xml: lines.join("\n"), warnings: warnings, shapes: shapes, fanned: fanned };
 }
 
 /**
@@ -402,13 +721,30 @@ export function placeCompactXml(xml, options)
 
 function layout(d, ctx, kind)
 {
-  const compact = compactXml(d, kind);
-  const r = placeCompactXml(compact.xml, { direction: d.direction || null, mode: kind.flow ? "flow" : "tiers",
-    hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false });
+  const place = function(compact)
+  {
+    return placeCompactXml(compact.xml, { direction: d.direction || null, mode: kind.flow ? "flow" : "tiers",
+      hints: ctx.hints === "ask" ? "page" : ctx.hints !== false, route: ctx.route !== false });
+  };
+  let compact = compactXml(d, kind);
+  let r = place(compact);
+
+  // Lines to every member of a group stay where their tree is clean.
+  if (compact.fanned > 0)
+  {
+    const plain = compactXml(d, Object.assign({}, kind, { fan: false }));
+    const p = place(plain);
+
+    if ((r.stats.crossings || 0) > (p.stats.crossings || 0) + FAN_CROSSINGS)
+    {
+      compact = plain;
+      r = p;
+    }
+  }
 
   return { xml: r.xml, width: r.stats.width || 0, height: r.stats.height || 0, warnings: compact.warnings,
     stats: { shapes: compact.shapes, edges: d.edges.length, hinted: r.stats.hinted || 0, grid: r.stats.grid || null, crossings: r.stats.crossings || 0,
-      through: r.stats.through || 0, compactChars: compact.xml.length } };
+      through: r.stats.through || 0, turned: r.stats.policy === "turned", dense: r.stats.dense === true, compactChars: compact.xml.length } };
 }
 
 export function layoutArchitecture(d, ctx)

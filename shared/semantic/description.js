@@ -8,13 +8,13 @@
 
 const INTRO =
   "Creates and displays a draw.io diagram from a description of its content: you say what exists and how it connects, " +
-  "the server lays it out, routes the lines and styles it. Never give coordinates, sizes or styles. " +
-  "To change the diagram, call this again with the whole changed description, keeping the ids.\n\n" +
-  "Arguments: type, title, nodes, edges, groups; their keys are in the schema.";
+  "the server lays it out, routes the lines and styles it. Never give coordinates, sizes or styles; leave nothing " +
+  "out. To change the diagram, call this again with the whole changed description, keeping the ids.\n\n" +
+  "The keys of nodes, edges and groups are in the schema.";
 
 const HINTS =
-  "Placement is optional: row and col (1, 2, …) put a node or group in that cell of its group's grid, rows from the " +
-  "top; nodes sharing a row without col stand side by side as written. Use them when you know where things belong " +
+  "Placement is optional: row and col put a node or group in that cell of its group's grid; " +
+  "nodes sharing a row without col stand side by side as written. Use them when you know where things belong " +
   "(tiers, a database under its service); otherwise the server arranges by the connections.";
 
 // The firm version: the model places every node on one coarse grid for the
@@ -22,9 +22,9 @@ const HINTS =
 // cells, draws the frames and routes the lines. Measured against the
 // optional hints in bench/.
 const HINTS_ASKED =
-  "Placement: give every node row and col (1, 2, …), its cell in one grid for the whole diagram, as if you placed " +
-  "the shapes yourself; about 5 cols × 6 rows show well. Keep a group's nodes in a block of cells of their own: " +
-  "the server draws the frame around it. A lane is a row (or a column) of that grid, col (or row) the step.";
+  "Placement: give every node row and col, its cell in one grid for the whole diagram: at most 6 cols, a large " +
+  "diagram grows down, to 8 rows. A group's nodes form a block of cells of their own, which the server frames. " +
+  "A lane is a row (or a column) of that grid, col (or row) the step.";
 
 const TYPES =
 {
@@ -39,7 +39,7 @@ const TYPES =
     "type \"architecture\" (systems, cloud, networks): nodes are components with an icon (\"aws lambda\", " +
     "\"azure sql database\", \"gcp bigquery\", \"kubernetes pod\") or a kind (service, database, queue, user, external); " +
     "groups are boundaries (\"aws vpc\", a subnet, a tier, a namespace), nested with parent; edges are calls or links " +
-    "with a short label, kind \"async\" for events.",
+    "with a short label, kind \"async\" for events. An edge to a group means all its members.",
   flowchart:
     "type \"flowchart\" (processes, with or without swimlanes): nodes are steps with a kind (start, end, step, decision, " +
     "error, data); for swimlanes, groups are the lanes in order and each node names its lane in group; edges are " +
@@ -106,10 +106,16 @@ export function describeSchema(types, options)
     id: { type: "string" },
     label: { type: "string" }
   };
+  // An edge to a group: drawn to every member where they stand in a row,
+  // else to the frame. Models wrote one for a gateway and its services, and
+  // also one line per user of a shared service, which tangled.
+  const end = "id of a node" + (placed ? " or group" : "");
   const edge =
   {
-    from: { type: "string", description: "id of a node" + (placed ? " or group" : "") },
-    to: { type: "string", description: "id of a node" + (placed ? " or group" : "") }
+    from: { type: "string", description: end },
+    to: { type: "string", description: end + (has("architecture") ? ". architecture: a group stands for all its members (a gateway " +
+      "that routes to every service, a bus all of them publish to, logs from a whole tier): write that as one edge with the " +
+      "group, not one per member and not one to a single member" : "") }
   };
 
   if (has("er"))
@@ -144,11 +150,15 @@ export function describeSchema(types, options)
   {
     const lanes = has("flowchart");
 
+    // The chat frame is about as high as wide and a cell is wider than
+    // high, so it shows 6 × 8 cells at the size of 7 × 6. Told that more
+    // than 6 rows are cut off, models gave large diagrams 7 and 8 columns.
     node.row = { type: "integer", description: "The row of the node's cell (1 is the top) in one grid for the whole diagram, " +
-      "not per group. More than 6 rows are cut off in the chat: put things side by side instead" +
-      (lanes ? ". With lanes as rows, every lane has a row to itself (two when its steps branch)" : "") };
-    node.col = { type: "integer", description: "The column of the node's cell (1 is the left) in that grid; more than 5 or 6 " +
-      "columns get small. The nodes of a group form a block of cells with no other node in it, nested groups a block in " +
+      "not per group. Up to 8 rows are shown whole: a diagram that needs more cells than 6 × 6 gets more rows, not more " +
+      "columns" + (lanes ? ". With lanes as rows, every lane has a row to itself (two when its steps branch)" : "") };
+    node.col = { type: "integer", description: "The column of the node's cell (1 is the left) in that grid. At most 6: every " +
+      "further column makes all the text smaller" + (lanes ? " (the steps of a lane diagram may need more)" : "") +
+      ". The nodes of a group form a block of cells with no other node in it, nested groups a block in " +
       "their parent's" + (lanes ? ". With lanes as rows, col is the step of the flow over all lanes: a step that hands " +
         "over to another lane can keep the col of the step before it, straight below or above" : "") };
   }
@@ -174,6 +184,15 @@ export function describeSchema(types, options)
     nodes: { type: "array", items: { type: "object", properties: node, required: ["id"] } },
     edges: { type: "array", items: { type: "object", properties: edge, required: ["from", "to"] } }
   };
+
+  // Descriptions of large diagrams left out steps and connections that the
+  // same model drew when it wrote the XML itself.
+  if (placed)
+  {
+    properties.nodes.description = "One node for everything the request names: every component, step, check, decision " +
+      "and outcome, none merged and none left out to save room";
+    properties.edges.description = "Every connection the request names, each one once";
+  }
 
   // No direction: the layout picks the one that is shown largest in the
   // chat frame, and models that are offered the key set it without need.
