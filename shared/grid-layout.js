@@ -74,7 +74,8 @@ const TURN_MARGIN_FLOW = 0.03;
 // turned with every partial that tipped the balance, in 6 of 20 streamed
 // dev descriptions more than once, and 10 of 15 flowcharts without lanes;
 // with it 2 (a page that falls back to one grid per lane) and none. 0.2
-// still let 5 flowcharts turn more than once (shared/semantic/AGENTS.md).
+// still let 5 flowcharts turn more than once (shared/semantic/MEASUREMENTS.md,
+// sixth measurement).
 const KEEP_MARGIN = 0.3;
 
 // How much more of the frame a page has to fill before its boxes are made

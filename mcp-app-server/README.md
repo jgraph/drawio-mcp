@@ -4,7 +4,7 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 
 ## How It Works
 
-1. The LLM calls the `create_diagram` tool with draw.io XML
+1. The LLM calls the `create_diagram` tool with draw.io XML or Mermaid, or, when the user asks for a quick or cheap flowchart, `create_semantic_diagram` with a description that the server lays out
 2. The host fetches the UI resource and renders it in a sandboxed iframe
 3. The diagram is rendered using the official [draw.io viewer](https://viewer.diagrams.net)
 4. The user sees an interactive diagram inline with zoom, pan, and layers support
@@ -37,11 +37,33 @@ The `create_diagram` description tells the model to call this once per format be
 
 ## Tool: `create_semantic_diagram` (on request)
 
-A second way to draw flowcharts and swimlane diagrams, for when the user asks for a quick one. The model describes what the diagram contains: the steps with their kind (start, step, decision, end, …), the lanes, the transitions, and a row and a column for every step in one grid. It never writes coordinates, sizes or styles. The server lays the description out, routes the lines and styles it in the calm theme. Writing a description is quicker than placing every shape as XML: on the benchmark's held-out prompts, with the switch on, Sonnet took a median of 17 s to the diagram instead of 63 s, and Opus 56 s instead of 339 s. In blind judgements on the same prompts, the diagrams won about two thirds of the comparisons with the XML the models placed themselves (Sonnet 27 of 36, Opus 23 of 36; [`bench/README.md`](../bench/README.md)).
+The fast mode: a second way to draw flowcharts and swimlane diagrams, for when the user asks for a quick one. The model describes what the diagram contains: the steps with their kind (start, step, decision, end, …), the lanes, the transitions, and a row and a column for every step in one grid. It never writes coordinates, sizes or styles. The server lays the description out, routes the lines and styles it in the calm theme. Writing a description is quicker than placing every shape as XML, and it needs fewer tokens.
 
 The diagram is shown like one from `create_diagram`, with the same viewer, toolbar, "Open in draw.io" and layout check, and the viewer draws it while the description streams in. To change the diagram, the model sends the whole description again with the change, the same ids and the `layout` of the last result, a short text that keeps the shapes the change doesn't touch in place (the server stores nothing).
 
-The tool is listed by default, but its description has the model use it only when the user asks for a quick, rough or cheap diagram, in so many words and in any language ("quickly", "just a rough sketch", "use few tokens", "schnell", "wenig Aufwand", "sparsam"). For every other request, however simple the diagram, and for every other type the model uses `create_diagram`, which places the shapes with more care. On held-out prompts in English and German, with and without such words, Sonnet and Opus followed that in 118 of 120 sessions; with the wish, the flowcharts were drawn 3 to 4 times sooner, with less than half the output tokens, and won 0.61 (Sonnet) and 0.67 (Opus) of the blind judgements against the XML the models placed themselves, losing on one flowchart without lanes each ([`bench/README.md`](../bench/README.md#the-tool-choice-on-request)). `DRAWIO_SEMANTIC_TYPES` changes what it offers:
+The tool is listed by default, but its description has the model use it only when the user asks for a quick, rough or cheap diagram, in so many words and in any language. For every other request, however simple the diagram, and for every other type the model uses `create_diagram`, which places the shapes with more care.
+
+| Request | Tool |
+|---|---|
+| "**Quickly** draw a simple flowchart of returning a book at a library kiosk …" | `create_semantic_diagram` |
+| "Draw a swimlane diagram … for requesting a new laptop. **Just a rough sketch is fine.**" | `create_semantic_diagram` |
+| "Draw a flowchart of an express parcel delivery … **Keep it cheap: use as few tokens as possible.**" | `create_semantic_diagram` |
+| "Zeichne **schnell** ein Flussdiagramm für eine Pizzabestellung …" | `create_semantic_diagram` |
+| "Zeichne ein Swimlane-Diagramm … für einen Urlaubsantrag. **Bitte mit wenig Aufwand.**" | `create_semantic_diagram` |
+| "Erstelle **sparsam** ein Swimlane-Diagramm …" | `create_semantic_diagram` |
+| "Draw a simple flowchart of …", "Zeichne ein übersichtliches Swimlane-Diagramm …" (no wish) | `create_diagram` |
+| "Draw **a quick draft** of an architecture diagram on AWS …", "Erstelle mir **auf die Schnelle** ein Organigramm …" (another type) | `create_diagram` |
+
+Measured on 15 November 2026 with the bench in [`bench/`](../bench/README.md#the-tool-choice-on-request) (Claude Code with Sonnet 5.5 and Opus 5.5; 20 prompts in English and German written for the test, with and without the wish; three runs each):
+
+- **The tool choice:** the models chose as above in 118 of 120 sessions.
+- **Time and tokens:** with the wish, the flowcharts reached the diagram in a median 14 s instead of 46 s (Sonnet) and 27 s instead of 108 s (Opus), with less than half the output tokens.
+- **Quality:** in blind judgements against the XML the models placed themselves, the flowcharts won 0.61 (Sonnet) and 0.67 (Opus). Each model lost on one flowchart without lanes.
+- **Earlier measurement:** offered for every request, on held-out flowchart and swimlane prompts without any wish, Sonnet took a median 17 s to the diagram instead of 63 s and Opus 56 s instead of 339 s ([`MEASUREMENTS.md`](../shared/semantic/MEASUREMENTS.md), seventh measurement, November 2026).
+
+Details, and what to measure again when the wording changes, are in [`shared/semantic/FAST-MODE.md`](../shared/semantic/FAST-MODE.md).
+
+`DRAWIO_SEMANTIC_TYPES` changes what it offers:
 
 | Value | Offers |
 |---|---|
@@ -81,6 +103,8 @@ draw.io is listed in OpenAI's plugin directory, shared by ChatGPT and Codex: ope
 3. Confirm the warning with **I understand and want to continue**, select **Create as a plugin**, and install it.
 
 In a new conversation, type `@`, pick draw.io, and ask for a diagram. If the option to add a custom MCP server is missing, your workspace admin may have turned it off.
+
+The server lists four tools: `create_diagram`, `search_shapes`, `get_drawio_reference` and [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request), the fast mode. ChatGPT keeps the tool list it scanned, so a deploy that changes the list reaches the published plugin only after a rescan ([`OPENAI-SUBMISSION.md`](OPENAI-SUBMISSION.md)).
 
 ### Using with VS Code
 
@@ -183,7 +207,7 @@ Start the HTTP server (for Claude.ai and other web-based hosts):
 npm start
 ```
 
-The server listens on `http://localhost:3001/mcp` by default, on the loopback interface only. Set `PORT` to change the port, `LISTEN=0.0.0.0` to accept connections from the network, and `ALLOWED_HOSTS` (comma-separated hostnames) to reject requests whose `Host` header names anything else. Set `DRAWIO_BASE_URL` to a self-hosted draw.io (e.g. `https://drawio.example.com/`) to have "Open in draw.io" and the link for clients without inline diagrams open there instead of `https://app.diagrams.net/`; the inline viewer still loads from diagrams.net, so it needs no sign-in to your draw.io. The server has no authentication of its own — put it behind an authenticating reverse proxy before exposing it beyond your machine. `GET /health` answers `200 ok`, for uptime monitors and container health checks.
+The server listens on `http://localhost:3001/mcp` by default, on the loopback interface only. Set `PORT` to change the port, `LISTEN=0.0.0.0` to accept connections from the network, and `ALLOWED_HOSTS` (comma-separated hostnames) to reject requests whose `Host` header names anything else. Set `DRAWIO_BASE_URL` to a self-hosted draw.io (e.g. `https://drawio.example.com/`) to have "Open in draw.io" and the link for clients without inline diagrams open there instead of `https://app.diagrams.net/`; the inline viewer still loads from diagrams.net, so it needs no sign-in to your draw.io. Set `DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request), the fast mode, which is listed by default. The server has no authentication of its own — put it behind an authenticating reverse proxy before exposing it beyond your machine. `GET /health` answers `200 ok`, for uptime monitors and container health checks.
 
 ### Running (Docker)
 
@@ -211,6 +235,8 @@ npx cloudflared tunnel --url http://localhost:3001
 ```
 
 Then add the tunnel URL (with `/mcp` appended) as a custom connector in Claude.ai settings.
+
+Claude.ai and the draw.io plugin for Claude Code, which bundles the hosted server, read the tool list from the server, so [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request) appears there with the deploy that lists it; `DRAWIO_SEMANTIC_TYPES=off` leaves it out of a self-hosted server.
 
 ### Using with Claude Desktop (stdio)
 

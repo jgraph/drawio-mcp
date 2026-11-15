@@ -26,7 +26,7 @@ export const PARTS_KEPT = ["placement"];
 // and taken only on such a request (bench/README.md, the tool choice on
 // request): unasked, models took it for nearly every flowchart, and its
 // flowcharts without lanes lost the live judgement against the ones models
-// place themselves (shared/semantic/AGENTS.md, ninth measurement).
+// place themselves (shared/semantic/MEASUREMENTS.md, ninth measurement).
 const WISH = "a quick, fast or rough diagram, a sketch or a draft, little effort or few tokens, in any language " +
   "(\"schnell\", \"Skizze\", \"wenig Aufwand\", \"sparsam\")";
 

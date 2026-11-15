@@ -2,7 +2,7 @@
 
 A semantic diagram says what a diagram contains and how it connects. It never gives coordinates, sizes or styles: the engine in this folder sizes and places every shape, routes every line and styles everything in draw.io's calm colors, the same way every time for the same description. At most it says roughly where things go, as a row and a column (see **Placement hints**). The result is ordinary draw.io XML, so everything the format can't say can still be done in XML.
 
-Status: `er`, `architecture`, `network`, `flowchart` and `swimlane` are implemented; none is offered to models yet. The other types below are the planned format; a description of a type the engine can't lay out yet is answered with an error that points to XML or Mermaid.
+Status: `er`, `architecture`, `network`, `flowchart` and `swimlane` are implemented. The app server offers `flowchart` and `swimlane` by default, on request (the fast mode, `FAST-MODE.md`), and the others only by name (`DRAWIO_SEMANTIC_TYPES`), for trying them out. The other types below are the planned format; a description of a type the engine can't lay out yet is answered with an error that points to XML or Mermaid.
 
 ## The description
 
@@ -57,7 +57,7 @@ A model knows where things belong (clients above services above data, a database
 
 ## Types
 
-### `er`: database schemas (implemented)
+### `er`: database schemas (implemented, offered only by name)
 
 - A node is a table: `label` is its name, `fields` one string per column, the key first: `"PK book_id"`, `"FK author_id"`, `"PK, FK book_id"`, `"title"`, optionally with a type (`"price: decimal"`, `"price DECIMAL"`). Keys behind the name (`"book_id INT PK"`, `"book_id (PK)"`) are read too, and `"FK author_id -> authors"`, `"FK owner (person)"` and `"buyer (customers.id)"` name the referenced table. Any other word in parentheses is a type or a note (`"status (enum)"`), and a referenced table that isn't in the schema is ignored.
 - An edge is a relation: `kind` `one-to-many` from the referenced table to the table holding the foreign key, `one-to-one` or `many-to-many`. `fromCard` / `toCard` (`1`, `0..1`, `1..*`, `0..*`, `*`, also `one`, `many`, `zero or one`, `one and only one`, `(1,n)`, …) set other multiplicities and override `kind`; one that can't be read is ignored with a warning. The direction of a relation is read from its multiplicities, or else from which table holds the foreign key: the row `fromField` / `toField` names (a foreign key or another column holds it, a primary key is referenced), then the rows' names. So `{from: "books", to: "authors", kind: "many-to-one"}` draws the same line, and so does `{from: "orders", to: "customers", fromField: "buyer"}` for an order's buyer.
@@ -71,7 +71,7 @@ A model knows where things belong (clients above services above data, a database
 - An edge is `inheritance`, `implementation`, `association`, `aggregation`, `composition` or `dependency`, from the subclass, implementer or owner; `fromCard` / `toCard` and `label` on associations.
 - Layout: a grid by inheritance tree, parents above children, as shared/chat-view-xml.md lays out class diagrams; inheritance lines join into one trunk per parent.
 
-### `flowchart` and `swimlane`: processes and decisions (implemented, passed the judgement in `bench/`, offered behind the app server's switch)
+### `flowchart` and `swimlane`: processes and decisions (implemented, passed the judgement in `bench/`, offered by default on request)
 
 - A node is a step: `kind` `start`, `end`, `step`, `decision`, `error`, `data`, `external`, `retry`, `note` (and what models write for them: `task`, `gateway`, `failure`, …); the kind sets the shape and the role.
 - An edge is a transition with an optional `label`; `Yes` / `No` on the branches of a decision color the label.
@@ -79,7 +79,7 @@ A model knows where things belong (clients above services above data, a database
 - Layout without hints: the main path (at every step the successor with the longest way to go) runs along one line, a branch starts beside the step it leaves, a link that closes a loop is kept out of the ranking. A flow that is longer than the chat frame continues at the start of the next column. Lanes share one grid: a hand-over to another lane stays in the same row, and the lanes are columns or rows, whichever is shown larger.
 - Size: a tool that has another way to draw the diagram takes a flowchart without lanes (no node in a group) up to 24 nodes (`MAX_NODES_WITHOUT_LANES`, `semanticToXml`'s `sizeRule`) and sends larger ones there, without naming the number to the model. The large flowchart without lanes of the held-out prompts lost its blind judgements against XML the model placed itself; lane diagrams of that size won theirs and have no limit.
 
-### `architecture` and `network`: systems, cloud and networks (implemented, measured in `bench/`, not offered yet)
+### `architecture` and `network`: systems, cloud and networks (implemented, measured in `bench/`, offered only by name)
 
 - A node is a component with an `icon` (`"aws lambda"`, `"azure sql database"`, `"gcp bigquery"`, `"kubernetes pod"`: the names of `shared/icon-resolver.js`) or a `kind` (`service`, `database`, `queue`, `user`, `external`); `sub` is a second line (an instance type, an address). A name the resolver doesn't know becomes a box by kind, with a warning. A `user` is drawn as a person only when its label names people.
 - A `group` is a boundary, nested with `parent`; with an `icon` (`"aws vpc"`, `"aws private subnet"`, `"aws region"`) it takes the official group style, otherwise a pale titled frame.

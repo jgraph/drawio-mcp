@@ -10759,8 +10759,8 @@ function finishDiagramXml(xml)
  * create_diagram otherwise. The types that passed the blind judgement on the
  * held-out prompts (SEMANTIC_TYPES_READY); offered for every request, they
  * failed the live judgement for Sonnet on flowcharts without lanes
- * (shared/semantic/AGENTS.md, ninth measurement), so they are offered only
- * on request (bench/README.md, the tool choice on request).
+ * (shared/semantic/MEASUREMENTS.md, ninth measurement), so they are
+ * offered only on request (shared/semantic/FAST-MODE.md).
  */
 export const SEMANTIC_TYPES_ON = ["flowchart", "swimlane"];
 
