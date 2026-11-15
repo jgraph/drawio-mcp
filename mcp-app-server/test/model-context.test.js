@@ -60,3 +60,23 @@ test("a diagram above the size limit is not sent", function()
   assert.equal(modelContextText(xml, mermaid, "none", false, false, xml.length - 1), null);
   assert.notEqual(modelContextText(xml, mermaid, "none", false, false, xml.length), null);
 });
+
+test("a diagram drawn from a description is changed in the description, the XML only for single shapes", function()
+{
+  // as sent by create_semantic_diagram: the result has the XML, nothing to repeat
+  assert.equal(modelContextText(xml, null, "none", false, false, 60000, true), null);
+
+  const routed = modelContextText(xml, null, "none", true, false, 60000, true);
+
+  assert.match(routed, /\(your description laid out as draw\.io XML, with the connectors routed around the shapes\)/);
+  assert.match(routed, /call create_semantic_diagram again with the whole changed description and the same ids/);
+  assert.match(routed, /To move or restyle single shapes, start from this XML and pass it to create_diagram as xml/);
+  assert.ok(routed.endsWith("\n\n" + xml));
+  // with the result's layout: what the change passes back to keep the shapes in place
+  const kept = modelContextText(xml, null, "none", true, false, 60000, true, "10e4n.23c3w.21e1o.9s3w1o.cl");
+
+  assert.match(kept, /the same ids, the same row and col for what stays where it is, and layout "10e4n\.23c3w\.21e1o\.9s3w1o\.cl"\. /);
+  assert.doesNotMatch(routed, /layout "/);
+  // an XML diagram keeps its text
+  assert.doesNotMatch(modelContextText(xml, null, "none", true, false, 60000, false), /description/);
+});
