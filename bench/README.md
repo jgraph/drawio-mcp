@@ -17,7 +17,6 @@ Variants (`run.mjs`):
 | `staging` | the staging Worker as deployed, over HTTP (`BENCH_STAGING_URL`, else `drawio-mcp-app-staging` on workers.dev): `create_diagram` and, where the deploy switched it on, `create_semantic_diagram` |
 | `production` | the production server, over HTTP (`BENCH_PRODUCTION_URL`, else `https://mcp.draw.io/mcp`): `create_diagram` only |
 | `fast-tool` | the app server as built, with no switch set: `create_diagram` and its own `create_semantic_diagram` for flowcharts and swimlanes, whose description has the model take it only when the user asks for a quick diagram |
-| `fast-param` | the same description as `create_diagram`'s argument `quick` instead of a tool of its own (`DRAWIO_SEMANTIC_MODE=parameter`) |
 
 ## Setup
 
@@ -92,10 +91,10 @@ The lane diagrams won (Sonnet 22 of 24 first diagrams, Opus 20 of 24); the flowc
 
 ## The tool choice on request
 
-The description path is offered by default but taken only when the user asks for a quick diagram: in so many words, fast, rough, a sketch or a draft, little effort or few tokens, in any language. Otherwise the model uses `create_diagram` as before. Two designs carry that condition, and the bench measures which one models follow more reliably:
+The description path is offered by default but taken only when the user asks for a quick diagram: in so many words, fast, rough, a sketch or a draft, little effort or few tokens, in any language. Otherwise the model uses `create_diagram` as before. Two designs carried that condition, and the bench measured which one models follow more reliably:
 
-- **`fast-tool`**: a tool of its own, `create_semantic_diagram`, whose description starts with the condition; `create_diagram` stays as it is.
-- **`fast-param`**: an argument `quick` of `create_diagram`, whose schema description starts with the condition, and a pointer to it in the first sentence of `create_diagram`'s description. That pointer takes the place of the remark on misspelled Mermaid headers, so the description stays under 2048 characters.
+- **`fast-tool`**: a tool of its own, `create_semantic_diagram`, whose description starts with the condition; `create_diagram` stays as it is. The app server has this design.
+- **`fast-param`**: an argument `quick` of `create_diagram`, whose schema description started with the condition, and a pointer to it in the first sentence of `create_diagram`'s description. That pointer took the place of the remark on misspelled Mermaid headers, so the description stayed under 2048 characters. It failed the rule below and was removed with its variant (`DRAWIO_SEMANTIC_MODE=parameter` in the app server). Its code is in the commit "feat(app-server): the description path offered on request, as a tool or as create_diagram's quick".
 
 The prompts of `"set": "fast-2026-11-15"` were written for this test and committed before its runs. There are ten requests, each twice, word for word the same except for the wish (`"wish": true`, keys ending in `-wish`):
 
@@ -108,15 +107,16 @@ The prompts of `"set": "fast-2026-11-15"` were written for this test and committ
 The wording was tried on the four requests of `"set": "fast-dev"` (each with and without a wish), never on these.
 
 ```bash
-# the choice: three runs per prompt, model and design, each ended at its first diagram call
-node run.mjs --variants fast-tool,fast-param --set fast-2026-11-15 --models sonnet,opus --repeats 3 --choice-only
-node choice.mjs --variants fast-tool,fast-param --set fast-2026-11-15
+# the choice: three runs per prompt and model, each ended at its first diagram call
+# (Opus took up to 702 s to its first call without the wish)
+node run.mjs --variants fast-tool --set fast-2026-11-15 --models sonnet,opus --repeats 3 --choice-only --timeout 1800
+node choice.mjs --variants fast-tool --set fast-2026-11-15
 
-# time, tokens and quality of the fast prompts: the chosen design ($CHOSEN) against create_diagram alone, whole sessions
-node run.mjs --variants today,$CHOSEN --set fast-2026-11-15 --wish yes --type swimlane --models sonnet,opus --repeats 3 --out out/fast-full
+# time, tokens and quality of the fast prompts: the chosen design against create_diagram alone, whole sessions
+node run.mjs --variants today,fast-tool --set fast-2026-11-15 --wish yes --type swimlane --models sonnet,opus --repeats 3 --out out/fast-full
 node render.mjs --chrome /path/to/chrome-headless-shell --out out/fast-full
-node judge.mjs --a today --b $CHOSEN --set fast-2026-11-15 --wish yes --type swimlane --runs-model sonnet --out out/fast-full
-node judge.mjs --a today --b $CHOSEN --set fast-2026-11-15 --wish yes --type swimlane --runs-model opus --out out/fast-full
+node judge.mjs --a today --b fast-tool --set fast-2026-11-15 --wish yes --type swimlane --runs-model sonnet --out out/fast-full
+node judge.mjs --a today --b fast-tool --set fast-2026-11-15 --wish yes --type swimlane --runs-model opus --out out/fast-full
 node report.mjs --out out/fast-full
 ```
 
@@ -148,6 +148,40 @@ node report.mjs --out out/fast-full
 
 These are reported, not gated, because the user asked for speed. The choices of these sessions are reported beside R2.
 
+### Results, 15 November 2026
+
+The app server as built from this branch (Node, stdio), `claude -p` with Sonnet 5.5 and Opus 5.5, three runs per prompt, model and design: 240 sessions ended at their first diagram call.
+
+| Rule (passes with) | `fast-tool`, Sonnet | `fast-tool`, Opus | `fast-param`, Sonnet | `fast-param`, Opus |
+|---|---|---|---|---|
+| R1: no fast path without the wish (≥ 95 %) | 29 of 30 | 30 of 30 | 30 of 30 | 30 of 30 |
+| R2: the fast path with the wish (≥ 90 %) | 18 of 18 | 18 of 18 | 18 of 18 | 18 of 18 |
+| R3: the wish on a type the fast path doesn't draw (≥ 90 %) | 11 of 12 | 12 of 12 | 6 of 12: **fail** | 12 of 12 |
+| Correct sessions | 118 of 120: passes | | 114 of 120: fails | |
+
+- **Chosen: `fast-tool`.** It passes all three rules for both models. `fast-param` fails R3: Sonnet passed the AWS architecture and the org chart with the wish as `quick` descriptions of a flowchart in all six runs, which the tool of its own, whose description says that other types go to `create_diagram`, did once.
+- **The misses of `fast-tool`:** Sonnet took the description once for the laptop request without the wish (a lane diagram) and once for the German org chart with the wish ("auf die Schnelle"), drawn as a flowchart.
+- **Two sessions run again.** Two Opus sessions of `fast-tool` on the library flowchart without the wish reached the run's limit of 600 s before their first diagram call: both had fetched the XML reference and were still thinking (about 62,000 thinking tokens). Run again with a limit of 1,800 s, both went to `create_diagram` with XML, after 690 and 702 s, and the table counts the reruns. Counted as sessions without a diagram call, as the rule counts a session that ends without one, Opus would have 28 of 30 in R1 and neither design would pass. The commands above set the longer limit.
+- **The wording was tried on the dev prompts first** (Sonnet, four runs per prompt without the wish). A shorter condition sent it to the description in 8 of 16 sessions, `fast-param` in 0 of 16; the wording in the code ("A request without such words, however simple the diagram, goes to create_diagram, never here, and so do the types not listed here") in 5 of 16, all on the two flowcharts without lanes. The held-out prompts were run once, with this wording.
+
+Whole sessions on the six flowcharts with the wish, three runs per prompt and model, rendered in chrome-headless-shell (an 800 px frame) and judged blind by Opus on the inline images, both orders:
+
+| Six flowcharts with the wish | Sonnet, `today` | Sonnet, `fast-tool` | Opus, `today` | Opus, `fast-tool` |
+|---|---|---|---|---|
+| Diagrams | 18 of 18 (15 XML, 3 Mermaid) | 18 of 18, all descriptions | 18 of 18 (15 XML, 3 Mermaid) | 18 of 18, all descriptions |
+| Seconds to the diagram (median) | 46 | 14 | 108 | 27 |
+| Seconds to the end of the answer (median) | 51 | 30 | 143 | 63 |
+| Output tokens (median) | 7,592 | 3,515 | 14,908 | 5,163 |
+| Total tokens (median) | 81,268 | 31,168 | 97,634 | 34,897 |
+| Layout-check findings per diagram (mean) | 0.56 | 0.61 | 0.33 | 0.17 |
+| Judge's share for `fast-tool` (36 judgements) | | 0.61 | | 0.67 |
+| … per prompt: library, pizza, express (no lanes); laptop, vacation, return (lanes) | | 0, 0.5, 1; 1, 0.5, 0.67 | | 0.83, 0, 1; 1, 0.67, 0.5 |
+
+- **Faster, with fewer tokens:** Sonnet reached the diagram 3.3 times sooner and Opus 4 times, with less than half the output tokens and about a third of the total (no XML reference to read). The slowest: Opus on the library flowchart thought for 2 to 3 minutes before its description (155 s to the diagram, against 455 s with XML).
+- **The answer after the diagram takes longer.** Claude Code renders no app, so both servers append the `app.diagrams.net` link; the answers after a description repeated it in 33 of 36 sessions, those after `create_diagram` in 24 of 36, as in the ninth measurement. In a host that shows the diagram there is no link.
+- **Quality is mostly at least equal, but not on every flowchart without lanes.** The description won on five of six prompts per model, and both models' lane diagrams won at least half. Each model lost one flowchart without lanes in all six judgements (Sonnet the library, Opus the pizza order), the judge naming crossing lines, long detours, a retry loop merged into the main flow, and for Sonnet a payment choice collapsed into one edge: the weak spot of the ninth measurement. The "express" request ("use as few tokens as possible") went to Mermaid in all six `today` runs, and the description won all twelve judgements there.
+- **Not measured:** a change asked for without the wish to a diagram drawn on request (the description asks the model to come back to the tool), and hosts other than Claude Code.
+
 ## When a type is switched on
 
 The semantic tool only offers a diagram type (`describeTool` in `shared/semantic/description.js`) once its layouts are at least as good as what the model places itself today. `report.mjs` checks that per type, on the judgements of the inline images:
@@ -162,7 +196,7 @@ Both sides are drawn in the calm theme with the same font rule (14 px up to 12 s
 
 A judge model is one opinion. `pairs.mjs` writes a page of pairs for a person to judge blind (`node pairs.mjs --a today --b semantic-rows --count 20`): `pairs/index.html` shows each pair in random order as A and B with the prompt, the choices are kept in the page and exported as JSON, and `pairs/key.json` says which side was which.
 
-A type that passed goes into `SEMANTIC_TYPES_READY` in `mcp-app-server/src/shared.js` (flowcharts and swimlanes so far): the app server then offers it with `DRAWIO_SEMANTIC_TYPES=on`, in the Node server at startup and in the Worker at build time, which is how staging tests it. After that test it moves to `SEMANTIC_TYPES_ON`, which lists `create_semantic_diagram` for everybody. `DRAWIO_SEMANTIC_TYPES=er` offers any other type for trying it out. The `switch-on` variant runs prompts against the app server with the switch on, so a prompt above a size rule (`MAX_NODES`, `MAX_NODES_WITHOUT_LANES` in `shared/semantic/index.js`) is drawn with whatever tool the model then takes and judged as what the user gets, outside the gate (above). A description the rule refused is saved as `<tag>-refused.json`, and the summary has the nodes of every description the session sent (`calls[].nodes`).
+A type that passed goes into `SEMANTIC_TYPES_READY` in `mcp-app-server/src/shared.js` (flowcharts and swimlanes so far): the app server then offers it with `DRAWIO_SEMANTIC_TYPES=on`, in the Node server at startup and in the Worker at build time, which is how staging tests it. After that test it moves to `SEMANTIC_TYPES_ON`, which lists `create_semantic_diagram` for everybody, on request (**The tool choice on request**). `DRAWIO_SEMANTIC_TYPES=er` offers any other type for trying it out. The `switch-on` variant runs prompts against the app server with the switch on, so a prompt above a size rule (`MAX_NODES`, `MAX_NODES_WITHOUT_LANES` in `shared/semantic/index.js`) is drawn with whatever tool the model then takes and judged as what the user gets, outside the gate (above). A description the rule refused is saved as `<tag>-refused.json`, and the summary has the nodes of every description the session sent (`calls[].nodes`).
 
 The wording of the tool description is measured the same way: `SEMANTIC_PARTS` (a list out of `placement`, `groups`, `completeness`; `none` for none of them, unset for the default) tells `semantic-server.mjs` which parts of the description are in their later wording (`PARTS` in `shared/semantic/description.js`), so one part can be judged against the same `today` diagrams without the others.
 

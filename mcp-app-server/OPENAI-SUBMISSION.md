@@ -201,6 +201,13 @@ All three also carry `idempotentHint: true`. Tool responses contain only the dia
 the caller supplied, the shape styles, the references, and the `app.diagrams.net`
 link — no personal data, no secrets, no internal identifiers.
 
+**Not live yet: a fourth tool.** The release that offers `create_semantic_diagram`
+by default (flowcharts and swimlanes, taken when the user asks for a quick diagram;
+`mcp-app-server/AGENTS.md`, Semantic diagrams) adds it to `tools/list`, with the
+same annotations as `create_diagram` (read-only, idempotent, not destructive, no
+open world): it lays out the description it is given and renders it, with no state
+and no outbound calls. After deploying it, run **MCPs → Rescan**.
+
 `get_drawio_reference` is **live since app server 1.1.0 (2026-10-13)** and was
 not in the 1.0.1 scan. It replaces the ~55k-character `create_diagram`
 description, which carried both references and broke VS Code Copilot's tool
