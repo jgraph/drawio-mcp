@@ -47,15 +47,25 @@ async function connect(options)
   return client;
 }
 
-test("without a type switched on, the tool isn't listed", async function()
+test("by default flowcharts and swimlanes are offered on request; without a type the tool isn't listed", async function()
 {
-  assert.deepEqual(SEMANTIC_TYPES_ON, []);
+  assert.deepEqual(SEMANTIC_TYPES_ON, ["flowchart", "swimlane"]);
 
   const client = await connect({});
   const { tools } = await client.listTools();
+  const tool = tools.find(function(t) { return t.name === "create_semantic_diagram"; });
 
-  assert.deepEqual(tools.map(function(t) { return t.name; }), ["create_diagram", "get_drawio_reference"]);
+  assert.deepEqual(tools.map(function(t) { return t.name; }), ["create_diagram", "create_semantic_diagram", "get_drawio_reference"]);
+  // only when the user asks for a quick diagram, create_diagram otherwise
+  assert.match(tool.description, /^Only for a diagram the user explicitly asked to get fast or cheap: /);
+  assert.match(tool.description, /goes to create_diagram, never here/);
+  assert.ok(tool.description.length <= 2048);
   await client.close();
+
+  const off = await connect({ semanticTypes: resolveSemanticTypes("off") });
+
+  assert.deepEqual((await off.listTools()).tools.map(function(t) { return t.name; }), ["create_diagram", "get_drawio_reference"]);
+  await off.close();
 });
 
 test("the types come from a comma-separated list, unknown ones dropped", function()
@@ -279,7 +289,7 @@ test("the switch offers flowcharts and swimlanes, with the schema the benchmark 
   const client = await connect({ semanticTypes: types });
   const { tools } = await client.listTools();
   const tool = tools.find(function(t) { return t.name === "create_semantic_diagram"; });
-  const plain = await connect({});
+  const plain = await connect({ semanticTypes: [] });
   const before = (await plain.listTools()).tools;
 
   // everything else as today: the other tools are listed exactly as without the switch

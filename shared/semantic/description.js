@@ -21,15 +21,50 @@ export const PARTS = ["placement", "groups", "completeness"];
 // nothing out".
 export const PARTS_KEPT = ["placement"];
 
+// What a user says when they want a diagram fast or cheap, in the words of
+// the requests the tool is for. The tool is offered next to create_diagram
+// and taken only on such a request (bench/README.md, the tool choice on
+// request): unasked, models took it for nearly every flowchart, and its
+// flowcharts without lanes lost the live judgement against the ones models
+// place themselves (shared/semantic/AGENTS.md, ninth measurement).
+const WISH = "a quick, fast or rough diagram, a sketch or a draft, little effort or few tokens, in any language " +
+  "(\"schnell\", \"Skizze\", \"wenig Aufwand\", \"sparsam\")";
+
+// onRequest: "tool" for the tool of its own, "parameter" for the
+// description as create_diagram's `quick` argument (measured against each
+// other); anything else, no condition.
+function onRequestText(onRequest)
+{
+  if (onRequest === "tool")
+  {
+    return "Only for a diagram the user explicitly asked to get fast or cheap: " + WISH + ". A request without such " +
+      "words, however simple the diagram, goes to create_diagram, never here, and so do the types not listed here: " +
+      "create_diagram places the shapes with more care. A change to a diagram drawn here comes back here.\n\n";
+  }
+
+  if (onRequest === "parameter")
+  {
+    return "Only when the user explicitly asks for speed or economy: " + WISH + ". Then pass the diagram as this " +
+      "description instead of xml or mermaid, for the types below. For every other request leave it out and write xml " +
+      "or mermaid, which places the shapes with more care. A change to a diagram drawn from quick passes quick again.\n\n";
+  }
+
+  return "";
+}
+
 // keep: a change keeps what it doesn't touch in place, given the cells and
 // the layout of the last result (shared/semantic/keep.js), which only the
 // cells of one grid for the page have.
-function intro(complete, keep)
+function intro(complete, keep, onRequest)
 {
-  return "Creates and displays a draw.io diagram from a description of its content: you say what exists and how it connects, " +
+  const parameter = onRequest === "parameter";
+
+  return onRequestText(onRequest) +
+    (parameter ? "A description of the diagram's content" : "Creates and displays a draw.io diagram from a description of its content") +
+    ": you say what exists and how it connects, " +
     "the server lays it out, routes the lines and styles it. Never give coordinates, sizes or styles" +
     (complete ? "; leave nothing out. " : ". ") +
-    "To change the diagram, call this again with the whole changed description, keeping the ids" +
+    "To change the diagram, " + (parameter ? "pass quick again" : "call this again") + " with the whole changed description, keeping the ids" +
     (keep ? ", the cells of what stays and the layout.\n\n" : ".\n\n") +
     (complete ? "The keys of nodes, edges and groups are in the schema." :
       "Arguments: type, title, nodes, edges, groups; their keys are in the schema.");
@@ -98,16 +133,18 @@ function keepsLayout(types, options)
 
 /**
  * @param {string[]} types - the types to offer, in this order
- * @param {{hints?: boolean|"ask", parts?: string[]}} [options] - hints: false
+ * @param {{hints?: boolean|"ask", parts?: string[], onRequest?: "tool"|"parameter"}} [options] - hints: false
  *   leaves out the placement hints, "ask" asks for a cell for every node, in
  *   one grid for the whole diagram; parts: the PARTS in their later wording
- *   (PARTS_KEPT by default)
+ *   (PARTS_KEPT by default); onRequest: the condition that the user asked for
+ *   a quick diagram, for a tool of its own ("tool") or for create_diagram's
+ *   `quick` argument ("parameter")
  * @returns {string}
  */
 export function describeTool(types, options)
 {
   const part = partSet(options);
-  const parts = [intro(part.has("completeness"), keepsLayout(types, options))];
+  const parts = [intro(part.has("completeness"), keepsLayout(types, options), options != null ? options.onRequest : null)];
   const done = new Set();
   let placed = false;
 
