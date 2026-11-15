@@ -146,14 +146,14 @@ if (drawioBaseUrl)
 // worker can echo it in every tool response.
 const buildId = getBuildId() + ((inlined.length > 0) ? "+local-" + inlined.join("+") : "");
 console.log(`Build ID: ${buildId}`);
-// The semantic diagram types create_semantic_diagram offers, as
+// The semantic diagram types create_semantic_diagram offers, on request, as
 // DRAWIO_SEMANTIC_TYPES in the Node server: unset, the ones switched on in
-// shared.js (none yet); "on", the types that passed the blind judgement
-// (flowcharts and swimlanes). Read here, at build time, like the editor URL
-// above: the HTML gets the engine for the viewer's preview only when a type
-// is offered, and the worker's createServer must list the tool for the same
-// types:
-//   DRAWIO_SEMANTIC_TYPES=on npx wrangler deploy --env staging
+// shared.js (flowcharts and swimlanes); "on", the types that passed the
+// blind judgement (the same); "off", none. Read here, at build time, like
+// the editor URL above: the HTML gets the engine for the viewer's preview
+// only when a type is offered, and the worker's createServer must list the
+// tool for the same types:
+//   DRAWIO_SEMANTIC_TYPES=off npx wrangler deploy --env staging
 const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
 const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 

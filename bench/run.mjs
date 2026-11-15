@@ -12,8 +12,8 @@
 // the request was sent, and its diagram goes to <tag>-edit-diagram.json.
 //
 // With --choice-only, a session ends as soon as the first diagram call shows
-// which way the model went (a tool of its own, or the first of create_diagram's
-// xml, mermaid and quick arguments): the summary has it as
+// which way the model went (create_semantic_diagram, or the first of
+// create_diagram's xml and mermaid arguments): the summary has it as
 // firstDiagramPath, and there is no diagram.
 //
 // usage: node run.mjs --variants today,semantic [--prompts er,er-clinic]
@@ -53,8 +53,6 @@
 //                  create_semantic_diagram for flowcharts and swimlanes,
 //                  whose description has the model take it only when the
 //                  user asks for a quick diagram
-//   fast-param     the same description as create_diagram's argument
-//                  `quick` instead of a tool (DRAWIO_SEMANTIC_MODE=parameter)
 //
 // For the two live variants the diagram file also keeps the tool's result
 // as the live server returned it (with its _buildId), and render.mjs draws
@@ -66,7 +64,7 @@ import path from "node:path";
 import { BENCH, APP_SERVER, parseArgs, outDir, loadPrompts, selectKeys, runTag, pool, round } from "./lib/common.mjs";
 
 const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on",
-  "staging", "production", "fast-tool", "fast-param"];
+  "staging", "production", "fast-tool"];
 // the deployed servers the live variants talk to
 const LIVE_URLS =
 {
@@ -106,11 +104,10 @@ function usesAppServer(variant)
   return variant === "today" || variant === "mermaid" || variant === "switch-on" || fastVariant(variant);
 }
 
-// The app server as built, with the description offered on request: as a
-// tool of its own, or as create_diagram's `quick`.
+// The app server as built, with the description offered on request.
 function fastVariant(variant)
 {
-  return variant === "fast-tool" || variant === "fast-param";
+  return variant === "fast-tool";
 }
 
 // A deployed server, over HTTP: its URL, else null.
@@ -176,11 +173,13 @@ function mcpConfig(variant, tag)
   {
     server = { type: "stdio", command: process.execPath, args: [APP_SERVER, "--stdio"] };
 
-    // the switch as a deploy sets it; the fast variants have the server's
-    // default types, the other variants are the baseline, create_diagram
-    // alone, whatever the shell or the server's default has
-    server.env = fastVariant(variant) ? { DRAWIO_SEMANTIC_MODE: variant === "fast-param" ? "parameter" : "tool" } :
-      { DRAWIO_SEMANTIC_TYPES: variant === "switch-on" ? (process.env.DRAWIO_SEMANTIC_TYPES || "on") : "off" };
+    // the switch as a deploy sets it; fast-tool has the server's default
+    // types, the other variants are the baseline, create_diagram alone,
+    // whatever the shell or the server's default has
+    if (!fastVariant(variant))
+    {
+      server.env = { DRAWIO_SEMANTIC_TYPES: variant === "switch-on" ? (process.env.DRAWIO_SEMANTIC_TYPES || "on") : "off" };
+    }
   }
 
   const file = path.join(out, tag + "-mcp.json");
@@ -212,11 +211,11 @@ function shortName(name)
   return name.replace(/^mcp__\w+?__/, "");
 }
 
-// The way a diagram call went: "fast" for a description (the tool of its
-// own, or create_diagram's quick), else "xml" or "mermaid".
+// The way a diagram call went: "fast" for a description
+// (create_semantic_diagram), else "xml" or "mermaid".
 function pathOf(name, input)
 {
-  if (shortName(name) === SEMANTIC_TOOL || (input != null && input.quick != null))
+  if (shortName(name) === SEMANTIC_TOOL)
   {
     return "fast";
   }
@@ -224,39 +223,14 @@ function pathOf(name, input)
   return (input != null && input.mermaid != null) ? "mermaid" : (input != null && input.xml != null) ? "xml" : null;
 }
 
-// The description of a call: the tool's arguments, or create_diagram's quick.
-function descriptionOf(name, input)
-{
-  if (shortName(name) === SEMANTIC_TOOL)
-  {
-    return input;
-  }
-
-  let quick = input != null ? input.quick : null;
-
-  if (typeof quick === "string")
-  {
-    try
-    {
-      quick = JSON.parse(quick);
-    }
-    catch (e)
-    {
-      quick = null;
-    }
-  }
-
-  return quick;
-}
-
 // The first key of create_diagram's arguments that says which way the call
 // goes, read from the JSON as it streams in (a key at the top level, not
 // one quoted inside a value).
 function streamedPath(json)
 {
-  const m = /(?:^|[{,])\s*"(xml|mermaid|quick)"\s*:/.exec(json);
+  const m = /(?:^|[{,])\s*"(xml|mermaid)"\s*:/.exec(json);
 
-  return m ? (m[1] === "quick" ? "fast" : m[1]) : null;
+  return m ? m[1] : null;
 }
 
 // The nodes of a description, also when the list came as JSON text.
@@ -350,7 +324,7 @@ function summarizeTurn(events, start)
             call.isError = !!c.is_error;
             // the size rule refused the description (shared/semantic/index.js; while
             // it named the limit, the error said "are drawn with up to")
-            call.tooLarge = call.isError && pathOf(call.name, call.input) === "fast" &&
+            call.tooLarge = call.isError && shortName(call.name) === SEMANTIC_TOOL &&
               /too large to lay out|are drawn with up to/.test(text);
           }
         }
@@ -395,7 +369,7 @@ function summarizeTurn(events, start)
       diagramWriteSecs: round(blocks.filter(function(b) { return b.kind === "tool_use" && /create_/.test(b.name); })
         .reduce(function(a, b) { return a + b.secs; }, 0), 1),
       diagramChars: last ? JSON.stringify(last.input).length : null,
-      format: last ? (pathOf(last.name, last.input) === "fast" ? "semantic" : last.input.mermaid ? "mermaid" : "xml") : null,
+      format: last ? (shortName(last.name) === SEMANTIC_TOOL ? "semantic" : last.input.mermaid ? "mermaid" : "xml") : null,
       // which diagram tool the model reached for first, whether or not the call succeeded
       firstDiagramTool: diagramCalls.length > 0 ? shortName(diagramCalls[0].name) : null,
       // and which way: "fast" (a description), "xml" or "mermaid"
@@ -404,7 +378,7 @@ function summarizeTurn(events, start)
       diagramCalls: diagramCalls.length,
       // the size rule sent the diagram to create_diagram: the description was
       // refused as too large, and the diagram came from the other tool
-      sentOn: last != null && pathOf(last.name, last.input) !== "fast" &&
+      sentOn: last != null && shortName(last.name) !== SEMANTIC_TOOL &&
         diagramCalls.some(function(c) { return c.tooLarge; }),
       usedReference: called("get_drawio_reference"),
       usedSearch: called("search_shapes"),
@@ -412,8 +386,7 @@ function summarizeTurn(events, start)
       {
         return { name: shortName(c.name), t: secs(c.callT), inputChars: JSON.stringify(c.input).length,
           resultChars: c.resultChars, isError: c.isError, tooLarge: c.tooLarge || undefined,
-          nodes: pathOf(c.name, c.input) === "fast" && descriptionOf(c.name, c.input) != null ?
-            countNodes(descriptionOf(c.name, c.input)) : undefined,
+          nodes: (shortName(c.name) === SEMANTIC_TOOL) ? countNodes(c.input) : undefined,
           query: c.input.query || c.input.format };
       }),
       finalText: result && typeof result.result === "string" ? result.result.slice(0, 600) : null
@@ -454,11 +427,7 @@ function saveDiagram(file, variant, call)
 {
   if (call)
   {
-    // create_diagram's quick is saved as the description it is, so
-    // render.mjs draws it as one
-    const quick = shortName(call.name) !== SEMANTIC_TOOL && pathOf(call.name, call.input) === "fast";
-    const d = { tool: quick ? SEMANTIC_TOOL : shortName(call.name), arguments: quick ? descriptionOf(call.name, call.input) : call.input,
-      hints: hintsOf(variant), via: quick ? "create_diagram.quick" : undefined };
+    const d = { tool: shortName(call.name), arguments: call.input, hints: hintsOf(variant) };
 
     if (liveUrl(variant) != null)
     {

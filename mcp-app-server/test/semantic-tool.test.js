@@ -12,11 +12,12 @@ import { createIconResolver } from "../../shared/icon-resolver.js";
 import { ICON_TABLE } from "../../shared/icon-table.js";
 
 // create_semantic_diagram: the model describes the diagram, the semantic
-// engine (shared/semantic) lays it out. The tool is only listed with a type
-// switched on (none by default, so tools/list doesn't change;
-// DRAWIO_SEMANTIC_TYPES=on offers flowcharts and swimlanes), and the viewer
-// gets the engine as a classic script for its preview while a description
-// streams in (src/semantic-bundle.js).
+// engine (shared/semantic) lays it out. The tool is listed for the types
+// offered (flowcharts and swimlanes by default, taken only when the user asks
+// for a quick diagram; DRAWIO_SEMANTIC_TYPES=off offers none, and tools/list
+// is create_diagram's alone), and the viewer gets the engine as a classic
+// script for its preview while a description streams in
+// (src/semantic-bundle.js).
 
 const SCHEMA =
 {

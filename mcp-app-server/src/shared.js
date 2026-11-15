@@ -10773,26 +10773,6 @@ export const SEMANTIC_TYPES_ON = ["flowchart", "swimlane"];
 export const SEMANTIC_TYPES_READY = ["flowchart", "swimlane"];
 
 /**
- * How the description is offered: as the tool create_semantic_diagram
- * ("tool"), or as the argument `quick` of create_diagram ("parameter"), for
- * measuring the two against each other (DRAWIO_SEMANTIC_MODE).
- */
-export const SEMANTIC_MODES = ["tool", "parameter"];
-
-/**
- * The mode from DRAWIO_SEMANTIC_MODE: "tool" unless it names another one.
- *
- * @param {string|undefined} value
- * @returns {string}
- */
-export function resolveSemanticMode(value)
-{
-  var mode = String(value == null ? "" : value).trim().toLowerCase();
-
-  return SEMANTIC_MODES.indexOf(mode) >= 0 ? mode : "tool";
-}
-
-/**
  * How the tool reads placement: every node names its cell (row, col) in one
  * grid for the whole diagram. The variant the judgement was made with
  * (`semantic-rows` in bench/), so the description, the schema, the server's
@@ -10894,30 +10874,6 @@ function jsonList(value)
   return Array.isArray(list) ? list.filter(function(item) { return item != null; }) : list;
 }
 
-// A description passed as its JSON text (create_diagram's `quick`), as
-// models sometimes send objects: parsed when it parses, null for none.
-function jsonObject(value)
-{
-  if (value === null)
-  {
-    return undefined;
-  }
-
-  if (typeof value === "string" && /^\s*\{/.test(value))
-  {
-    try
-    {
-      return JSON.parse(value);
-    }
-    catch (e)
-    {
-      return value;
-    }
-  }
-
-  return value;
-}
-
 // A text in a description as the engine reads it (str in
 // shared/semantic/spec.js): a number for its text, null for none.
 function looseText(value)
@@ -11009,13 +10965,11 @@ function edgeItem(item)
  * (shared/semantic/keep.js). Without it every shape could move.
  *
  * @param {string} layout - the layout of the result
- * @param {boolean} [quick] - drawn from create_diagram's `quick`
  * @returns {string}
  */
-function semanticChangeNote(layout, quick)
+function semanticChangeNote(layout)
 {
-  return "To change this diagram, call " + (quick ? "create_diagram again with quick: " : "create_semantic_diagram again with ") +
-    "layout \"" + layout + "\" and the whole changed " +
+  return "To change this diagram, call create_semantic_diagram again with layout \"" + layout + "\" and the whole changed " +
     "description: the same ids, and the same row and col for what stays where it is. Pass this layout also when you add, " +
     "move or renumber cells: then only what the change needs room for moves, and without it every shape can move.";
 }
@@ -11088,7 +11042,6 @@ function semanticInputSchema(offered)
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Echoed back in every tool response as `_buildId` so you can confirm which deploy you're hitting.
  * @param {string} [options.drawioBaseUrl] - The draw.io editor the link for clients without an MCP Apps UI opens (DRAWIO_BASE_URL, see editorLinkBase), added to the CSP's connect and redirect domains. The same value as buildHtml's, which sets "Open in draw.io".
  * @param {string[]} [options.semanticTypes] - The semantic diagram types create_semantic_diagram offers (default SEMANTIC_TYPES_ON); without any, the tool isn't registered. The engine runs without ELK here, so ER schemas of more than 16 tables go on the grid too, whose search stops at a work limit.
- * @param {string} [options.semanticMode] - "tool" (default): the description is the tool create_semantic_diagram; "parameter": create_diagram's argument `quick` instead, and no tool of its own (SEMANTIC_MODES, measured against each other in bench/).
  * @param {object} [options.uiSession] - The two "does this client render the app" signals, for a server that lives for one request rather than a whole session (both HTTP entries, the Cloudflare Worker and the Node server, build one per request, so it never sees the client's initialize): `declared` is whether the client declared the UI capability at initialize (clientUiState "renders"), `hidden` whether it declared it but is known not to render (clientUiState "hidden"), and the async `markResourceRead()` / `resourceRead()` record and look up that it fetched the app resource. Omitted, both signals come from this server instance, which then has to live as long as the session (the stdio server).
  * @returns {McpServer}
  */
@@ -11096,7 +11049,7 @@ export function createServer(html, options = {})
 {
   const { domain, xmlReference = "", mermaidReference = "", shapeIndex = null,
     iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null,
-    semanticTypes = SEMANTIC_TYPES_ON, semanticMode = "tool" } = options;
+    semanticTypes = SEMANTIC_TYPES_ON } = options;
   const linkBase = editorLinkBase(drawioBaseUrl);
   // The version clients see in serverInfo is the package version, so it moves
   // with each release instead of drifting from package.json/server.json.
@@ -11129,112 +11082,6 @@ export function createServer(html, options = {})
       uiSession.hidden === true;
   }
 
-  // The semantic types offered, on request (describeTool's onRequest): as a
-  // tool of its own, or as create_diagram's argument `quick`.
-  var semanticOffered = semanticTypes.filter(function(t)
-  {
-    return SEMANTIC_SUPPORTED_TYPES.indexOf(t) >= 0;
-  });
-  var quickParameter = semanticOffered.length > 0 && semanticMode === "parameter";
-
-  /**
-   * A diagram from a description: laid out headless and deterministic
-   * (shared/semantic), then the same passes as create_diagram's XML. The
-   * result is the XML, as create_diagram's, so the viewer draws it and
-   * checks its layout as it does any XML diagram. The size rule applies here
-   * because the model has create_diagram for what is too large.
-   *
-   * @param {object} args - the description
-   * @param {boolean} quick - from create_diagram's `quick`, not create_semantic_diagram
-   */
-  async function drawDescription(args, quick)
-  {
-    var r = await semanticToXml(args, { hints: SEMANTIC_HINTS, sizeRule: true });
-
-    if (r.error != null)
-    {
-      var failed = [{ type: "text", text: r.error + ((r.tooLarge != null) ? " " + SEMANTIC_TOO_LARGE_NEXT : "") }];
-
-      if (r.warnings.length > 0)
-      {
-        failed.push({ type: "text", text: "WARNINGS:\n- " + r.warnings.join("\n- ") });
-      }
-
-      return { content: failed, isError: true };
-    }
-
-    // described: the viewer tells the model that the diagram was laid
-    // out from its description, and how to change it (modelContextText).
-    // layout: what a change passes back to keep the shapes where they
-    // are (shared/semantic/keep.js); the server stores nothing.
-    var payload = { xml: absolutizeImageUrls(finishDiagramXml(r.xml)), described: true, _buildId: buildId };
-
-    if (r.layout != null)
-    {
-      payload.layout = r.layout;
-    }
-
-    var content = [{ type: "text", text: JSON.stringify(payload) }];
-    var inline = await rendersInline();
-    var hidden = hiddenUi();
-
-    if (r.layout != null)
-    {
-      content.push({ type: "text", text: semanticChangeNote(r.layout, quick) });
-    }
-
-    if (r.warnings.length > 0)
-    {
-      content.push({ type: "text", text: "WARNINGS (what the diagram doesn't show as described):\n- " + r.warnings.join("\n- ") });
-    }
-
-    appendOpenUrl(content, inline, hidden, payload.xml, "xml", null, linkBase, quick ? "create_diagram" : "create_semantic_diagram");
-    appendAnswerNote(content, inline, hidden);
-
-    return { content: content };
-  }
-
-  // create_diagram's arguments; with the description as `quick`, one more.
-  var createDiagramSchema =
-  {
-    xml: z
-      .string()
-      .optional()
-      .describe(
-        "draw.io XML content in mxGraphModel format. Must be well-formed XML: no XML comments (<!-- -->), no unescaped special characters in attribute values. Mutually exclusive with 'mermaid'."
-      ),
-    mermaid: z
-      .string()
-      .optional()
-      .describe(
-        "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
-      ),
-    postLayout: lenient("postLayout", z.enum(XML_OPTION_VALUES.postLayout).optional())
-      .describe(
-        "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for large Mermaid flowcharts (see below) and for directional XML flows of more than about 30 shapes that you don't lay out yourself; XML you place on the grid (see the XML reference) omits it. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
-        "**Omit** for diagrams whose layout carries meaning you hand-crafted: swimlanes/pools, containers, architecture / deployment / network topology with grouped regions, P&ID or circuit schematics, floor plans, UML diagrams with deliberate placement.\n\n" +
-        "**For Mermaid flowcharts**, the native parser does its own layout, but it produces cramped or unbalanced output once the diagram has any structural complexity. Request `postLayout: \"elk\"` whenever ANY of the following holds: ≥ ~20 nodes, OR ≥ 3 decision diamonds (`{...}` shapes), OR any feedback/back-edges (an edge that points to an earlier node, e.g. an error path looping back to a retry), OR ≥ 3 distinct endpoints — the flow direction follows the flowchart code, so you never pass `direction` for Mermaid. Skip for simple flowcharts (linear chains, < 20 nodes, no branching/back-edges) and for non-flowchart Mermaid types (sequence, class, ER, sankey, etc. — postLayout doesn't apply)."
-      ),
-    direction: lenient("direction", z.enum(XML_OPTION_VALUES.direction).optional())
-      .describe(
-        "**XML only** — the flow direction for `postLayout: \"elk\"` on XML diagrams: `vertical` (top-down) or `horizontal` (left-to-right). Defaults to `vertical`. **Ignored for Mermaid**, where direction is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`). Only meaningful together with `postLayout: \"elk\"`."
-      ),
-    routing: lenient("routing", z.enum(XML_OPTION_VALUES.routing).optional())
-      .describe(
-        "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes the path of each right-angle edge (`edgeStyle=orthogonalEdgeStyle` or `entityRelationEdgeStyle`) so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them; straight and curved lines stay as drawn. Set it for XML diagrams where you have placed nodes deliberately (architecture, deployment, swimlanes, UML class, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
-        "draw.io's default router is basic (straight or simple right-angle lines with **no obstacle avoidance** — wires cut straight through any box between the endpoints), so reach for `\"libavoid\"` whenever edges would otherwise cross shapes or you want uniformly clean orthogonal wiring on a layout you placed yourself. Think of `routing` and `postLayout` as **alternatives**: use `routing: \"libavoid\"` to keep your positions and only fix the wires, or `postLayout: \"elk\"` to re-lay-out the vertices — and note ELK already routes its edges decently, so when you use `postLayout` you normally should **not** also set `routing` (the combination is redundant in almost all cases). Do not add `<Array as=\"points\">` waypoints yourself when routing is set; libavoid computes them. **Ignored for Mermaid** (its native/ELK layout already routes)."
-      ),
-  };
-
-  // A quick diagram as create_diagram's argument (semanticMode
-  // "parameter"): the description that create_semantic_diagram takes, with
-  // the condition that the user asked for one in its text.
-  if (quickParameter)
-  {
-    createDiagramSchema.quick = z.preprocess(jsonObject, semanticInputSchema(semanticOffered).optional())
-      .describe(describeSemanticTool(semanticOffered, { hints: SEMANTIC_HINTS, onRequest: "parameter" }));
-  }
-
   registerAppTool(
     server,
     "create_diagram",
@@ -11247,9 +11094,7 @@ export function createServer(html, options = {})
       // whole batch, other servers' tools included (jgraph/drawio-mcp#76).
       // test/tools.test.js caps every description at 2048 characters.
       description:
-        "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one" +
-        // within the 2048 characters: the pointer to `quick` takes the place of a remark on Mermaid headers
-        (quickParameter ? ", or `quick` when the user asks for a fast diagram.\n\n" : ".\n\n") +
+        "Creates and displays an interactive draw.io diagram from Mermaid.js syntax or draw.io XML — provide exactly one.\n\n" +
         "**Choose the format first.** Use `xml` for diagrams of boxes and lines up to about 30 shapes: flowcharts, pipelines, decision trees, " +
         "org charts, ER schemas, UML class, state and use case diagrams, mind maps, timelines, architecture, cloud and network diagrams, " +
         "swimlanes, UI mockups, floor plans and anything with stencils. You place every shape yourself, laid out for the chat view " +
@@ -11259,7 +11104,7 @@ export function createServer(html, options = {})
         "flowcharts, class and state diagrams of more than about 30 shapes (flowcharts with postLayout elk). " +
         "Whenever the user asks for draw.io XML or no Mermaid, use XML for the rest of the conversation.\n\n" +
         "**Call `get_drawio_reference` before your first diagram in a conversation**, once per format, with the format you chose: " +
-        "\"mermaid\" has the syntax for every type" + (quickParameter ? "" : " (a misspelled header renders blank)") + ", \"xml\" the styles, layout grid, edges, " +
+        "\"mermaid\" has the syntax for every type (a misspelled header renders blank), \"xml\" the styles, layout grid, edges, " +
         "containers, layers and dark mode. For AWS, Azure, GCP and Kubernetes icons write `icon=aws lambda` in the style; " +
         "call `search_shapes` first for other industry icons (Cisco, P&ID, electrical) or logos.\n\n" +
         "XML essentials: <mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>…</root></mxGraphModel>. " +
@@ -11267,7 +11112,36 @@ export function createServer(html, options = {})
         "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
         "Put html=1 in every style and XML-escape HTML in values (&lt; &gt; &amp; &quot;). No XML comments. " +
         "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape.",
-      inputSchema: createDiagramSchema,
+      inputSchema:
+      {
+        xml: z
+          .string()
+          .optional()
+          .describe(
+            "draw.io XML content in mxGraphModel format. Must be well-formed XML: no XML comments (<!-- -->), no unescaped special characters in attribute values. Mutually exclusive with 'mermaid'."
+          ),
+        mermaid: z
+          .string()
+          .optional()
+          .describe(
+            "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
+          ),
+        postLayout: lenient("postLayout", z.enum(XML_OPTION_VALUES.postLayout).optional())
+          .describe(
+            "Optional client-side ELK (Eclipse Layout Kernel) layered-flow pass applied after the diagram renders. The only value is `\"elk\"`. Vertices animate (morph) from the positions you supplied to the layered layout — they are **replaced**, so only your edge topology survives. Set it for large Mermaid flowcharts (see below) and for directional XML flows of more than about 30 shapes that you don't lay out yourself; XML you place on the grid (see the XML reference) omits it. Flow direction (top-down vs left-to-right): for **Mermaid** it is taken from the flowchart code (`flowchart TD/TB` → top-down, `LR/RL` → left-to-right) — do not try to set it here; for **XML** set the optional `direction` field (defaults to top-down).\n" +
+            "**Omit** for diagrams whose layout carries meaning you hand-crafted: swimlanes/pools, containers, architecture / deployment / network topology with grouped regions, P&ID or circuit schematics, floor plans, UML diagrams with deliberate placement.\n\n" +
+            "**For Mermaid flowcharts**, the native parser does its own layout, but it produces cramped or unbalanced output once the diagram has any structural complexity. Request `postLayout: \"elk\"` whenever ANY of the following holds: ≥ ~20 nodes, OR ≥ 3 decision diamonds (`{...}` shapes), OR any feedback/back-edges (an edge that points to an earlier node, e.g. an error path looping back to a retry), OR ≥ 3 distinct endpoints — the flow direction follows the flowchart code, so you never pass `direction` for Mermaid. Skip for simple flowcharts (linear chains, < 20 nodes, no branching/back-edges) and for non-flowchart Mermaid types (sequence, class, ER, sankey, etc. — postLayout doesn't apply)."
+          ),
+        direction: lenient("direction", z.enum(XML_OPTION_VALUES.direction).optional())
+          .describe(
+            "**XML only** — the flow direction for `postLayout: \"elk\"` on XML diagrams: `vertical` (top-down) or `horizontal` (left-to-right). Defaults to `vertical`. **Ignored for Mermaid**, where direction is read from the flowchart code (`flowchart TD/TB` vs `LR/RL`). Only meaningful together with `postLayout: \"elk\"`."
+          ),
+        routing: lenient("routing", z.enum(XML_OPTION_VALUES.routing).optional())
+          .describe(
+            "**XML only** — optional obstacle-avoiding orthogonal **edge-routing** pass (libavoid). The only value is `\"libavoid\"`. Unlike `postLayout`, this does **not** move any vertices — it keeps your hand-placed coordinates and only recomputes the path of each right-angle edge (`edgeStyle=orthogonalEdgeStyle` or `entityRelationEdgeStyle`) so wires run in clean right-angle segments that route *around* the boxes instead of cutting through them; straight and curved lines stay as drawn. Set it for XML diagrams where you have placed nodes deliberately (architecture, deployment, swimlanes, UML class, floor plans) and want tidy connectors without overlaps — exactly the diagrams where you'd OMIT `postLayout`.\n" +
+            "draw.io's default router is basic (straight or simple right-angle lines with **no obstacle avoidance** — wires cut straight through any box between the endpoints), so reach for `\"libavoid\"` whenever edges would otherwise cross shapes or you want uniformly clean orthogonal wiring on a layout you placed yourself. Think of `routing` and `postLayout` as **alternatives**: use `routing: \"libavoid\"` to keep your positions and only fix the wires, or `postLayout: \"elk\"` to re-lay-out the vertices — and note ELK already routes its edges decently, so when you use `postLayout` you normally should **not** also set `routing` (the combination is redundant in almost all cases). Do not add `<Array as=\"points\">` waypoints yourself when routing is set; libavoid computes them. **Ignored for Mermaid** (its native/ELK layout already routes)."
+          ),
+      },
       annotations:
       {
         readOnlyHint: true,
@@ -11282,24 +11156,10 @@ export function createServer(html, options = {})
         "openai/toolInvocation/invoked": "Diagram ready.",
       },
     },
-    async function({ xml, mermaid, postLayout, direction, routing, quick })
+    async function({ xml, mermaid, postLayout, direction, routing })
     {
       var hasXml = (xml != null && typeof xml === "string" && xml.trim().length > 0);
       var hasMermaid = (mermaid != null && typeof mermaid === "string" && mermaid.trim().length > 0);
-
-      // The description of a quick diagram (semanticMode "parameter")
-      if (quick != null)
-      {
-        if (hasXml || hasMermaid)
-        {
-          return {
-            content: [{ type: "text", text: "Provide exactly one of 'xml', 'mermaid' or 'quick'." }],
-            isError: true,
-          };
-        }
-
-        return drawDescription(quick, true);
-      }
 
       if (hasXml === hasMermaid)
       {
@@ -11308,6 +11168,7 @@ export function createServer(html, options = {})
           isError: true,
         };
       }
+
       // A diagram passed under the other parameter is drawn as what it is:
       // Mermaid in xml (no draw.io XML in it, and a known Mermaid header),
       // or draw.io XML in mermaid. The model is told, so it passes the
@@ -11444,9 +11305,14 @@ export function createServer(html, options = {})
     }
   );
 
-  // ── create_semantic_diagram (with a semantic type offered, as a tool) ──────
+  // ── create_semantic_diagram (with a semantic type offered, on request) ────
 
-  if (semanticOffered.length > 0 && !quickParameter)
+  var semanticOffered = semanticTypes.filter(function(t)
+  {
+    return SEMANTIC_SUPPORTED_TYPES.indexOf(t) >= 0;
+  });
+
+  if (semanticOffered.length > 0)
   {
     registerAppTool(
       server,
@@ -11456,7 +11322,7 @@ export function createServer(html, options = {})
         // Built from the types offered (shared/semantic/description.js), as
         // the schema is: the keys of nodes, edges and groups are there. Taken
         // only when the user asks for a quick diagram (onRequest).
-        description: describeSemanticTool(semanticOffered, { hints: SEMANTIC_HINTS, onRequest: "tool" }),
+        description: describeSemanticTool(semanticOffered, { hints: SEMANTIC_HINTS, onRequest: true }),
         inputSchema: semanticInputSchema(semanticOffered),
         annotations:
         {
@@ -11474,7 +11340,54 @@ export function createServer(html, options = {})
       },
       async function(args)
       {
-        return drawDescription(args, false);
+        // Laid out headless and deterministic (shared/semantic), then the
+        // same passes as create_diagram's XML. The result is the XML, as
+        // create_diagram's, so the viewer draws it and checks its layout as
+        // it does any XML diagram. The size rule applies here because the
+        // model has create_diagram for what is too large.
+        var r = await semanticToXml(args, { hints: SEMANTIC_HINTS, sizeRule: true });
+
+        if (r.error != null)
+        {
+          var failed = [{ type: "text", text: r.error + ((r.tooLarge != null) ? " " + SEMANTIC_TOO_LARGE_NEXT : "") }];
+
+          if (r.warnings.length > 0)
+          {
+            failed.push({ type: "text", text: "WARNINGS:\n- " + r.warnings.join("\n- ") });
+          }
+
+          return { content: failed, isError: true };
+        }
+
+        // described: the viewer tells the model that the diagram was laid
+        // out from its description, and how to change it (modelContextText).
+        // layout: what a change passes back to keep the shapes where they
+        // are (shared/semantic/keep.js); the server stores nothing.
+        var payload = { xml: absolutizeImageUrls(finishDiagramXml(r.xml)), described: true, _buildId: buildId };
+
+        if (r.layout != null)
+        {
+          payload.layout = r.layout;
+        }
+
+        var content = [{ type: "text", text: JSON.stringify(payload) }];
+        var inline = await rendersInline();
+        var hidden = hiddenUi();
+
+        if (r.layout != null)
+        {
+          content.push({ type: "text", text: semanticChangeNote(r.layout) });
+        }
+
+        if (r.warnings.length > 0)
+        {
+          content.push({ type: "text", text: "WARNINGS (what the diagram doesn't show as described):\n- " + r.warnings.join("\n- ") });
+        }
+
+        appendOpenUrl(content, inline, hidden, payload.xml, "xml", null, linkBase, "create_semantic_diagram");
+        appendAnswerNote(content, inline, hidden);
+
+        return { content: content };
       }
     );
   }

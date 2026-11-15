@@ -8,7 +8,8 @@
 //   mermaid);
 // - R2, the fast path with the wish: on the prompts with the wish whose type
 //   the fast path draws (`covered`), at least 90 % take the fast path (a
-//   description: create_semantic_diagram, or create_diagram's quick);
+//   description: create_semantic_diagram, or create_diagram's quick in the
+//   fast-param design, measured on 15 November 2026 and removed);
 // - R3, the wish on another type: on the prompts with the wish whose type it
 //   doesn't draw, at least 90 % take the normal path;
 //
@@ -19,7 +20,7 @@
 //
 // Writes choice.md and choice.json to the output directory.
 //
-// usage: node choice.mjs --variants fast-tool,fast-param [--set fast-2026-11-15]
+// usage: node choice.mjs [--variants fast-tool] [--set fast-2026-11-15]
 //          [--models sonnet,opus] [--out DIR]
 
 import fs from "node:fs";
@@ -29,7 +30,7 @@ import { parseArgs, outDir, loadPrompts, readJson } from "./lib/common.mjs";
 const args = parseArgs(process.argv.slice(2));
 const out = outDir(args);
 const prompts = loadPrompts();
-const variants = String(args.variants || "fast-tool,fast-param").split(",");
+const variants = String(args.variants || "fast-tool").split(",");
 const set = args.set || "fast-2026-11-15";
 const models = String(args.models || "sonnet,opus").split(",");
 const RULES =
