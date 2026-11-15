@@ -16,6 +16,8 @@ Variants (`run.mjs`):
 | `switch-on` | the app server itself with its switch on (`DRAWIO_SEMANTIC_TYPES`, `on` unless set): its own `create_semantic_diagram` for the types that passed the judgement next to `create_diagram`, as staging has it. Shows which tool a model picks per diagram type and that the server's tool takes what models send |
 | `staging` | the staging Worker as deployed, over HTTP (`BENCH_STAGING_URL`, else `drawio-mcp-app-staging` on workers.dev): `create_diagram` and, where the deploy switched it on, `create_semantic_diagram` |
 | `production` | the production server, over HTTP (`BENCH_PRODUCTION_URL`, else `https://mcp.draw.io/mcp`): `create_diagram` only |
+| `fast-tool` | the app server as built, with no switch set: `create_diagram` and its own `create_semantic_diagram` for flowcharts and swimlanes, whose description has the model take it only when the user asks for a quick diagram |
+| `fast-param` | the same description as `create_diagram`'s argument `quick` instead of a tool of its own (`DRAWIO_SEMANTIC_MODE=parameter`) |
 
 ## Setup
 
@@ -87,6 +89,64 @@ The rule, declared before the runs: for each model (Sonnet and Opus, three runs 
 | … changed diagram | 0.64, vending 0 and triage 0 under the floor: **fail** | 0.56, lowest 0.33: pass |
 
 The lane diagrams won (Sonnet 22 of 24 first diagrams, Opus 20 of 24); the flowcharts without lanes lost for Sonnet and are at the floor for Opus. The large flowchart without lanes was sent on to `create_diagram` by the size rule (Sonnet 3 of 3 runs, Opus 2 of 3, its third run went there directly) and is left out of the gate. With the switch on, the models took the description for 41 of 42 flowcharts and `create_diagram` for all 24 other prompts.
+
+## The tool choice on request
+
+The description path is offered by default but taken only when the user asks for a quick diagram: in so many words, fast, rough, a sketch or a draft, little effort or few tokens, in any language. Otherwise the model uses `create_diagram` as before. Two designs carry that condition, and the bench measures which one models follow more reliably:
+
+- **`fast-tool`**: a tool of its own, `create_semantic_diagram`, whose description starts with the condition; `create_diagram` stays as it is.
+- **`fast-param`**: an argument `quick` of `create_diagram`, whose schema description starts with the condition, and a pointer to it in the first sentence of `create_diagram`'s description. That pointer takes the place of the remark on misspelled Mermaid headers, so the description stays under 2048 characters.
+
+The prompts of `"set": "fast-2026-11-15"` were written for this test and committed before its runs. There are ten requests, each twice, word for word the same except for the wish (`"wish": true`, keys ending in `-wish`):
+
+- **Languages:** five in English and five in German.
+- **Six flowcharts the fast path draws** (`"covered": true`): three without lanes and three with lanes.
+- **Four other types** (`"covered": false`): an AWS architecture, an ER schema, a sequence diagram and an org chart.
+- **The wishes:** "Quickly", "schnell", "Just a rough sketch is fine", "Bitte mit wenig Aufwand", "Keep it cheap: use as few tokens as possible", "sparsam … Ein grober Entwurf reicht", "a quick draft", "Schnell bitte, und verbrauche wenig Tokens", "A rough sketch is enough, I need it fast" and "auf die Schnelle".
+- **Requests without the wish that come close to one:** "a simple flowchart", "ein übersichtliches Swimlane-Diagramm", and an "express" parcel delivery.
+
+The wording was tried on the four requests of `"set": "fast-dev"` (each with and without a wish), never on these.
+
+```bash
+# the choice: three runs per prompt, model and design, each ended at its first diagram call
+node run.mjs --variants fast-tool,fast-param --set fast-2026-11-15 --models sonnet,opus --repeats 3 --choice-only
+node choice.mjs --variants fast-tool,fast-param --set fast-2026-11-15
+
+# time, tokens and quality of the fast prompts: the chosen design ($CHOSEN) against create_diagram alone, whole sessions
+node run.mjs --variants today,$CHOSEN --set fast-2026-11-15 --wish yes --type swimlane --models sonnet,opus --repeats 3 --out out/fast-full
+node render.mjs --chrome /path/to/chrome-headless-shell --out out/fast-full
+node judge.mjs --a today --b $CHOSEN --set fast-2026-11-15 --wish yes --type swimlane --runs-model sonnet --out out/fast-full
+node judge.mjs --a today --b $CHOSEN --set fast-2026-11-15 --wish yes --type swimlane --runs-model opus --out out/fast-full
+node report.mjs --out out/fast-full
+```
+
+**The rule, declared before the runs** (`choice.mjs`). The choice is the way of a session's first diagram call:
+
+- **Fast:** a description, through `create_semantic_diagram` or `create_diagram`'s `quick`.
+- **Normal:** `create_diagram`'s `xml` or `mermaid`.
+- **Counted per model**, Sonnet and Opus, three runs per prompt.
+- **A session without a diagram call** counts against the design.
+
+| Rule | Prompts | Sessions per model | Passes with |
+|---|---|---|---|
+| R1: no fast path without the wish | the ten without the wish | 30 | at least 95 % normal (at most 1 fast) |
+| R2: the fast path with the wish | the six flowcharts with the wish | 18 | at least 90 % fast (at most 1 normal) |
+| R3: the wish on a type the fast path doesn't draw | the four others with the wish | 12 | at least 90 % normal (at most 1 fast) |
+
+**Choosing a design:**
+
+- A design passes when R1, R2 and R3 hold for both models.
+- If both pass, the one with more correct sessions wins. A tie goes to `fast-tool`, which leaves `create_diagram` as it is.
+- If neither passes, the description path is not offered by default.
+
+**Time, tokens and quality** come from whole sessions of the chosen design: three runs per flowchart prompt with the wish and model. They are compared with `today`, which has `create_diagram` alone, on the same prompts:
+
+- seconds to the diagram (median);
+- output tokens (median);
+- layout-check findings;
+- the judge's share: Opus, blind, on the inline images, both orders.
+
+These are reported, not gated, because the user asked for speed. The choices of these sessions are reported beside R2.
 
 ## When a type is switched on
 

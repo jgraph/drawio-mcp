@@ -65,8 +65,9 @@ export function loadPrompts()
 
 /**
  * The prompt keys a script works on: --prompts (keys, comma-separated;
- * default all), narrowed by --type, --split and --size (each one value or
- * several, comma-separated).
+ * default all), narrowed by --type, --split, --size and --set (each one
+ * value or several, comma-separated) and --wish (yes or no: whether the
+ * prompt asks for a quick diagram).
  */
 export function selectKeys(prompts, args)
 {
@@ -83,13 +84,16 @@ export function selectKeys(prompts, args)
   const types = list(args.type);
   const splits = list(args.split);
   const sizes = list(args.size);
+  const sets = list(args.set);
+  const wish = (args.wish == null || args.wish === true) ? null : (args.wish === "yes");
 
   return keys.filter(function(k)
   {
     const p = prompts[k];
 
     return (types == null || types.includes(p.type)) && (splits == null || splits.includes(p.split)) &&
-      (sizes == null || sizes.includes(p.size));
+      (sizes == null || sizes.includes(p.size)) && (sets == null || sets.includes(p.set)) &&
+      (wish == null || !!p.wish === wish);
   });
 }
 

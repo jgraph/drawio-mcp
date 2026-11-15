@@ -11,11 +11,16 @@
 // complete. The summary has that turn under "edit", measured from the moment
 // the request was sent, and its diagram goes to <tag>-edit-diagram.json.
 //
+// With --choice-only, a session ends as soon as the first diagram call shows
+// which way the model went (a tool of its own, or the first of create_diagram's
+// xml, mermaid and quick arguments): the summary has it as
+// firstDiagramPath, and there is no diagram.
+//
 // usage: node run.mjs --variants today,semantic [--prompts er,er-clinic]
-//          [--type architecture] [--split dev] [--size large]
+//          [--type architecture] [--split dev] [--size large] [--set NAME]
 //          [--models sonnet] [--repeats 3] [--first-repeat 1] [--parallel 4]
 //          [--edits | --edits dev | --edits held-out] [--timeout 900]
-//          [--out DIR]
+//          [--choice-only] [--out DIR]
 //
 // Variants:
 //   today          the app server as it is (the model picks XML or Mermaid
@@ -44,6 +49,12 @@
 //                  create_semantic_diagram
 //   production     the production server over HTTP (BENCH_PRODUCTION_URL,
 //                  else https://mcp.draw.io/mcp): create_diagram only
+//   fast-tool      the app server as built, with no switch set: its own
+//                  create_semantic_diagram for flowcharts and swimlanes,
+//                  whose description has the model take it only when the
+//                  user asks for a quick diagram
+//   fast-param     the same description as create_diagram's argument
+//                  `quick` instead of a tool (DRAWIO_SEMANTIC_MODE=parameter)
 //
 // For the two live variants the diagram file also keeps the tool's result
 // as the live server returned it (with its _buildId), and render.mjs draws
@@ -55,7 +66,7 @@ import path from "node:path";
 import { BENCH, APP_SERVER, parseArgs, outDir, loadPrompts, selectKeys, runTag, pool, round } from "./lib/common.mjs";
 
 const VARIANTS = ["today", "mermaid", "semantic", "semantic-auto", "semantic-rows", "both", "both-rule", "switch-on",
-  "staging", "production"];
+  "staging", "production", "fast-tool", "fast-param"];
 // the deployed servers the live variants talk to
 const LIVE_URLS =
 {
@@ -76,6 +87,7 @@ const first = Number(args["first-repeat"] || 1);
 const timeout = Number(args.timeout || 900) * 1000;
 // --edits: every prompt; --edits dev / held-out: the prompts of that split
 const edits = args.edits === true ? "all" : (args.edits || null);
+const choiceOnly = args["choice-only"] === true;
 
 for (const v of variants)
 {
@@ -91,7 +103,14 @@ fs.mkdirSync(out, { recursive: true });
 // The app server itself: as it is, or with its own semantic tool switched on.
 function usesAppServer(variant)
 {
-  return variant === "today" || variant === "mermaid" || variant === "switch-on";
+  return variant === "today" || variant === "mermaid" || variant === "switch-on" || fastVariant(variant);
+}
+
+// The app server as built, with the description offered on request: as a
+// tool of its own, or as create_diagram's `quick`.
+function fastVariant(variant)
+{
+  return variant === "fast-tool" || variant === "fast-param";
 }
 
 // A deployed server, over HTTP: its URL, else null.
@@ -107,7 +126,8 @@ function usesSemanticServer(variant)
 
 function offersBoth(variant)
 {
-  return variant === "both" || variant === "both-rule" || variant === "switch-on" || variant === "staging";
+  return variant === "both" || variant === "both-rule" || variant === "switch-on" || variant === "staging" ||
+    variant === "fast-tool";
 }
 
 function formatRule(variant)
@@ -156,9 +176,11 @@ function mcpConfig(variant, tag)
   {
     server = { type: "stdio", command: process.execPath, args: [APP_SERVER, "--stdio"] };
 
-    // the switch as a deploy sets it; the other variants are the baseline,
-    // create_diagram alone, whatever the shell or the server's default has
-    server.env = { DRAWIO_SEMANTIC_TYPES: variant === "switch-on" ? (process.env.DRAWIO_SEMANTIC_TYPES || "on") : "off" };
+    // the switch as a deploy sets it; the fast variants have the server's
+    // default types, the other variants are the baseline, create_diagram
+    // alone, whatever the shell or the server's default has
+    server.env = fastVariant(variant) ? { DRAWIO_SEMANTIC_MODE: variant === "fast-param" ? "parameter" : "tool" } :
+      { DRAWIO_SEMANTIC_TYPES: variant === "switch-on" ? (process.env.DRAWIO_SEMANTIC_TYPES || "on") : "off" };
   }
 
   const file = path.join(out, tag + "-mcp.json");
@@ -188,6 +210,53 @@ function userMessage(text)
 function shortName(name)
 {
   return name.replace(/^mcp__\w+?__/, "");
+}
+
+// The way a diagram call went: "fast" for a description (the tool of its
+// own, or create_diagram's quick), else "xml" or "mermaid".
+function pathOf(name, input)
+{
+  if (shortName(name) === SEMANTIC_TOOL || (input != null && input.quick != null))
+  {
+    return "fast";
+  }
+
+  return (input != null && input.mermaid != null) ? "mermaid" : (input != null && input.xml != null) ? "xml" : null;
+}
+
+// The description of a call: the tool's arguments, or create_diagram's quick.
+function descriptionOf(name, input)
+{
+  if (shortName(name) === SEMANTIC_TOOL)
+  {
+    return input;
+  }
+
+  let quick = input != null ? input.quick : null;
+
+  if (typeof quick === "string")
+  {
+    try
+    {
+      quick = JSON.parse(quick);
+    }
+    catch (e)
+    {
+      quick = null;
+    }
+  }
+
+  return quick;
+}
+
+// The first key of create_diagram's arguments that says which way the call
+// goes, read from the JSON as it streams in (a key at the top level, not
+// one quoted inside a value).
+function streamedPath(json)
+{
+  const m = /(?:^|[{,])\s*"(xml|mermaid|quick)"\s*:/.exec(json);
+
+  return m ? (m[1] === "quick" ? "fast" : m[1]) : null;
 }
 
 // The nodes of a description, also when the list came as JSON text.
@@ -281,7 +350,7 @@ function summarizeTurn(events, start)
             call.isError = !!c.is_error;
             // the size rule refused the description (shared/semantic/index.js; while
             // it named the limit, the error said "are drawn with up to")
-            call.tooLarge = call.isError && shortName(call.name) === SEMANTIC_TOOL &&
+            call.tooLarge = call.isError && pathOf(call.name, call.input) === "fast" &&
               /too large to lay out|are drawn with up to/.test(text);
           }
         }
@@ -326,14 +395,16 @@ function summarizeTurn(events, start)
       diagramWriteSecs: round(blocks.filter(function(b) { return b.kind === "tool_use" && /create_/.test(b.name); })
         .reduce(function(a, b) { return a + b.secs; }, 0), 1),
       diagramChars: last ? JSON.stringify(last.input).length : null,
-      format: last ? (shortName(last.name) === SEMANTIC_TOOL ? "semantic" : last.input.mermaid ? "mermaid" : "xml") : null,
+      format: last ? (pathOf(last.name, last.input) === "fast" ? "semantic" : last.input.mermaid ? "mermaid" : "xml") : null,
       // which diagram tool the model reached for first, whether or not the call succeeded
       firstDiagramTool: diagramCalls.length > 0 ? shortName(diagramCalls[0].name) : null,
+      // and which way: "fast" (a description), "xml" or "mermaid"
+      firstDiagramPath: diagramCalls.length > 0 ? pathOf(diagramCalls[0].name, diagramCalls[0].input) : null,
       diagramTool: last ? shortName(last.name) : null,
       diagramCalls: diagramCalls.length,
       // the size rule sent the diagram to create_diagram: the description was
       // refused as too large, and the diagram came from the other tool
-      sentOn: last != null && shortName(last.name) !== SEMANTIC_TOOL &&
+      sentOn: last != null && pathOf(last.name, last.input) !== "fast" &&
         diagramCalls.some(function(c) { return c.tooLarge; }),
       usedReference: called("get_drawio_reference"),
       usedSearch: called("search_shapes"),
@@ -341,7 +412,8 @@ function summarizeTurn(events, start)
       {
         return { name: shortName(c.name), t: secs(c.callT), inputChars: JSON.stringify(c.input).length,
           resultChars: c.resultChars, isError: c.isError, tooLarge: c.tooLarge || undefined,
-          nodes: (shortName(c.name) === SEMANTIC_TOOL) ? countNodes(c.input) : undefined,
+          nodes: pathOf(c.name, c.input) === "fast" && descriptionOf(c.name, c.input) != null ?
+            countNodes(descriptionOf(c.name, c.input)) : undefined,
           query: c.input.query || c.input.format };
       }),
       finalText: result && typeof result.result === "string" ? result.result.slice(0, 600) : null
@@ -359,7 +431,7 @@ function hintsOf(variant)
   }
 
   // the app server's own tool asks for the cells (SEMANTIC_HINTS in its src/shared.js)
-  return (variant === "semantic-rows" || variant === "switch-on" || variant === "staging" ||
+  return (variant === "semantic-rows" || variant === "switch-on" || variant === "staging" || fastVariant(variant) ||
     process.env.SEMANTIC_HINTS === "ask") ? "ask" : true;
 }
 
@@ -382,7 +454,11 @@ function saveDiagram(file, variant, call)
 {
   if (call)
   {
-    const d = { tool: shortName(call.name), arguments: call.input, hints: hintsOf(variant) };
+    // create_diagram's quick is saved as the description it is, so
+    // render.mjs draws it as one
+    const quick = shortName(call.name) !== SEMANTIC_TOOL && pathOf(call.name, call.input) === "fast";
+    const d = { tool: quick ? SEMANTIC_TOOL : shortName(call.name), arguments: quick ? descriptionOf(call.name, call.input) : call.input,
+      hints: hintsOf(variant), via: quick ? "create_diagram.quick" : undefined };
 
     if (liveUrl(variant) != null)
     {
@@ -421,6 +497,55 @@ function runCase(variant, key, model, rep)
     let editStart = null;
     let editIndex = null;
     let timedOut = false;
+    // --choice-only: the first diagram call as it streams in, and the way it went
+    const streaming = {};
+    let choice = null;
+
+    function chosen(name, path, t)
+    {
+      if (choice == null && path != null)
+      {
+        choice = { tool: shortName(name), path: path, secs: round(t / 1000, 2) };
+        child.kill();
+      }
+    }
+
+    function watchChoice(ev)
+    {
+      const e = ev.e;
+
+      if (e.type === "stream_event")
+      {
+        const se = e.event;
+
+        if (se.type === "content_block_start" && se.content_block && se.content_block.type === "tool_use" &&
+          /create_/.test(se.content_block.name || ""))
+        {
+          streaming[se.index] = { name: se.content_block.name, json: "" };
+
+          if (shortName(se.content_block.name) === SEMANTIC_TOOL)
+          {
+            chosen(se.content_block.name, "fast", ev.t);
+          }
+        }
+        else if (se.type === "content_block_delta" && se.delta && se.delta.type === "input_json_delta" && streaming[se.index])
+        {
+          const b = streaming[se.index];
+          b.json += se.delta.partial_json || "";
+          chosen(b.name, streamedPath(b.json), ev.t);
+        }
+      }
+      else if (e.type === "assistant")
+      {
+        for (const c of e.message.content || [])
+        {
+          if (c.type === "tool_use" && /create_/.test(c.name))
+          {
+            chosen(c.name, pathOf(c.name, c.input), ev.t);
+          }
+        }
+      }
+    }
 
     const timer = setTimeout(function()
     {
@@ -432,6 +557,11 @@ function runCase(variant, key, model, rep)
     {
       events.push(ev);
       log.write(JSON.stringify(ev) + "\n");
+
+      if (choiceOnly)
+      {
+        watchChoice(ev);
+      }
 
       if (ev.e.type === "result")
       {
@@ -504,14 +634,23 @@ function runCase(variant, key, model, rep)
         repeat: rep, tag: tag, formatRule: usesSemanticServer(variant) && offersBoth(variant) ? formatRule(variant) : undefined,
         server: liveUrl(variant) || undefined, buildId: liveUrl(variant) != null ? buildIdOf(firstTurn.last) || undefined : undefined,
         timedOut: timedOut || undefined,
+        // --choice-only: ended at the first diagram call, which went this way
+        choice: choice || undefined,
         // seconds until the first answer was complete (as before: "wall"), and of the whole session
         wallSecs: f.endSecs != null ? f.endSecs : round((Date.now() - t0) / 1000, 2),
         sessionSecs: round((Date.now() - t0) / 1000, 2) }, f,
         { edit: editTurn ? Object.assign({ request: p.edit,
           buildId: liveUrl(variant) != null ? buildIdOf(editTurn.last) || undefined : undefined }, editTurn.summary) : null });
       delete s.endSecs;
+
+      if (choice != null)
+      {
+        s.firstDiagramTool = s.firstDiagramTool || choice.tool;
+        s.firstDiagramPath = s.firstDiagramPath || choice.path;
+      }
+
       fs.writeFileSync(path.join(out, tag + "-summary.json"), JSON.stringify(s, null, 1));
-      console.log(tag, s.ok ? "diagram " + s.diagramSecs + " s, end " + s.wallSecs + " s, " + s.outputTokens +
+      console.log(tag, choice != null ? "chose " + choice.tool + " (" + choice.path + ") after " + choice.secs + " s" : s.ok ? "diagram " + s.diagramSecs + " s, end " + s.wallSecs + " s, " + s.outputTokens +
         " output tokens, " + s.format : (timedOut ? "TIMED OUT" : "NO DIAGRAM"),
         s.edit ? (s.edit.ok ? "| edit: diagram " + s.edit.diagramSecs + " s, end " + s.edit.endSecs + " s, " +
           s.edit.outputTokens + " output tokens" : "| edit: NO DIAGRAM") : "");

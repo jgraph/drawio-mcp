@@ -231,5 +231,117 @@
   "mind-trip": {
     "type": "mindmap", "split": "held-out", "size": "normal", "set": "er-2026-11-14",
     "prompt": "Draw a mind map for planning a two-week trip to Japan: budget, transport, accommodation, the itinerary by city, food to try, and packing and documents, with three to five items on every branch."
+  },
+  "fast-flow-library": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "fast-2026-11-15", "lang": "en", "base": "fast-flow-library", "wish": false, "covered": true,
+    "prompt": "Draw a simple flowchart of returning a book at a library self-service kiosk: the member scans their card (decision: card valid? if not, show 'please see the front desk' and end); the member places the book on the reader (decision: book recognised? if not, ask to try again, and after the second failed try send the member to the front desk); the kiosk checks the due date (decision: overdue? if yes, show the late fee and ask whether to pay by card now or add it to the account); the kiosk prints a receipt and ends."
+  },
+  "fast-flow-library-wish": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "fast-2026-11-15", "lang": "en", "base": "fast-flow-library", "wish": true, "covered": true,
+    "prompt": "Quickly draw a simple flowchart of returning a book at a library self-service kiosk: the member scans their card (decision: card valid? if not, show 'please see the front desk' and end); the member places the book on the reader (decision: book recognised? if not, ask to try again, and after the second failed try send the member to the front desk); the kiosk checks the due date (decision: overdue? if yes, show the late fee and ask whether to pay by card now or add it to the account); the kiosk prints a receipt and ends."
+  },
+  "fast-flow-pizza": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "fast-2026-11-15", "lang": "de", "base": "fast-flow-pizza", "wish": false, "covered": true,
+    "prompt": "Zeichne ein Flussdiagramm für eine Pizzabestellung in einer App: Der Kunde wählt eine Pizza und Extras; die App prüft, ob das Restaurant geöffnet ist (Entscheidung: geöffnet? wenn nicht, eine Vorbestellung für später anbieten, sonst abbrechen); der Kunde gibt die Lieferadresse ein (Entscheidung: im Liefergebiet? wenn nicht, Abholung anbieten); der Kunde bezahlt online oder bar bei Lieferung (Entscheidung: Online-Zahlung erfolgreich? wenn nicht, zurück zur Zahlungsauswahl); das Restaurant bestätigt die Bestellung, und der Kunde erhält die voraussichtliche Lieferzeit."
+  },
+  "fast-flow-pizza-wish": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "fast-2026-11-15", "lang": "de", "base": "fast-flow-pizza", "wish": true, "covered": true,
+    "prompt": "Zeichne schnell ein Flussdiagramm für eine Pizzabestellung in einer App: Der Kunde wählt eine Pizza und Extras; die App prüft, ob das Restaurant geöffnet ist (Entscheidung: geöffnet? wenn nicht, eine Vorbestellung für später anbieten, sonst abbrechen); der Kunde gibt die Lieferadresse ein (Entscheidung: im Liefergebiet? wenn nicht, Abholung anbieten); der Kunde bezahlt online oder bar bei Lieferung (Entscheidung: Online-Zahlung erfolgreich? wenn nicht, zurück zur Zahlungsauswahl); das Restaurant bestätigt die Bestellung, und der Kunde erhält die voraussichtliche Lieferzeit."
+  },
+  "fast-lanes-laptop": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "fast-2026-11-15", "lang": "en", "base": "fast-lanes-laptop", "wish": false, "covered": true,
+    "prompt": "Draw a swimlane diagram with lanes for Employee, Manager and IT for requesting a new laptop: the employee fills in a request form; the manager reviews it (decision: approved? if not, the employee is notified and the process ends); IT checks the stock (decision: laptop in stock? if not, IT orders one from the supplier and waits for the delivery); IT sets up the laptop with the standard software; the employee picks it up and signs the handover form; IT closes the ticket."
+  },
+  "fast-lanes-laptop-wish": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "fast-2026-11-15", "lang": "en", "base": "fast-lanes-laptop", "wish": true, "covered": true,
+    "prompt": "Draw a swimlane diagram with lanes for Employee, Manager and IT for requesting a new laptop: the employee fills in a request form; the manager reviews it (decision: approved? if not, the employee is notified and the process ends); IT checks the stock (decision: laptop in stock? if not, IT orders one from the supplier and waits for the delivery); IT sets up the laptop with the standard software; the employee picks it up and signs the handover form; IT closes the ticket. Just a rough sketch is fine."
+  },
+  "fast-lanes-vacation": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "fast-2026-11-15", "lang": "de", "base": "fast-lanes-vacation", "wish": false, "covered": true,
+    "prompt": "Zeichne ein übersichtliches Swimlane-Diagramm mit den Bahnen Mitarbeiter, Teamleitung und Personalabteilung für einen Urlaubsantrag: Der Mitarbeiter stellt den Antrag im Portal; die Personalabteilung prüft das Resturlaubskonto (Entscheidung: genug Tage? wenn nicht, wird der Antrag abgelehnt und der Mitarbeiter informiert); die Teamleitung prüft die Vertretung (Entscheidung: Vertretung geregelt? wenn nicht, Rückfrage an den Mitarbeiter, der einen anderen Zeitraum wählt); die Teamleitung genehmigt den Antrag; die Personalabteilung trägt den Urlaub ein und bestätigt ihn per E-Mail."
+  },
+  "fast-lanes-vacation-wish": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "fast-2026-11-15", "lang": "de", "base": "fast-lanes-vacation", "wish": true, "covered": true,
+    "prompt": "Zeichne ein übersichtliches Swimlane-Diagramm mit den Bahnen Mitarbeiter, Teamleitung und Personalabteilung für einen Urlaubsantrag: Der Mitarbeiter stellt den Antrag im Portal; die Personalabteilung prüft das Resturlaubskonto (Entscheidung: genug Tage? wenn nicht, wird der Antrag abgelehnt und der Mitarbeiter informiert); die Teamleitung prüft die Vertretung (Entscheidung: Vertretung geregelt? wenn nicht, Rückfrage an den Mitarbeiter, der einen anderen Zeitraum wählt); die Teamleitung genehmigt den Antrag; die Personalabteilung trägt den Urlaub ein und bestätigt ihn per E-Mail. Bitte mit wenig Aufwand."
+  },
+  "fast-flow-express": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "fast-2026-11-15", "lang": "en", "base": "fast-flow-express", "wish": false, "covered": true,
+    "prompt": "Draw a flowchart of an express parcel delivery attempt: the courier arrives at the address (decision: recipient at home? if yes, check the ID for age-restricted items and hand over the parcel); if not, the courier tries a neighbour (decision: neighbour accepts? if yes, hand it over and leave a card in the mailbox); otherwise the courier checks whether the recipient allowed a safe place (decision: safe place allowed? if yes, leave the parcel there and take a photo; if not, take it to the nearest pickup point and send a text message); finally the courier marks the delivery in the app."
+  },
+  "fast-flow-express-wish": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": false, "set": "fast-2026-11-15", "lang": "en", "base": "fast-flow-express", "wish": true, "covered": true,
+    "prompt": "Draw a flowchart of an express parcel delivery attempt: the courier arrives at the address (decision: recipient at home? if yes, check the ID for age-restricted items and hand over the parcel); if not, the courier tries a neighbour (decision: neighbour accepts? if yes, hand it over and leave a card in the mailbox); otherwise the courier checks whether the recipient allowed a safe place (decision: safe place allowed? if yes, leave the parcel there and take a photo; if not, take it to the nearest pickup point and send a text message); finally the courier marks the delivery in the app. Keep it cheap: use as few tokens as possible."
+  },
+  "fast-lanes-return": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "fast-2026-11-15", "lang": "de", "base": "fast-lanes-return", "wish": false, "covered": true,
+    "prompt": "Erstelle ein Swimlane-Diagramm mit den Bahnen Kunde, Kundenservice und Lager für eine Reklamation im Onlineshop: Der Kunde meldet einen defekten Artikel mit Foto; der Kundenservice prüft die Reklamation (Entscheidung: Garantiefall? wenn nicht, eine kostenpflichtige Reparatur anbieten und den Fall schließen); der Kunde schickt den Artikel mit dem Rücksendeetikett zurück; das Lager prüft den Artikel (Entscheidung: Defekt bestätigt? wenn nicht, den Artikel an den Kunden zurückschicken); das Lager versendet Ersatz (Entscheidung: Ersatz vorrätig? wenn nicht, erstattet der Kundenservice den Kaufpreis); der Kundenservice schließt den Fall."
+  },
+  "fast-lanes-return-wish": {
+    "type": "swimlane", "split": "held-out", "size": "normal", "lanes": true, "set": "fast-2026-11-15", "lang": "de", "base": "fast-lanes-return", "wish": true, "covered": true,
+    "prompt": "Erstelle sparsam ein Swimlane-Diagramm mit den Bahnen Kunde, Kundenservice und Lager für eine Reklamation im Onlineshop: Der Kunde meldet einen defekten Artikel mit Foto; der Kundenservice prüft die Reklamation (Entscheidung: Garantiefall? wenn nicht, eine kostenpflichtige Reparatur anbieten und den Fall schließen); der Kunde schickt den Artikel mit dem Rücksendeetikett zurück; das Lager prüft den Artikel (Entscheidung: Defekt bestätigt? wenn nicht, den Artikel an den Kunden zurückschicken); das Lager versendet Ersatz (Entscheidung: Ersatz vorrätig? wenn nicht, erstattet der Kundenservice den Kaufpreis); der Kundenservice schließt den Fall. Ein grober Entwurf reicht."
+  },
+  "fast-arch-shop": {
+    "type": "architecture", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "en", "base": "fast-arch-shop", "wish": false, "covered": false,
+    "prompt": "Draw an architecture diagram of a web shop on AWS: users reach CloudFront, which serves static files from S3 and forwards API calls to an Application Load Balancer; behind it an ECS service runs the shop API in two availability zones; the API uses an RDS PostgreSQL database with a standby replica and an ElastiCache Redis cache, and sends order events to SQS, which a Lambda function consumes to send confirmation emails through SES."
+  },
+  "fast-arch-shop-wish": {
+    "type": "architecture", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "en", "base": "fast-arch-shop", "wish": true, "covered": false,
+    "prompt": "Draw a quick draft of an architecture diagram of a web shop on AWS: users reach CloudFront, which serves static files from S3 and forwards API calls to an Application Load Balancer; behind it an ECS service runs the shop API in two availability zones; the API uses an RDS PostgreSQL database with a standby replica and an ElastiCache Redis cache, and sends order events to SQS, which a Lambda function consumes to send confirmation emails through SES."
+  },
+  "fast-er-library": {
+    "type": "er", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "de", "base": "fast-er-library", "wish": false, "covered": false,
+    "prompt": "Zeichne ein ER-Diagramm für die Datenbank einer Stadtbibliothek: Mitglieder (Name, Adresse, Ausweisnummer), Medien (Titel, Typ, Erscheinungsjahr) mit ihren Autoren (viele zu viele), Exemplare eines Mediums mit Standort, Ausleihen (Mitglied, Exemplar, Ausleihdatum, Rückgabedatum), Vormerkungen eines Mitglieds für ein Medium und Mahngebühren zu einer Ausleihe, mit Primär- und Fremdschlüsseln."
+  },
+  "fast-er-library-wish": {
+    "type": "er", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "de", "base": "fast-er-library", "wish": true, "covered": false,
+    "prompt": "Zeichne ein ER-Diagramm für die Datenbank einer Stadtbibliothek: Mitglieder (Name, Adresse, Ausweisnummer), Medien (Titel, Typ, Erscheinungsjahr) mit ihren Autoren (viele zu viele), Exemplare eines Mediums mit Standort, Ausleihen (Mitglied, Exemplar, Ausleihdatum, Rückgabedatum), Vormerkungen eines Mitglieds für ein Medium und Mahngebühren zu einer Ausleihe, mit Primär- und Fremdschlüsseln. Schnell bitte, und verbrauche wenig Tokens."
+  },
+  "fast-seq-passkey": {
+    "type": "sequence", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "en", "base": "fast-seq-passkey", "wish": false, "covered": false,
+    "prompt": "Draw a sequence diagram of signing in with a passkey: User, Browser, Website and Authenticator; the website sends a challenge, the browser asks the authenticator, the user confirms with a fingerprint, the authenticator signs the challenge, and the website verifies the signature and creates a session; include the case where the user has no passkey and falls back to a password."
+  },
+  "fast-seq-passkey-wish": {
+    "type": "sequence", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "en", "base": "fast-seq-passkey", "wish": true, "covered": false,
+    "prompt": "Draw a sequence diagram of signing in with a passkey: User, Browser, Website and Authenticator; the website sends a challenge, the browser asks the authenticator, the user confirms with a fingerprint, the authenticator signs the challenge, and the website verifies the signature and creates a session; include the case where the user has no passkey and falls back to a password. A rough sketch is enough, I need it fast."
+  },
+  "fast-org-practice": {
+    "type": "orgchart", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "de", "base": "fast-org-practice", "wish": false, "covered": false,
+    "prompt": "Erstelle ein Organigramm einer Arztpraxis mit 15 Personen: Die Praxisinhaberin leitet zwei angestellte Ärzte und die Praxismanagerin; jeder der beiden Ärzte hat eine Assistenzärztin; die Praxismanagerin führt vier medizinische Fachangestellte, zwei Auszubildende und eine Mitarbeiterin am Empfang; dazu kommen eine Buchhalterin in Teilzeit und ein externer IT-Dienstleister, die direkt an die Praxisinhaberin berichten."
+  },
+  "fast-org-practice-wish": {
+    "type": "orgchart", "split": "held-out", "size": "normal", "set": "fast-2026-11-15", "lang": "de", "base": "fast-org-practice", "wish": true, "covered": false,
+    "prompt": "Erstelle mir auf die Schnelle ein Organigramm einer Arztpraxis mit 15 Personen: Die Praxisinhaberin leitet zwei angestellte Ärzte und die Praxismanagerin; jeder der beiden Ärzte hat eine Assistenzärztin; die Praxismanagerin führt vier medizinische Fachangestellte, zwei Auszubildende und eine Mitarbeiterin am Empfang; dazu kommen eine Buchhalterin in Teilzeit und ein externer IT-Dienstleister, die direkt an die Praxisinhaberin berichten."
+  },
+  "fast-dev-flow-capsule": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": false, "set": "fast-dev", "lang": "en", "base": "fast-dev-flow-capsule", "wish": false, "covered": true,
+    "prompt": "Draw a flowchart of making coffee with a capsule machine: the user turns the machine on (decision: water tank full? if not, refill it); the user inserts a capsule and picks a cup size (decision: descaling light on? if yes, run the descaling program first); the machine brews the coffee; the user removes the used capsule."
+  },
+  "fast-dev-flow-capsule-wish": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": false, "set": "fast-dev", "lang": "en", "base": "fast-dev-flow-capsule", "wish": true, "covered": true,
+    "prompt": "Draw a flowchart of making coffee with a capsule machine: the user turns the machine on (decision: water tank full? if not, refill it); the user inserts a capsule and picks a cup size (decision: descaling light on? if yes, run the descaling program first); the machine brews the coffee; the user removes the used capsule. Quick and dirty is fine."
+  },
+  "fast-dev-lanes-invoice": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": true, "set": "fast-dev", "lang": "de", "base": "fast-dev-lanes-invoice", "wish": false, "covered": true,
+    "prompt": "Zeichne ein Swimlane-Diagramm mit den Bahnen Buchhaltung, Abteilungsleitung und Geschäftsführung für die Freigabe einer Eingangsrechnung: Die Buchhaltung erfasst die Rechnung und prüft sie gegen die Bestellung (Entscheidung: stimmt überein? wenn nicht, Rückfrage beim Lieferanten); die Abteilungsleitung gibt frei (Entscheidung: Betrag über 10.000 Euro? wenn ja, muss zusätzlich die Geschäftsführung freigeben); die Buchhaltung bezahlt die Rechnung und legt sie ab."
+  },
+  "fast-dev-lanes-invoice-wish": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": true, "set": "fast-dev", "lang": "de", "base": "fast-dev-lanes-invoice", "wish": true, "covered": true,
+    "prompt": "Nur eine schnelle Skizze, bitte: Zeichne ein Swimlane-Diagramm mit den Bahnen Buchhaltung, Abteilungsleitung und Geschäftsführung für die Freigabe einer Eingangsrechnung: Die Buchhaltung erfasst die Rechnung und prüft sie gegen die Bestellung (Entscheidung: stimmt überein? wenn nicht, Rückfrage beim Lieferanten); die Abteilungsleitung gibt frei (Entscheidung: Betrag über 10.000 Euro? wenn ja, muss zusätzlich die Geschäftsführung freigeben); die Buchhaltung bezahlt die Rechnung und legt sie ab."
+  },
+  "fast-dev-er-gym": {
+    "type": "er", "split": "dev", "size": "normal", "set": "fast-dev", "lang": "en", "base": "fast-dev-er-gym", "wish": false, "covered": false,
+    "prompt": "Draw an ER diagram for a gym: members, membership plans, classes, trainers who teach classes, class bookings by members, and check-ins at the entrance, with primary and foreign keys."
+  },
+  "fast-dev-er-gym-wish": {
+    "type": "er", "split": "dev", "size": "normal", "set": "fast-dev", "lang": "en", "base": "fast-dev-er-gym", "wish": true, "covered": false,
+    "prompt": "Quickly draw an ER diagram for a gym: members, membership plans, classes, trainers who teach classes, class bookings by members, and check-ins at the entrance, with primary and foreign keys."
+  },
+  "fast-dev-flow-checkin": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": false, "set": "fast-dev", "lang": "de", "base": "fast-dev-flow-checkin", "wish": false, "covered": true,
+    "prompt": "Zeichne ein Flussdiagramm für den Check-in am Flughafen-Automaten: Der Fluggast scannt den Reisepass (Entscheidung: Buchung gefunden? wenn nicht, an den Schalter verweisen); der Fluggast wählt einen Sitzplatz; der Automat fragt nach Gepäck (Entscheidung: Gepäck aufgeben? wenn ja, Gepäckanhänger drucken); der Automat druckt die Bordkarte."
+  },
+  "fast-dev-flow-checkin-wish": {
+    "type": "swimlane", "split": "dev", "size": "normal", "lanes": false, "set": "fast-dev", "lang": "de", "base": "fast-dev-flow-checkin", "wish": true, "covered": true,
+    "prompt": "Zeichne ein Flussdiagramm für den Check-in am Flughafen-Automaten: Der Fluggast scannt den Reisepass (Entscheidung: Buchung gefunden? wenn nicht, an den Schalter verweisen); der Fluggast wählt einen Sitzplatz; der Automat fragt nach Gepäck (Entscheidung: Gepäck aufgeben? wenn ja, Gepäckanhänger drucken); der Automat druckt die Bordkarte. Halte den Aufwand gering."
   }
 }
