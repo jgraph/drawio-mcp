@@ -2,7 +2,7 @@
 
 A Claude Code plugin that generates native `.drawio` files. Claude authors each diagram as **Mermaid** (converted and laid out by the draw.io desktop CLI) or as **draw.io XML** directly — with optional **ELK auto-layout** for XML, export to PNG/SVG/PDF (with embedded XML so the file remains editable in draw.io), or a browser URL that opens the diagram directly in `app.diagrams.net`.
 
-Since 1.2.3 the plugin also bundles the hosted draw.io MCP server (`https://mcp.draw.io/mcp`, in [`.mcp.json`](.mcp.json)). Where Claude shows apps in the chat, such as Claude.ai, diagrams then render inline as interactive draw.io diagrams; in Claude Code's terminal the skill keeps writing files, as before. See [Data](#data) for what that server receives.
+Since 1.2.3 the plugin also bundles the hosted draw.io MCP server (`https://mcp.draw.io/mcp`, in [`.mcp.json`](.mcp.json)). Where Claude shows apps in the chat, such as Claude.ai, diagrams then render inline as interactive draw.io diagrams; in Claude Code's terminal the skill keeps writing files, as before. See [Data](#data) for what that server receives. The server's tools come with it: once the hosted server lists `create_semantic_diagram`, the fast mode for flowcharts and swimlane diagrams that the model uses only when you ask for a quick or cheap diagram ([details](../../shared/semantic/FAST-MODE.md)), it appears without a plugin update. The skill itself still points to `create_diagram`.
 
 ## How It Works
 
