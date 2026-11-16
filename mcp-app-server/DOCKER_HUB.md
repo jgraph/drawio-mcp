@@ -1,6 +1,6 @@
 # draw.io MCP server
 
-The official [draw.io](https://www.draw.io) MCP server. It gives LLMs three tools: `create_diagram` renders draw.io XML or Mermaid as an interactive diagram inline in chat on MCP Apps hosts (Claude.ai, ChatGPT, VS Code, Cursor and others), with an "Open in draw.io" button, `search_shapes` finds shapes across the draw.io libraries (AWS, Azure, GCP, Cisco, Kubernetes, P&ID, electrical, BPMN and more), and `get_drawio_reference` returns the diagram syntax reference the model reads before its first diagram.
+The official [draw.io](https://www.draw.io) MCP server. It gives LLMs four tools: `create_diagram` renders draw.io XML or Mermaid as an interactive diagram inline in chat on MCP Apps hosts (Claude.ai, ChatGPT, VS Code, Cursor and others), with an "Open in draw.io" button, `search_shapes` finds shapes across the draw.io libraries (AWS, Azure, GCP, Cisco, Kubernetes, P&ID, electrical, BPMN and more), `get_drawio_reference` returns the diagram syntax reference the model reads before its first diagram, and `create_semantic_diagram` is the fast mode for flowcharts and swimlane diagrams, which the model uses only when the user asks for a quick or cheap diagram (`DRAWIO_SEMANTIC_TYPES=off` leaves it out, see below).
 
 This image runs the same server that is hosted at `https://mcp.draw.io/mcp`. Use it when you want to self-host, for example to keep diagram data inside your own network.
 
