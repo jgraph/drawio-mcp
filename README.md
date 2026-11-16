@@ -54,6 +54,20 @@ You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](htt
 - **`create_diagram`** — Renders draw.io XML or Mermaid (28 diagram types) as an interactive diagram inline in chat
 - **`search_shapes`** — Searches 10,000+ shapes across all draw.io libraries (AWS, Azure, GCP, P&ID, electrical, Cisco, Kubernetes, UML, BPMN, etc.) by keyword, supplemented by the draw.io icon service (brand logos and general-purpose concept icons) when the built-in libraries have no good match. Returns exact style strings that can be used directly in XML. Use this to find the correct shape before calling `create_diagram`.
 - **`get_drawio_reference`** — Returns the XML or Mermaid generation reference, which the model reads once per format before its first diagram.
+- **`create_semantic_diagram`** — The fast mode for flowcharts and swimlane diagrams, used only when you ask for a quick or cheap diagram (see below).
+
+**Fast mode.** Ask for speed or economy in so many words, in any language, and the model describes a flowchart or swimlane diagram instead of placing every shape: the steps, the lanes, the transitions and a row and a column per step. The server lays it out, routes the lines and styles it. For example:
+
+- "**Quickly** draw a flowchart of returning a book at a library kiosk …"
+- "… **Just a rough sketch is fine.**" or "**Keep it cheap: use as few tokens as possible.**"
+- "Zeichne **schnell** ein Flussdiagramm für …", "… **Bitte mit wenig Aufwand.**" or "Erstelle **sparsam** ein Swimlane-Diagramm …"
+
+Without such words, and for every other diagram type, the model uses `create_diagram`, which places the shapes with more care. In the benchmark of 15 November 2026 (Claude Code with Sonnet 5.5 and Opus 5.5, 20 prompts in English and German written for the test, three runs each), the models chose the right tool in 118 of 120 sessions. With the wish, the diagram came 3 to 4 times sooner (Sonnet 14 s instead of 46 s, Opus 27 s instead of 108 s), with less than half the output tokens. In blind comparisons with the diagrams the models placed themselves, the fast ones won 0.61 (Sonnet) and 0.67 (Opus) of the judgements, but each model lost on one flowchart without lanes. Limits:
+
+- It draws flowcharts and swimlanes only, in the calm theme, without styles of your choosing. A flowchart asked for as a "rough sketch" therefore comes in the calm theme, not with the hand-drawn look `create_diagram` gives a sketch.
+- Flowcharts without lanes get up to 24 steps; larger ones are drawn with `create_diagram`.
+
+Self-hosted servers leave the tool out with `DRAWIO_SEMANTIC_TYPES=off`. Details are in [`shared/semantic/FAST-MODE.md`](shared/semantic/FAST-MODE.md).
 
 **[Full documentation →](mcp-app-server/README.md)**
 

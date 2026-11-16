@@ -1,0 +1,10 @@
+{
+  "name": "drawio-mcp-bench",
+  "private": true,
+  "type": "module",
+  "description": "Benchmark harness: time to diagram, tokens, layout check and a blind image judgement for each way of drawing a diagram",
+  "dependencies": {
+    "elkjs": "^0.12.1",
+    "puppeteer-core": "^25.17.0"
+  }
+}

@@ -48,7 +48,24 @@ export function createIconResolver(table, data)
   // cell's: a fill color from a theme would repaint an AWS service tile.
   var ICON_KEYS = ["shape", "resIcon", "prIcon", "grIcon", "image", "fillColor", "strokeColor",
     "gradientColor", "gradientDirection", "grStroke", "aspect", "imageAspect", "editableCssRules"];
+  // The label color of an icon whose library writes one that is hard to read
+  // on what the label sits on (isHardToRead): the page, or the fill of the
+  // group around the icon. On a light surface the text color of the calm
+  // theme, the default of the shared references (shared/xml-reference.md,
+  // Color themes) and of the role styles (shared/diagram-shorthand.js); on a
+  // dark one (the dark theme's page, background="#0F172A" on mxGraphModel)
+  // the dark theme's text color.
+  var LABEL_COLOR = "#1B1F24";
+  var DARK_PAGE_LABEL_COLOR = "#F1F5F9";
+  // Below this luminance a surface is dark: white text has more contrast on
+  // it than black.
+  var DARK_SURFACE = Math.sqrt(1.05 * 0.05) - 0.05;
+  // What draw.io paints for fillColor=default, and for a shape without a
+  // fillColor, with adaptiveColors="none" (the dark theme's): white, also on
+  // a dark page.
+  var DEFAULT_FILL = "#FFFFFF";
   // An icon whose image the viewer doesn't have, while the XML streams in.
+  // Its label gets the icon's label color (styleOf).
   var PLACEHOLDER_STYLE = "rounded=1;arcSize=16;fillColor=#F1F3F4;strokeColor=#DADCE0;" +
     "verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;aspect=fixed;";
   // No icon name is longer (the longest in the table has 59 characters), so
@@ -95,6 +112,141 @@ export function createIconResolver(table, data)
     {
       return PROVIDER_WORDS[w] == null || PROVIDER_WORDS[w] === "k8s";
     });
+  }
+
+  /**
+   * The relative luminance (WCAG) of a #RGB or #RRGGBB color and whether it
+   * is a gray, or null for any other value (`none`, `default`, …).
+   * @param {string} color
+   */
+  function parseColor(color)
+  {
+    var match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(color).trim());
+
+    if (match == null)
+    {
+      return null;
+    }
+
+    var hex = match[1];
+
+    if (hex.length === 3)
+    {
+      hex = hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2);
+    }
+
+    var channels = [0, 2, 4].map(function(i)
+    {
+      return parseInt(hex.substring(i, i + 2), 16);
+    });
+    var weights = [0.2126, 0.7152, 0.0722];
+    var luminance = 0;
+
+    channels.forEach(function(value, i)
+    {
+      var c = value / 255;
+
+      luminance += weights[i] * ((c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    });
+
+    return { luminance: luminance, gray: Math.max.apply(null, channels) - Math.min.apply(null, channels) <= 48 };
+  }
+
+  /**
+   * The luminance of what a label sits on: white's unless a color is given
+   * (the page's `background="#0F172A"`, the fill of the group around it).
+   * @param {string} [background] - a color, or none
+   */
+  function surfaceLuminance(background)
+  {
+    var color = (background != null) ? parseColor(background) : null;
+
+    return (color != null) ? color.luminance : 1;
+  }
+
+  /**
+   * Whether a label color from a library is hard to read on what the label
+   * sits on: a gray with less than 4.5:1 contrast against it (WCAG AA for
+   * text), or any color with less than 3:1. On a white page that is the
+   * Google Cloud products' (gcp2) #999999 (2.8:1), AWS's VPC group #AAB7B8
+   * (2.1:1) and its generic subnet #879196 (3.2:1), while the colored labels
+   * of the other AWS groups, which match their borders (#D86613, 3.6:1), and
+   * the dark ones stay. On the dark theme's page (#0F172A) those grays are
+   * readable (6.3:1) and AWS's dark labels (#232F3E, 1.3:1) are not, but in
+   * a private subnet there (fill #E6F6F7) the dark labels read well.
+   * @param {string} color - a value of fontColor
+   * @param {number} surface - its luminance (surfaceLuminance)
+   */
+  function isHardToRead(color, surface)
+  {
+    var label = parseColor(color);
+
+    if (label == null)
+    {
+      return false;
+    }
+
+    var contrast = (Math.max(label.luminance, surface) + 0.05) / (Math.min(label.luminance, surface) + 0.05);
+
+    return contrast < 3 || (label.gray && contrast < 4.5);
+  }
+
+  /**
+   * A style whose label color from the library is readable on what the label
+   * sits on: one that is hard to read (isHardToRead) becomes the calm theme's
+   * text color on a light surface and the dark theme's on a dark one. A label
+   * color the cell writes itself still wins (applyToStyle).
+   * @param {string} style - an icon template
+   * @param {number} surface - the luminance of what the label sits on
+   */
+  function withReadableLabel(style, surface)
+  {
+    return style.replace(/(^|;)fontColor=([^;]*)/, function(all, start, color)
+    {
+      return isHardToRead(color, surface) ?
+        start + "fontColor=" + ((surface < DARK_SURFACE) ? DARK_PAGE_LABEL_COLOR : LABEL_COLOR) : all;
+    });
+  }
+
+  /**
+   * Whether the label of a style sits outside its shape: below or beside it,
+   * or under an image (draw.io's `image` style puts it there).
+   * @param {{names: string[], values: Object}} style - parseStyle's result
+   */
+  function isLabelOutside(style)
+  {
+    return /^(top|bottom)$/.test(style.values.verticalLabelPosition || "") ||
+      /^(left|right)$/.test(style.values.labelPosition || "") ||
+      (style.names.indexOf("image") >= 0 && style.values.verticalLabelPosition == null);
+  }
+
+  /**
+   * The color the children of a shape sit on, or null where it is
+   * transparent: `fillColor=none`, a `group` or `text`, the body of a
+   * swimlane without a `swimlaneFillColor`, or a value that names no color.
+   * A shape without a fill is painted white (DEFAULT_FILL).
+   * @param {string} style - as written, or an icon's style
+   */
+  function fillOf(style)
+  {
+    var parsed = parseStyle(style);
+    var swimlane = parsed.names.indexOf("swimlane") >= 0 || parsed.values.shape === "swimlane";
+    var fill = swimlane ? parsed.values.swimlaneFillColor : parsed.values.fillColor;
+
+    if (fill == null)
+    {
+      return (swimlane || parsed.names.indexOf("group") >= 0 || parsed.names.indexOf("text") >= 0) ?
+        null : DEFAULT_FILL;
+    }
+
+    fill = fill.trim();
+
+    if (fill === "default")
+    {
+      return DEFAULT_FILL;
+    }
+
+    return (parseColor(fill) != null) ? fill : null;
   }
 
   var GENERIC = GENERIC_WORDS.map(stem);
@@ -304,36 +456,66 @@ export function createIconResolver(table, data)
     return { provider: provider, words: query.map(stem), squashed: query.join("") };
   }
 
-  function styleOf(entry)
+  /**
+   * The fill an icon's own label sits on, or null for a label outside the
+   * icon or a group without a fill: AWS's private and public subnets
+   * (#E6F6F7, #F2F6E8) have theirs inside, at the top left.
+   */
+  function ownLabelFill(entry)
   {
+    if (entry.labelFill === undefined)
+    {
+      var style = parseStyle(entry.template.replace("{c}", entry.c));
+
+      entry.labelFill = (!isLabelOutside(style) && style.values.fillColor != null &&
+        parseColor(style.values.fillColor) != null) ? style.values.fillColor : null;
+    }
+
+    return entry.labelFill;
+  }
+
+  // The icon's style on a surface of that luminance (surfaceLuminance); a
+  // label inside the icon sits on the icon's own fill, where it has one.
+  function styleOf(entry, surface)
+  {
+    var fill = ownLabelFill(entry);
+    var template = withReadableLabel(entry.template, (fill != null) ? surfaceLuminance(fill) : surface);
     var n = entry.n;
 
     if (typeof n === "number")
     {
       if (data == null || data[n] == null)
       {
-        return { style: PLACEHOLDER_STYLE, placeholder: true };
+        // The label as the icon will have it.
+        var label = /(?:^|;)fontColor=([^;]*)/.exec(template);
+
+        return { style: PLACEHOLDER_STYLE + ((label != null) ? "fontColor=" + label[1] + ";" : ""),
+          placeholder: true };
       }
 
       n = data[n];
     }
 
-    return { style: entry.template.replace("{n}", n).replace("{c}", entry.c), placeholder: false };
+    return { style: template.replace("{n}", n).replace("{c}", entry.c), placeholder: false };
   }
 
   /**
    * The best icons for a name, best first, with their scores.
    * @param {string} name - e.g. "aws lambda", "Azure Functions", "gcp pub/sub"
-   * @param {{container?: boolean, large?: boolean}} [options] - container:
-   *   the cell holds other cells, so only group shapes (AWS VPC, subnet, …)
-   *   qualify; large: the cell is larger than 100 × 100, so a group shape
-   *   wins over an icon that fits as well
+   * @param {{container?: boolean, large?: boolean, background?: string}}
+   *   [options] - container: the cell holds other cells, so only group
+   *   shapes (AWS VPC, subnet, …) qualify; large: the cell is larger than
+   *   100 × 100, so a group shape wins over an icon that fits as well;
+   *   background: the color the icon sits on, which the label color must be
+   *   readable on: the page's background, or the fill of the group around
+   *   the icon (white without one)
    * @param {number} [limit]
    */
   function rank(name, options, limit)
   {
     var container = options != null && options.container === true;
     var large = options != null && options.large === true;
+    var surface = surfaceLuminance(options != null ? options.background : null);
     var results = [];
 
     if (String(name).length > MAX_NAME_LENGTH)
@@ -375,7 +557,7 @@ export function createIconResolver(table, data)
 
     return results.slice(0, limit || 5).map(function(r)
     {
-      var s = styleOf(r.entry);
+      var s = styleOf(r.entry, surface);
 
       return { title: r.entry.title, provider: r.entry.provider, kind: r.entry.kind, style: s.style,
         placeholder: s.placeholder, w: r.entry.w, h: r.entry.h, score: Math.round(r.score * 100) / 100 };
@@ -388,7 +570,8 @@ export function createIconResolver(table, data)
   /**
    * The icon for a name, or null when none fits.
    * @param {string} name
-   * @param {{container?: boolean, large?: boolean}} [options] - see rank
+   * @param {{container?: boolean, large?: boolean, background?: string}}
+   *   [options] - see rank
    * @returns {{title: string, provider: string, kind: string, style: string,
    *   placeholder: boolean, w: number, h: number}|null}
    */
@@ -402,7 +585,8 @@ export function createIconResolver(table, data)
     }
 
     var key = text.toLowerCase().trim() + "|" + (options != null && options.container === true) +
-      "|" + (options != null && options.large === true);
+      "|" + (options != null && options.large === true) +
+      "|" + surfaceLuminance(options != null ? options.background : null);
     var icon = cache.get(key);
 
     if (icon !== undefined)
@@ -468,11 +652,12 @@ export function createIconResolver(table, data)
   }
 
   /**
-   * Replaces `icon=<name>` in a style with the icon's style. The cell's
-   * other keys stay and win, except the keys that make the icon
-   * (ICON_KEYS) and `whiteSpace` on an icon whose label sits outside it (the
-   * name below an icon doesn't wrap at the icon's width). Style names
-   * without a value (`rounded`, `ellipse`) are dropped.
+   * Replaces `icon=<name>` in a style with the icon's style, whose label
+   * color is readable on what the icon sits on (isHardToRead,
+   * options.background). The cell's other keys stay and win, except the
+   * keys that make the icon (ICON_KEYS) and `whiteSpace` on an icon whose
+   * label sits outside it (the name below an icon doesn't wrap at the icon's
+   * width). Style names without a value (`rounded`, `ellipse`) are dropped.
    * @param {string} style - as written, XML-escaped if it comes from XML
    * @returns {{style: string, name: string, icon: Object|null}|null} null
    *   when the style has no icon key; `icon` null when no icon fits.
@@ -504,9 +689,7 @@ export function createIconResolver(table, data)
     }
 
     var base = parseStyle(icon.style);
-    var outside = /^(top|bottom)$/.test(base.values.verticalLabelPosition || "") ||
-      /^(left|right)$/.test(base.values.labelPosition || "") ||
-      (base.names.indexOf("image") >= 0 && base.values.verticalLabelPosition == null);
+    var outside = isLabelOutside(base);
 
     cell.keys.forEach(function(k)
     {
@@ -538,7 +721,13 @@ export function createIconResolver(table, data)
    * also a partial one while it streams in. A cell counts as a container
    * (only group shapes fit) when its style has container=1 or other cells
    * on its page name it as their parent; a cell larger than 100 × 100
-   * prefers a group shape but still takes an icon (rank's `large`).
+   * prefers a group shape but still takes an icon (rank's `large`). The
+   * label colors are readable on what the cell sits on (rank's
+   * `background`): the fill of the nearest shape around it that has one
+   * (fillOf; an AWS subnet's comes from its icon), or else the background of
+   * its page. A dark page (the dark theme's `background="#0F172A"`) keeps a
+   * library's gray and gets a light label for a dark one, while a pale
+   * subnet on it keeps the dark labels of the icons in it.
    * @returns {{xml: string, resolved: Array, unresolved: Array}}
    */
   function applyToXml(xml)
@@ -552,13 +741,19 @@ export function createIconResolver(table, data)
     }
 
     // Pages reuse ids ("2", "3", …): a parent counts on its own page only.
+    // A page's background decides the label colors on it (pageBackgrounds,
+    // by the number pageAt gives).
     var pageStarts = [];
-    var pagePattern = /<mxGraphModel\b/g;
+    var pageBackgrounds = [null];
+    var pagePattern = /<mxGraphModel\b((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)/g;
     var pageMatch;
 
     while ((pageMatch = pagePattern.exec(xml)) != null)
     {
+      var background = /\sbackground\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(pageMatch[1]);
+
       pageStarts.push(pageMatch.index);
+      pageBackgrounds.push(background != null ? (background[1] != null ? background[1] : background[2]) : null);
     }
 
     function pageAt(offset)
@@ -581,10 +776,97 @@ export function createIconResolver(table, data)
       return "";
     });
 
+    var ATTRIBUTES = {
+      id: /\sid\s*=\s*(?:"([^"]*)"|'([^']*)')/,
+      parent: /\sparent\s*=\s*(?:"([^"]*)"|'([^']*)')/,
+      style: /\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/
+    };
+
+    function attribute(attrs, name)
+    {
+      var match = ATTRIBUTES[name].exec(attrs);
+
+      return (match != null) ? (match[1] != null ? match[1] : match[2]) : null;
+    }
+
+    // The cell's id; in <object id="…"><mxCell …> the wrapper, the tag just
+    // before the cell, carries it (a value has no raw `<`).
+    function idOf(attrs, offset)
+    {
+      var id = attribute(attrs, "id");
+
+      if (id == null && offset > 0)
+      {
+        var start = xml.lastIndexOf("<", offset - 1);
+        var wrapper = (start >= 0) ? /^<(?:object|UserObject)\b((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*>\s*$/.exec(
+          xml.substring(start, offset)) : null;
+
+        id = (wrapper != null) ? attribute(wrapper[1], "id") : null;
+      }
+
+      return id;
+    }
+
     // Attribute by attribute, so a `>` in a value (value="a -> b") doesn't
     // end the tag.
-    var out = xml.replace(/<mxCell\b((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)(\s*)(\/?)>/g,
-      function(tag, attrs, space, selfClosing, offset)
+    var CELL = /<mxCell\b((?:\s+[\w:.-]+\s*=\s*(?:"[^"]*"|'[^']*'))*)(\s*)(\/?)>/g;
+    // The cells by page and id: their parent, and the style of a vertex,
+    // whose fill its children sit on (surfaceAt).
+    var cells = {};
+
+    xml.replace(CELL, function(tag, attrs, _space, _selfClosing, offset)
+    {
+      var id = idOf(attrs, offset);
+
+      if (id != null)
+      {
+        cells[pageAt(offset) + " " + id] = { parent: attribute(attrs, "parent"),
+          style: /vertex\s*=\s*["']1["']/.test(attrs) ? attribute(attrs, "style") : null };
+      }
+
+      return tag;
+    });
+
+    // What a cell of that page in the parent `id` sits on: the fill of the
+    // nearest shape around it that has one, the icon's where the shape names
+    // an icon (an AWS private subnet's #E6F6F7), or the page's background.
+    // A Set, not an object, ends a cycle of parents: on an object the id
+    // `__proto__` is never marked as seen, and the walk would never end.
+    function surfaceAt(page, id)
+    {
+      var seen = new Set();
+
+      while (id != null && !seen.has(id))
+      {
+        var cell = cells[page + " " + id];
+
+        if (cell == null)
+        {
+          break;
+        }
+
+        if (cell.fill === undefined)
+        {
+          var icon = (cell.style != null && /(^|;)\s*icon\s*=/i.test(cell.style)) ?
+            applyToStyle(cell.style, { container: true }) : null;
+
+          cell.fill = (cell.style == null) ? null :
+            fillOf((icon != null && icon.icon != null) ? icon.style : cell.style);
+        }
+
+        if (cell.fill != null)
+        {
+          return cell.fill;
+        }
+
+        seen.add(id);
+        id = cell.parent;
+      }
+
+      return pageBackgrounds[page];
+    }
+
+    var out = xml.replace(CELL, function(tag, attrs, space, selfClosing, offset)
     {
       var styleMatch = /(\sstyle\s*=\s*)(?:"([^"]*)"|'([^']*)')/.exec(attrs);
 
@@ -601,21 +883,7 @@ export function createIconResolver(table, data)
         return tag;
       }
 
-      var idMatch = /\sid\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(attrs);
-      var id = idMatch != null ? (idMatch[1] != null ? idMatch[1] : idMatch[2]) : null;
-
-      if (id == null)
-      {
-        // <object id="…"><mxCell …>: the wrapper carries the id.
-        var before = xml.substring(0, offset);
-        var wrapper = /<(?:object|UserObject)\b[^>]*?\sid\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>\s*$/.exec(before);
-
-        if (wrapper != null)
-        {
-          id = wrapper[1] != null ? wrapper[1] : wrapper[2];
-        }
-      }
-
+      var id = idOf(attrs, offset);
       var container = /(^|;)\s*container\s*=\s*1/.test(style) ||
         (id != null && parents[pageAt(offset) + " " + id] === true);
       var large = false;
@@ -635,7 +903,8 @@ export function createIconResolver(table, data)
         }
       }
 
-      var result = applyToStyle(style, { container: container, large: large });
+      var result = applyToStyle(style, { container: container, large: large,
+        background: surfaceAt(pageAt(offset), attribute(attrs, "parent")) });
 
       if (result == null)
       {

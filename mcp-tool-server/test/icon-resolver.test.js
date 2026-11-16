@@ -1,6 +1,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import pako from "pako";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -180,6 +181,296 @@ test("applyToXml keeps the label keys, drops the ones the icon defines, and is i
   // Edges are left alone.
   assert.match(once.xml, /<mxCell id="e" style="icon=aws lambda;" edge="1"/);
   assert.equal(resolver.applyToXml(once.xml).xml, once.xml);
+});
+
+// The contrast of a label color on a page as WCAG computes it.
+function luminance(color)
+{
+  const hex = color.slice(1).length === 3 ? color.slice(1).replace(/./g, "$&$&") : color.slice(1);
+
+  return [0, 2, 4].reduce(function(sum, i, k)
+  {
+    const c = parseInt(hex.substring(i, i + 2), 16) / 255;
+
+    return sum + [0.2126, 0.7152, 0.0722][k] * ((c <= 0.04045) ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  }, 0);
+}
+
+function contrast(color, page)
+{
+  const a = luminance(color);
+  const b = luminance(page);
+
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+function labelColor(style)
+{
+  const match = /(?:^|;)fontColor=([^;]*)/.exec(style);
+
+  return match != null ? match[1] : null;
+}
+
+test("an icon's label is readable: a pale gray from its library becomes the calm theme's text color", function()
+{
+  // The Google Cloud products are images whose library label is #999999,
+  // AWS's VPC group writes #AAB7B8 and its generic subnet #879196.
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub").style), "#1B1F24");
+  assert.equal(labelColor(resolver.resolve("aws vpc", { container: true }).style), "#1B1F24");
+  assert.equal(labelColor(resolver.resolve("aws subnet", { container: true }).style), "#1B1F24");
+
+  // What is readable stays as the library has it: AWS's dark labels, the
+  // colored labels of AWS groups that match their borders, Google Cloud's
+  // current icons; Azure and Kubernetes icons name no label color.
+  assert.equal(labelColor(resolver.resolve("aws lambda").style), "#232F3E");
+  assert.equal(labelColor(resolver.resolve("aws auto scaling group", { container: true }).style), "#D86613");
+  assert.equal(labelColor(resolver.resolve("aws security group", { container: true }).style), "#DD3522");
+  assert.equal(labelColor(resolver.resolve("gcp bigquery").style), "#000000");
+  assert.equal(labelColor(resolver.resolve("azure functions").style), null);
+  assert.equal(labelColor(resolver.resolve("kubernetes pod").style), null);
+
+  // Every icon of the table is readable on a white page.
+  assert.deepEqual(hardToRead("#FFFFFF"), []);
+});
+
+// The fill an icon's own label sits on: a group's label is inside it, at
+// the top left (AWS's private and public subnets are filled). Null for a
+// label below or beside the icon, or a group without a fill.
+function ownLabelFill(style)
+{
+  const fill = /(?:^|;)fillColor=(#[0-9a-f]{6})(;|$)/i.exec(style);
+  const outside = /(^|;)(verticalLabelPosition=(top|bottom)|labelPosition=(left|right)|image)(;|$)/.test(style);
+
+  return (fill != null && !outside) ? fill[1] : null;
+}
+
+// The icons of the table whose label is hard to read on a page of that
+// color (or, inside a filled group, on its fill), as rank and resolve give
+// them: a gray under 4.5:1 or any color under 3:1. Nothing but the label
+// color may differ from the library.
+function hardToRead(page)
+{
+  const library = new Set(ICON_TABLE.icons.map(function(icon)
+  {
+    return withoutLabelColor(styleFrom(ICON_TABLE.templates[icon[3]], icon));
+  }));
+  const pale = [];
+  const seen = new Set();
+
+  ICON_TABLE.icons.forEach(function(icon)
+  {
+    const options = { container: icon[1] === "g", background: page };
+
+    resolver.rank(icon[0] + " " + icon[2].split("|")[0], options, 50).forEach(function(r)
+    {
+      const color = labelColor(r.style);
+      const surface = ownLabelFill(r.style) || page;
+
+      seen.add(r.style);
+      assert.ok(library.has(withoutLabelColor(r.style)), r.title + ": " + r.style);
+
+      if (color != null && /^#[0-9a-f]{6}$/i.test(color))
+      {
+        const rgb = [1, 3, 5].map(function(i) { return parseInt(color.substring(i, i + 2), 16); });
+        const gray = Math.max.apply(null, rgb) - Math.min.apply(null, rgb) <= 48;
+
+        if (contrast(color, surface) < 3 || (gray && contrast(color, surface) < 4.5))
+        {
+          pale.push(r.provider + " " + r.title + " " + color);
+        }
+      }
+    });
+  });
+
+  assert.ok(seen.size >= ICON_TABLE.icons.length * 0.9, seen.size + " styles of " + ICON_TABLE.icons.length + " icons");
+
+  return pale;
+}
+
+test("on a dark page an icon's label is readable too: a library's gray stays, a dark one becomes light", function()
+{
+  // The dark theme's page (shared/xml-reference.md, Color themes): the
+  // grays read well on it, AWS's dark labels and black don't.
+  const dark = { background: "#0F172A" };
+
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub", dark).style), "#999999");
+  assert.equal(labelColor(resolver.resolve("aws vpc", { container: true, background: "#0F172A" }).style), "#AAB7B8");
+  assert.equal(labelColor(resolver.resolve("aws subnet", { container: true, background: "#0F172A" }).style), "#879196");
+  assert.equal(labelColor(resolver.resolve("aws auto scaling group", { container: true, background: "#0F172A" }).style), "#D86613");
+  assert.equal(labelColor(resolver.resolve("aws lambda", dark).style), "#F1F5F9");
+  assert.equal(labelColor(resolver.resolve("gcp bigquery", dark).style), "#F1F5F9");
+  // The blueprint theme's page is lighter: #999999 is 4.0:1 on it.
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub", { background: "#1E3A5F" }).style), "#F1F5F9");
+  // A background that names no color is a white page.
+  assert.equal(labelColor(resolver.resolve("gcp pub/sub", { background: "none" }).style), "#1B1F24");
+
+  // A subnet's own label sits on its pale fill, not on the page: it keeps
+  // the library's color, which was 2.9:1 on this page and is 4.0:1 there.
+  assert.equal(labelColor(resolver.resolve("aws private subnet", { container: true, background: "#0F172A" }).style), "#147EBA");
+  assert.equal(labelColor(resolver.resolve("aws public subnet", { container: true, background: "#1E3A5F" }).style), "#248814");
+
+  assert.deepEqual(hardToRead("#0F172A"), []);
+  assert.deepEqual(hardToRead("#1E3A5F"), []);
+});
+
+test("an icon's label is readable on the group or shape it sits in, not only on the page", function()
+{
+  // The dark theme's page with AWS's subnets on it, whose library fills
+  // (#E6F6F7, #F2F6E8) stay, as every key that makes the icon does.
+  function cell(id, parent, style, w)
+  {
+    return '<mxCell id="' + id + '" value="' + id + '" style="' + style + '" vertex="1" parent="' + parent + '">' +
+      '<mxGeometry x="20" y="40" width="' + (w || 48) + '" height="' + (w || 48) + '" as="geometry"/></mxCell>';
+  }
+
+  function colorsOf(xml)
+  {
+    const colors = {};
+
+    xml.replace(/<mxCell id="([^"]*)"[^>]*?style="([^"]*)"/g, function(_m, id, style)
+    {
+      colors[id] = labelColor(style);
+    });
+
+    return colors;
+  }
+
+  const dark = '<mxGraphModel background="#0F172A" adaptiveColors="none"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    cell("private", "1", "icon=aws private subnet;", 400) + cell("lambda", "private", "icon=aws lambda;") +
+    cell("sg", "private", "icon=aws security group;", 200) + cell("ec2", "sg", "icon=aws ec2;") +
+    cell("public", "1", "icon=aws public subnet;", 400) + cell("pubsub", "public", "icon=gcp pub/sub;") +
+    cell("vpc", "1", "icon=aws vpc;", 400) + cell("queue", "vpc", "icon=aws sqs;") +
+    cell("card", "1", "rounded=1;fillColor=#1E293B;strokeColor=#60A5FA;container=1;", 200) +
+    cell("bucket", "card", "icon=aws s3;") +
+    cell("white", "1", "rounded=1;container=1;", 200) + cell("db", "white", "icon=aws rds;") +
+    cell("lane", "1", "swimlane;fillColor=#FFFFFF;", 200) + cell("fn", "lane", "icon=gcp pub/sub;") +
+    '</root></mxGraphModel>';
+  const colors = colorsOf(resolver.applyToXml(dark).xml);
+
+  // In a pale subnet AWS's dark label stays, also in a group without a fill
+  // inside it, and Google Cloud's gray becomes dark; the subnets' own labels
+  // keep their colors, which read well on their fills.
+  assert.equal(colors.lambda, "#232F3E");
+  assert.equal(colors.ec2, "#232F3E");
+  assert.equal(colors.pubsub, "#1B1F24");
+  assert.equal(colors.private, "#147EBA");
+  assert.equal(colors.public, "#248814");
+  // A VPC has no fill and a theme's card is dark: the label is light, as on
+  // the page itself.
+  assert.equal(colors.queue, "#F1F5F9");
+  assert.equal(colors.bucket, "#F1F5F9");
+  // A shape without a fillColor is painted white, also on a dark page; a
+  // swimlane's body is transparent unless it has a swimlaneFillColor.
+  assert.equal(colors.db, "#232F3E");
+  assert.equal(colors.fn, "#999999");
+
+  // On a white page a dark card gets light labels; a gray that reads well
+  // on it stays.
+  const light = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    cell("card", "1", "rounded=1;fillColor=#1E293B;container=1;", 200) + cell("bucket", "card", "icon=aws s3;") +
+    cell("ps", "card", "icon=gcp pub/sub;") + cell("group", "1", "group;", 200) + cell("fn", "group", "icon=gcp pub/sub;") +
+    '</root></mxGraphModel>';
+  const onWhite = colorsOf(resolver.applyToXml(light).xml);
+
+  assert.equal(onWhite.bucket, "#F1F5F9");
+  assert.equal(onWhite.ps, "#999999");
+  assert.equal(onWhite.fn, "#1B1F24");
+
+  // The parent may be wrapped in <object> (its id is the wrapper's), pages
+  // reuse ids, and a cycle of parents ends at the page.
+  const file = '<mxfile><diagram id="a"><mxGraphModel background="#0F172A"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<object id="2" label="Private &gt; app"><mxCell style="icon=aws private subnet;" vertex="1" parent="1">' +
+    '<mxGeometry width="400" height="300" as="geometry"/></mxCell></object>' + cell("3", "2", "icon=aws lambda;") +
+    '</root></mxGraphModel></diagram><diagram id="b"><mxGraphModel background="#0F172A"><root><mxCell id="0"/>' +
+    '<mxCell id="1" parent="0"/>' + cell("2", "1", "icon=aws vpc;", 400) + cell("3", "2", "icon=aws lambda;") +
+    cell("4", "5", "icon=aws vpc;", 400) + cell("5", "4", "icon=aws vpc;", 400) +
+    '</root></mxGraphModel></diagram></mxfile>';
+
+  assert.deepEqual(resolver.applyToXml(file).xml.match(/fontColor=[^;]*/g), ["fontColor=#147EBA", "fontColor=#232F3E",
+    "fontColor=#AAB7B8", "fontColor=#F1F5F9", "fontColor=#AAB7B8", "fontColor=#AAB7B8"]);
+});
+
+test("a cell that is its own parent under the id __proto__ ends the walk to the surface", function()
+{
+  // On a plain object `seen["__proto__"] = true` is lost, and the walk never
+  // ended: it runs in a child process, so a hang fails the test.
+  const xml = '<mxGraphModel background="#0F172A"><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="__proto__" style="fillColor=none;" vertex="1" parent="__proto__"/>' +
+    '<mxCell id="constructor" vertex="1" parent="constructor"/>' +
+    '<mxCell id="i" value="Fn" style="icon=aws lambda;" vertex="1" parent="__proto__">' +
+    '<mxGeometry width="48" height="48" as="geometry"/></mxCell>' +
+    '<mxCell id="j" value="Fn" style="icon=aws lambda;" vertex="1" parent="constructor">' +
+    '<mxGeometry width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel>';
+  const script = 'import { createIconResolver } from ' + JSON.stringify(new URL("../../shared/icon-resolver.js", import.meta.url).href) + ';' +
+    'import { ICON_TABLE, ICON_DATA } from ' + JSON.stringify(new URL("../../shared/icon-table.js", import.meta.url).href) + ';' +
+    'process.stdout.write(createIconResolver(ICON_TABLE, ICON_DATA).applyToXml(' + JSON.stringify(xml) + ').xml);';
+  const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 20000 });
+
+  assert.equal(run.error, undefined);
+  assert.equal(run.status, 0, run.stderr);
+  // Neither has a fill, so both icons sit on the dark page.
+  assert.deepEqual(run.stdout.match(/fontColor=[^;]*/g), ["fontColor=#F1F5F9", "fontColor=#F1F5F9"]);
+});
+
+test("applyToXml reads each page's background, and the viewer's placeholder has the icon's label color", function()
+{
+  function page(attrs, id, name)
+  {
+    return '<diagram id="' + id + '"><mxGraphModel' + attrs + '><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+      '<mxCell id="2" value="Events" style="icon=' + name + ';" vertex="1" parent="1">' +
+      '<mxGeometry x="40" y="40" width="48" height="48" as="geometry"/></mxCell>' +
+      '<mxCell id="3" value="Own" style="icon=' + name + ';fontColor=#5A626E;" vertex="1" parent="1">' +
+      '<mxGeometry x="140" y="40" width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel></diagram>';
+  }
+
+  // Pages reuse ids, so the colors are read in the order the cells come.
+  function colors(xml)
+  {
+    return xml.match(/fontColor=[^;]*/g);
+  }
+
+  const file = '<mxfile>' + page(' background="#0F172A" adaptiveColors="none"', "a", "gcp pub/sub") +
+    page(' adaptiveColors="auto"', "b", "gcp pub/sub") + page(" background='#0F172A'", "c", "aws lambda") +
+    page(' background="#FFFFFF"', "d", "aws lambda") + '</mxfile>';
+
+  assert.deepEqual(colors(resolver.applyToXml(file).xml), ["fontColor=#999999", "fontColor=#5A626E",
+    "fontColor=#1B1F24", "fontColor=#5A626E", "fontColor=#F1F5F9", "fontColor=#5A626E",
+    "fontColor=#232F3E", "fontColor=#5A626E"]);
+
+  // Without the image data (the viewer), a Google Cloud product is a
+  // placeholder while the XML streams in, labeled as the icon will be.
+  const viewer = createIconResolver(ICON_TABLE);
+
+  assert.deepEqual(colors(viewer.applyToXml(file).xml), colors(resolver.applyToXml(file).xml));
+  assert.match(viewer.applyToXml(file).xml, /style="rounded=1;arcSize=16;fillColor=#F1F3F4;[^"]*;fontColor=#999999;"/);
+});
+
+// The style of an icon as the library writes it.
+function styleFrom(template, icon)
+{
+  const n = (typeof icon[4] === "number") ? ICON_DATA[icon[4]] : icon[4];
+
+  return template.replace("{n}", n).replace("{c}", icon[5]);
+}
+
+function withoutLabelColor(style)
+{
+  return style.replace(/(^|;)fontColor=[^;]*/, "$1");
+}
+
+test("a label color the cell writes itself wins over the readable one", function()
+{
+  const xml = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>' +
+    '<mxCell id="ps" value="Events" style="icon=gcp pub/sub;fontColor=#5A626E;" vertex="1" parent="1">' +
+    '<mxGeometry x="40" y="40" width="48" height="48" as="geometry"/></mxCell>' +
+    '<mxCell id="q" value="Jobs" style="icon=gcp pub/sub;" vertex="1" parent="1">' +
+    '<mxGeometry x="140" y="40" width="48" height="48" as="geometry"/></mxCell></root></mxGraphModel>';
+  const result = resolver.applyToXml(xml).xml;
+
+  assert.equal(labelColor(result.match(/<mxCell id="ps"[^>]*?style="([^"]*)"/)[1]), "#5A626E");
+  assert.equal(labelColor(result.match(/<mxCell id="q"[^>]*?style="([^"]*)"/)[1]), "#1B1F24");
+  // the other label keys of the library stay: bold, 11 px, below the icon
+  assert.match(result.match(/<mxCell id="q"[^>]*?style="([^"]*)"/)[1], /verticalLabelPosition=bottom;.*fontSize=11;fontStyle=1;fontColor=#1B1F24;/);
 });
 
 test("XML without icon names passes byte-identical", function()

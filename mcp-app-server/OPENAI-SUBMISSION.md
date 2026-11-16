@@ -201,6 +201,29 @@ All three also carry `idempotentHint: true`. Tool responses contain only the dia
 the caller supplied, the shape styles, the references, and the `app.diagrams.net`
 link — no personal data, no secrets, no internal identifiers.
 
+**Not live yet: a fourth tool.** The release that offers `create_semantic_diagram`
+by default adds it to `tools/list`. It is the fast mode: flowcharts and swimlanes,
+taken only when the user asks for a quick or cheap diagram (`shared/semantic/FAST-MODE.md`).
+`create_diagram`, `search_shapes` and `get_drawio_reference` stay byte-identical.
+After deploying it, run **MCPs → Rescan**, so that ChatGPT gets the new tool list.
+This doc doesn't yet record whether the portal treats a new tool as a changed
+definition, which goes live after automated checks (§4), or asks for a new version
+and review. The values below are ready for either.
+
+| Tool | readOnlyHint | openWorldHint | destructiveHint | Rationale |
+|---|---|---|---|---|
+| `create_semantic_diagram` | true | false | false | Lays out the description of a flowchart it is given and renders it. No state is created or changed anywhere, no outbound calls. |
+
+It also carries `idempotentHint: true`. A test case for it, in the portal's fields:
+
+| Scenario | User prompt | Tool triggered | Expected output |
+|---|---|---|---|
+| A quick flowchart on request, drawn from a description the server lays out | Use draw.io to quickly sketch a flowchart of returning a library book at a self-service kiosk: scan the card (valid or not), place the book on the reader, print a receipt. Just a rough sketch is fine. | create_semantic_diagram | An inline flowchart laid out by the server: the card scan, a valid/invalid decision and the return steps, with zoom, pan and an Open in draw.io button. Without "quickly" or "rough sketch", the same request goes to create_diagram. |
+
+A line for the release notes: "Ask for a quick or rough flowchart or swimlane
+diagram, and draw.io lays it out from a short description, which is faster."
+Deploying with `DRAWIO_SEMANTIC_TYPES=off` leaves the tool list as it is.
+
 `get_drawio_reference` is **live since app server 1.1.0 (2026-10-13)** and was
 not in the 1.0.1 scan. It replaces the ~55k-character `create_diagram`
 description, which carried both references and broke VS Code Copilot's tool

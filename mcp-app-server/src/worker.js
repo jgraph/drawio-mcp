@@ -25,7 +25,7 @@ import { createServer, clientUiState } from "./shared.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { isInitializeRequest, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
-import { html, xmlReference, mermaidReference, shapeIndex, faviconBase64, buildId, drawioBaseUrl } from "./generated-html.js";
+import { html, xmlReference, mermaidReference, shapeIndex, faviconBase64, buildId, drawioBaseUrl, semanticTypes } from "./generated-html.js";
 
 const CORS_HEADERS =
 {
@@ -257,6 +257,8 @@ async function handleMcp(request, env, debug)
     iconServiceUrl: resolveIconServiceUrl(env.DRAWIO_ICON_SERVICE_URL),
     buildId,
     drawioBaseUrl,
+    // the types the build was made with (DRAWIO_SEMANTIC_TYPES, see build-html.js)
+    semanticTypes,
     uiSession: session != null ? uiSessionFor(env, session, log) : null,
   });
   const transport = new WebStandardStreamableHTTPServerTransport(

@@ -4,7 +4,7 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 
 ## How It Works
 
-1. The LLM calls the `create_diagram` tool with draw.io XML
+1. The LLM calls the `create_diagram` tool with draw.io XML or Mermaid, or, when the user asks for a quick or cheap flowchart, `create_semantic_diagram` with a description that the server lays out
 2. The host fetches the UI resource and renders it in a sandboxed iframe
 3. The diagram is rendered using the official [draw.io viewer](https://viewer.diagrams.net)
 4. The user sees an interactive diagram inline with zoom, pan, and layers support
@@ -35,6 +35,53 @@ The rendered diagram includes:
 
 The `create_diagram` description tells the model to call this once per format before its first diagram in a conversation. The references used to be part of that description, which made it about 55,000 characters, too long for clients that index tool descriptions, such as VS Code Copilot's tool search ([#76](https://github.com/jgraph/drawio-mcp/issues/76)).
 
+## Tool: `create_semantic_diagram` (on request)
+
+The fast mode: a second way to draw flowcharts and swimlane diagrams, for when the user asks for a quick one. The model describes what the diagram contains: the steps with their kind (start, step, decision, end, …), the lanes, the transitions, and a row and a column for every step in one grid. It never writes coordinates, sizes or styles. The server lays the description out, routes the lines and styles it in the calm theme. Writing a description is quicker than placing every shape as XML, and it needs fewer tokens.
+
+The diagram is shown like one from `create_diagram`, with the same viewer, toolbar, "Open in draw.io" and layout check, and the viewer draws it while the description streams in. To change the diagram, the model sends the whole description again with the change, the same ids and the `layout` of the last result, a short text that keeps the shapes the change doesn't touch in place (the server stores nothing).
+
+The tool is listed by default, but its description has the model use it only when the user asks for a quick, rough or cheap diagram, in so many words and in any language. For every other request, however simple the diagram, and for every other type the model uses `create_diagram`, which places the shapes with more care.
+
+| Request | Tool |
+|---|---|
+| "**Quickly** draw a simple flowchart of returning a book at a library kiosk …" | `create_semantic_diagram` |
+| "Draw a swimlane diagram … for requesting a new laptop. **Just a rough sketch is fine.**" | `create_semantic_diagram` |
+| "Draw a flowchart of an express parcel delivery … **Keep it cheap: use as few tokens as possible.**" | `create_semantic_diagram` |
+| "Zeichne **schnell** ein Flussdiagramm für eine Pizzabestellung …" | `create_semantic_diagram` |
+| "Zeichne ein Swimlane-Diagramm … für einen Urlaubsantrag. **Bitte mit wenig Aufwand.**" | `create_semantic_diagram` |
+| "Erstelle **sparsam** ein Swimlane-Diagramm …" | `create_semantic_diagram` |
+| "Draw a simple flowchart of …", "Zeichne ein übersichtliches Swimlane-Diagramm …" (no wish) | `create_diagram` |
+| "Draw **a quick draft** of an architecture diagram on AWS …", "Erstelle mir **auf die Schnelle** ein Organigramm …" (another type) | `create_diagram` |
+
+Measured on 15 November 2026 with the bench in [`bench/`](../bench/README.md#the-tool-choice-on-request) (Claude Code with Sonnet 5.5 and Opus 5.5; 20 prompts in English and German written for the test, with and without the wish; three runs each):
+
+- **The tool choice:** the models chose as above in 118 of 120 sessions.
+- **Time and tokens:** with the wish, the flowcharts reached the diagram in a median 14 s instead of 46 s (Sonnet) and 27 s instead of 108 s (Opus), with less than half the output tokens.
+- **Quality:** in blind judgements against the XML the models placed themselves, the flowcharts won 0.61 (Sonnet) and 0.67 (Opus). Each model lost on one flowchart without lanes.
+- **Earlier measurement:** offered for every request, on held-out flowchart and swimlane prompts without any wish, Sonnet took a median 17 s to the diagram instead of 63 s and Opus 56 s instead of 339 s ([`MEASUREMENTS.md`](../shared/semantic/MEASUREMENTS.md), seventh measurement, November 2026).
+
+Details, and what to measure again when the wording changes, are in [`shared/semantic/FAST-MODE.md`](../shared/semantic/FAST-MODE.md).
+
+`DRAWIO_SEMANTIC_TYPES` changes what it offers:
+
+| Value | Offers |
+|---|---|
+| unset, or `on` (or `true`, `1`) | Flowcharts and swimlane diagrams, the types that passed the blind judgement (the default) |
+| A comma-separated list, e.g. `on,er` | The types it names: `flowchart`, `swimlane`, `architecture`, `network`, `er`. `on` in the list adds the types of `on`, and unknown names are dropped. `swimlane` offers flowcharts too, and `network` offers architecture diagrams. The types other than flowcharts and swimlanes are for trying out: they have not passed the judgement |
+| `off` | Nothing: the tool isn't listed, and `tools/list` has `create_diagram`, `search_shapes` and `get_drawio_reference` alone |
+
+Every type offered is offered on request. Where to set it:
+
+- **Node.js** reads it at startup, for HTTP and `--stdio`: `DRAWIO_SEMANTIC_TYPES=off npm start`
+- **Docker**: `docker run --rm -e DRAWIO_SEMANTIC_TYPES=off -p 127.0.0.1:3001:3001 jgraph/drawio-mcp`
+- **Cloudflare Workers** read it when the HTML is built, before the upload, so set it in the shell that deploys: `DRAWIO_SEMANTIC_TYPES=off npm run deploy`. A deploy without the variable offers the default.
+
+**Size rules.** A diagram above a type's limit gets an error that sends the model to `create_diagram`, so it draws the diagram as XML instead, and the frame of the refused call shows a short note in place of the diagram. The model isn't told the limits: when it knew them, it left steps out to stay under them. So it describes the whole diagram, and the size of that description decides. The limits come from the blind judgements, where larger diagrams lost against the model's own XML:
+
+- A flowchart without lanes (no step in a lane or group) is drawn with up to 24 steps. Diagrams with lanes have no limit.
+- Architecture and network diagrams (offered only by name) are drawn with up to 18 nodes.
+
 ## Official Hosted Endpoint
 
 The official draw.io MCP App server is hosted at:
@@ -56,6 +103,8 @@ draw.io is listed in OpenAI's plugin directory, shared by ChatGPT and Codex: ope
 3. Confirm the warning with **I understand and want to continue**, select **Create as a plugin**, and install it.
 
 In a new conversation, type `@`, pick draw.io, and ask for a diagram. If the option to add a custom MCP server is missing, your workspace admin may have turned it off.
+
+The server lists four tools: `create_diagram`, `search_shapes`, `get_drawio_reference` and [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request), the fast mode. ChatGPT keeps the tool list it scanned, so a deploy that changes the list reaches the published plugin only after a rescan ([`OPENAI-SUBMISSION.md`](OPENAI-SUBMISSION.md)).
 
 ### Using with VS Code
 
@@ -158,7 +207,7 @@ Start the HTTP server (for Claude.ai and other web-based hosts):
 npm start
 ```
 
-The server listens on `http://localhost:3001/mcp` by default, on the loopback interface only. Set `PORT` to change the port, `LISTEN=0.0.0.0` to accept connections from the network, and `ALLOWED_HOSTS` (comma-separated hostnames) to reject requests whose `Host` header names anything else. Set `DRAWIO_BASE_URL` to a self-hosted draw.io (e.g. `https://drawio.example.com/`) to have "Open in draw.io" and the link for clients without inline diagrams open there instead of `https://app.diagrams.net/`; the inline viewer still loads from diagrams.net, so it needs no sign-in to your draw.io. The server has no authentication of its own — put it behind an authenticating reverse proxy before exposing it beyond your machine. `GET /health` answers `200 ok`, for uptime monitors and container health checks.
+The server listens on `http://localhost:3001/mcp` by default, on the loopback interface only. Set `PORT` to change the port, `LISTEN=0.0.0.0` to accept connections from the network, and `ALLOWED_HOSTS` (comma-separated hostnames) to reject requests whose `Host` header names anything else. Set `DRAWIO_BASE_URL` to a self-hosted draw.io (e.g. `https://drawio.example.com/`) to have "Open in draw.io" and the link for clients without inline diagrams open there instead of `https://app.diagrams.net/`; the inline viewer still loads from diagrams.net, so it needs no sign-in to your draw.io. Set `DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request), the fast mode, which is listed by default. The server has no authentication of its own — put it behind an authenticating reverse proxy before exposing it beyond your machine. `GET /health` answers `200 ok`, for uptime monitors and container health checks.
 
 ### Running (Docker)
 
@@ -168,7 +217,7 @@ A prebuilt image for `linux/amd64` and `linux/arm64` is published to Docker Hub 
 docker run --rm -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
 ```
 
-The endpoint is `http://localhost:3001/mcp`, as with `npm start`. The image listens on all interfaces inside the container (`LISTEN=0.0.0.0`), so the `-p` mapping decides who can reach it: `127.0.0.1:3001:3001` is this machine only, a plain `3001:3001` is everyone on your network. Pass `-e PORT=8080 -p 127.0.0.1:8080:8080` to change the port, `-e ALLOWED_HOSTS=…` to restrict the accepted hostnames, `-e DRAWIO_BASE_URL=https://drawio.example.com/` to open diagrams in a self-hosted draw.io, and `-e DRAWIO_ICON_SERVICE_URL=off` to keep `search_shapes` from querying the draw.io icon service. The container is stateless (no volume, no diagram content in its logs) and needs no outbound access to render diagrams — see [Deployment boundary](DOCKER_HUB.md#deployment-boundary) and [Data Residency & Offline Use](../README.md#data-residency--offline-use).
+The endpoint is `http://localhost:3001/mcp`, as with `npm start`. The image listens on all interfaces inside the container (`LISTEN=0.0.0.0`), so the `-p` mapping decides who can reach it: `127.0.0.1:3001:3001` is this machine only, a plain `3001:3001` is everyone on your network. Pass `-e PORT=8080 -p 127.0.0.1:8080:8080` to change the port, `-e ALLOWED_HOSTS=…` to restrict the accepted hostnames, `-e DRAWIO_BASE_URL=https://drawio.example.com/` to open diagrams in a self-hosted draw.io, `-e DRAWIO_ICON_SERVICE_URL=off` to keep `search_shapes` from querying the draw.io icon service, and `-e DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request). The container is stateless (no volume, no diagram content in its logs) and needs no outbound access to render diagrams — see [Deployment boundary](DOCKER_HUB.md#deployment-boundary) and [Data Residency & Offline Use](../README.md#data-residency--offline-use).
 
 To build the image yourself, use the [`Dockerfile`](Dockerfile) from the **repository root**, not from this directory — at startup the server reads the shared references and the shape index from the sibling `shared/` and `shape-search/` directories:
 
@@ -186,6 +235,8 @@ npx cloudflared tunnel --url http://localhost:3001
 ```
 
 Then add the tunnel URL (with `/mcp` appended) as a custom connector in Claude.ai settings.
+
+Claude.ai and the draw.io plugin for Claude Code, which bundles the hosted server, read the tool list from the server, so [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request) appears there with the deploy that lists it; `DRAWIO_SEMANTIC_TYPES=off` leaves it out of a self-hosted server.
 
 ### Using with Claude Desktop (stdio)
 
@@ -228,6 +279,8 @@ To open diagrams in a self-hosted draw.io, set `DRAWIO_BASE_URL` in the shell th
 ```bash
 DRAWIO_BASE_URL=https://drawio.example.com/ npm run deploy
 ```
+
+[`create_semantic_diagram`](#tool-create_semantic_diagram-on-request) is set the same way: `DRAWIO_SEMANTIC_TYPES=off npm run deploy` deploys without it, or `DRAWIO_SEMANTIC_TYPES=off npx wrangler deploy --env staging` for staging (`wrangler deploy` builds the HTML itself, in the same shell).
 
 ### Local development with Wrangler
 
