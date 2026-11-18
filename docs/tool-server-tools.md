@@ -40,7 +40,7 @@ Opens the draw.io editor with CSV data that gets converted to a diagram.
 - `lightbox` (optional): Open in read-only lightbox mode (default: false)
 - `dark` (optional): Dark mode - "true" or "false" (default: false)
 
-**⚠️ Avoid** using `%column%` placeholders in style attributes (like `fillColor=%color%`) - this can cause "URI malformed" errors.
+`%column%` placeholders work in style attributes too (like `fillColor=%color%`): checked on 2026-11-18 in app.diagrams.net with links encoded as the tool server encodes them. "URI malformed" is what draw.io's decompression (`decodeURIComponent` after inflating) throws for CSV that was compressed without being URL-encoded first; the tool server encodes it first.
 
 ## `open_drawio_mermaid`
 
@@ -103,7 +103,7 @@ These are the only tools that read/write local files by path; paths must end in 
 | Error | Cause | Solution |
 |-------|-------|----------|
 | XML comments in output | `<!-- -->` comments found in generated XML | Remove all XML comments — they are strictly forbidden |
-| "URI malformed" | Special characters in CSV style attributes | Use hardcoded colors instead of `%column%` placeholders |
+| "URI malformed" | CSV (or Mermaid) compressed into a `#create=` link without being URL-encoded first, so draw.io's `decodeURIComponent` fails on a `%` | URL-encode before compressing, as `compressData` does |
 | "Service nicht verfügbar" | draw.io CSV server unavailable | Retry later or use Mermaid instead |
 | Blank diagram | Invalid Mermaid/XML syntax | Check syntax, ensure proper escaping |
 | Diagram doesn't match expected | Mermaid version differences | Simplify syntax, avoid edge cases |

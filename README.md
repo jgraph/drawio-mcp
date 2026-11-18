@@ -15,7 +15,7 @@ This repository offers four approaches for integrating draw.io with AI assistant
 | **How it works** | Renders diagrams inline in chat | Opens diagrams in your browser | Generates `.drawio` files, optional PNG/SVG/PDF export or browser URL | Claude generates draw.io URLs via Python |
 | **Diagram output** | Interactive viewer embedded in conversation | draw.io editor in a new tab | `.drawio`, `.drawio.png` / `.svg` / `.pdf`, or browser URL | Clickable link to draw.io |
 | **Requires installation** | No (hosted at `mcp.draw.io`) | Yes (npm package) | One-line plugin install (draw.io Desktop only for PNG/SVG/PDF export) | No — just paste instructions |
-| **Supports XML, CSV, Mermaid** | XML and Mermaid | ✅ All three | XML and Mermaid (Mermaid needs draw.io Desktop) | ✅ All three |
+| **Supports XML, CSV, Mermaid** | ✅ All three, and PlantUML | ✅ All three | XML and Mermaid (Mermaid needs draw.io Desktop) | ✅ All three |
 | **Editable in draw.io** | Via "Open in draw.io" button | ✅ Directly | ✅ Directly | Via link |
 | **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, GitHub Copilot CLI, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity, OpenCode | Claude.ai (with Projects) |
 | **Best for** | Inline previews in chat | Local desktop workflows | Local development workflows | Quick setup, no install needed |
