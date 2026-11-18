@@ -689,6 +689,7 @@ ${normalizeDiagramXml.toString()}
 ${normalizeOptionValue.toString()}
 ${absolutizeImageUrls.toString()}
 ${trimCsv.toString()}
+${sourceArgument.toString()}
 
 // Table rows (rows="PK id|…") and role styles (role=step, …) expanded into
 // draw.io cells and styles, as the server does (shared/diagram-shorthand.js),
@@ -1667,6 +1668,13 @@ var currentPlantUmlText = null;
 // The last conversion, so the tool input and the tool result convert once.
 var lastSourceConversion = null;
 
+// The PlantUML or CSV render in flight, a token of renderSourceDiagram. A
+// newer render, the tool result and endStreaming replace or clear it, and a
+// conversion that settles after that is dropped: the drawio-plantuml script
+// alone takes a while, and an error the server returned meanwhile would be
+// replaced by the diagram or by the converter's own error.
+var sourceRender = null;
+
 // drawio-plantuml is 1.2 MB, so it is loaded only for a PlantUML diagram,
 // from the CDN the viewer comes from (or inlined by buildHtml's plantumlJs).
 var PLANTUML_URL = ${JSON.stringify(PLANTUML_URL)};
@@ -1846,7 +1854,9 @@ function renderSourceDiagram(format, text, layoutOpts)
   var name = (format === 'plantuml') ? 'PlantUML' : 'CSV';
   var opts = Object.assign({}, layoutOpts, { postLayout: null, routing: null,
     autoRoute: false, described: false, replaceMode: true });
+  var render = {};
 
+  sourceRender = render;
   mermaidPreviewEl.style.display = 'none';
 
   waitForGraphViewer()
@@ -1854,13 +1864,25 @@ function renderSourceDiagram(format, text, layoutOpts)
     .then(function() { return convertSourceToXml(format, text); })
     .then(function(xml)
     {
+      if (sourceRender !== render)
+      {
+        return;
+      }
+
       currentMermaidText = null;
       currentSourceFormat = name;
       currentPlantUmlText = (format === 'plantuml') ? text : null;
       finalizeStreamingView(xml, opts);
+      sourceRender = null;
     })
     .catch(function(e)
     {
+      if (sourceRender !== render)
+      {
+        return;
+      }
+
+      sourceRender = null;
       showError('Failed to convert ' + name + ' diagram: ' + ((e && e.message) || e));
     });
 }
@@ -7282,6 +7304,7 @@ function endStreaming()
   currentSourceFormat = null;
   currentPlantUmlText = null;
   lastSourceConversion = null;
+  sourceRender = null;
   originalCellGeometries = null;
   originalCellStyles = null;
   currentLayoutState = 'none';
@@ -9203,9 +9226,9 @@ app.ontoolinputpartial = function(params)
     return;
   }
 
-  // PlantUML and CSV are drawn once they are complete (renderSourceDiagram)
-  if (params && params.arguments != null &&
-      (params.arguments.plantuml != null || params.arguments.csv != null))
+  // PlantUML and CSV are drawn once they are complete (renderSourceDiagram);
+  // an empty one beside XML or Mermaid is a parameter the call doesn't use
+  if (params && sourceArgument(params.arguments) != null)
   {
     return;
   }
@@ -9413,16 +9436,11 @@ app.ontoolinput = function(params)
 
   // PlantUML and CSV: converted here, as the result will be (the server
   // only removes blank lines before a CSV's configuration lines)
-  if (typeof args.plantuml === 'string' || typeof args.csv === 'string')
+  var source = sourceArgument(args);
+
+  if (source != null)
   {
-    if (typeof args.plantuml === 'string')
-    {
-      renderSourceDiagram('plantuml', args.plantuml, { skipIntroAnim: true, fadeIn: true });
-    }
-    else
-    {
-      renderSourceDiagram('csv', trimCsv(args.csv), { skipIntroAnim: true, fadeIn: true });
-    }
+    renderSourceDiagram(source.format, source.text, { skipIntroAnim: true, fadeIn: true });
 
     return;
   }
@@ -9607,6 +9625,10 @@ app.ontoolresult = function(result)
     var layoutOpts = { skipIntroAnim: true, fadeIn: true, postLayout: postLayout, routing: routing,
       autoRoute: mermaidText == null, described: shownFromDescription && mermaidText == null };
 
+    // The result is drawn from here: a conversion of the tool input still
+    // running is dropped (renderSourceDiagram's own shares its conversion)
+    sourceRender = null;
+
     if (sourceText != null)
     {
       renderSourceDiagram(sourceFormat, sourceText, layoutOpts);
@@ -9665,8 +9687,9 @@ app.ontoolresult = function(result)
     // Some hosts (observed on Claude iOS) deliver tool results whose
     // content array has no type:"text" block. If streaming already
     // produced a valid render, the diagram on screen is correct —
-    // suppress the error rather than clobbering it with an overlay.
-    if (streamingInitialized && currentXml != null)
+    // suppress the error rather than clobbering it with an overlay. The
+    // same for a PlantUML or CSV conversion of the tool input still running.
+    if ((streamingInitialized && currentXml != null) || sourceRender != null)
     {
       return;
     }
@@ -11079,6 +11102,36 @@ function plantUmlProblem(text)
 function trimCsv(text)
 {
   return text.replace(/^(?:[ \t]*\r?\n)+/, "");
+}
+
+/**
+ * The PlantUML or CSV source in create_diagram's arguments, or null. Like
+ * the server, it counts a format only when its text is more than white space,
+ * since some hosts send the parameters a call doesn't use as "". The viewer
+ * reads the tool input with it, so it draws what the result will carry and
+ * leaves an XML or Mermaid diagram beside an empty plantuml or csv alone.
+ *
+ * @param {object} args - the tool input, possibly partial
+ * @returns {{format: string, text: string}|null} the CSV trimmed by trimCsv
+ */
+function sourceArgument(args)
+{
+  if (args == null)
+  {
+    return null;
+  }
+
+  if (typeof args.plantuml === "string" && args.plantuml.trim().length > 0)
+  {
+    return { format: "plantuml", text: args.plantuml };
+  }
+
+  if (typeof args.csv === "string" && args.csv.trim().length > 0)
+  {
+    return { format: "csv", text: trimCsv(args.csv) };
+  }
+
+  return null;
 }
 
 /**
