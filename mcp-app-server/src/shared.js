@@ -1575,19 +1575,160 @@ function whenDocumentLaidOut()
 // is almost always identical to the last streaming partial.
 var lastConvertedMermaidText = null;
 var lastConvertedMermaidXml = null;
+// Whether the cached conversion measured its labels in the diagram's fonts
+var lastConvertedMermaidFonts = false;
 
-function rememberMermaidConversion(text, xml)
+function rememberMermaidConversion(text, xml, fontsLoaded)
 {
   lastConvertedMermaidText = text;
   lastConvertedMermaidXml = xml;
+  lastConvertedMermaidFonts = fontsLoaded !== false;
   currentMermaidText = text;
+}
+
+// ─── Mermaid fonts ───────────────────────────────────────────────
+// parseText measures every label in the font the diagram is drawn in:
+// Recursive, a Google font, for the redux themes of Mermaid 12. Measured
+// before the font has loaded, labels are sized in a fallback font and then
+// drawn wider in Recursive. So the final conversion waits for the fonts the
+// bundle names (mxMermaidToDrawio.getFonts), at most MERMAID_FONT_TIMEOUT ms,
+// as draw.io's EditorUi.loadMermaidFonts does before it converts. Streaming
+// previews don't wait: they start the load, and the final conversion parses
+// again when the last preview was measured without the fonts.
+var MERMAID_FONT_TIMEOUT = 3000;
+var mermaidFontLoads = {};
+
+function mermaidFonts(text)
+{
+  try
+  {
+    var fonts = (typeof mxMermaidToDrawio !== 'undefined' &&
+      typeof mxMermaidToDrawio.getFonts === 'function') ?
+      mxMermaidToDrawio.getFonts(text, null, { version: MERMAID_DEFAULTS_VERSION }) : null;
+
+    return Array.isArray(fonts) ? fonts : [];
+  }
+  catch (e)
+  {
+    // parseText reports the error
+    return [];
+  }
+}
+
+function loadMermaidFont(font)
+{
+  var key = font.name + '|' + font.url;
+
+  if (mermaidFontLoads[key] == null)
+  {
+    var entry = { done: false };
+
+    entry.promise = new Promise(function(resolve)
+    {
+      var finish = function()
+      {
+        entry.done = true;
+        resolve();
+      };
+
+      setTimeout(finish, MERMAID_FONT_TIMEOUT);
+
+      // The stylesheet only declares the font faces, which are fetched when
+      // text uses them, so the family is loaded explicitly. Until the
+      // stylesheet is in, document.fonts.load knows no face of the family
+      // and resolves with none, so it is asked again: parseText adds the
+      // stylesheet itself when it first converts such a diagram, and
+      // Graph.addFont then calls back at once.
+      var load = function()
+      {
+        if (entry.done)
+        {
+          return;
+        }
+
+        if (document.fonts != null && typeof document.fonts.load === 'function')
+        {
+          document.fonts.load('1em "' + font.name + '"').then(function(faces)
+          {
+            if (faces != null && faces.length > 0)
+            {
+              finish();
+            }
+            else
+            {
+              setTimeout(load, 100);
+            }
+          }, finish);
+        }
+        else
+        {
+          finish();
+        }
+      };
+
+      try
+      {
+        if (typeof Graph !== 'undefined' && typeof Graph.addFont === 'function')
+        {
+          Graph.addFont(font.name, font.url, load);
+        }
+        else
+        {
+          load();
+        }
+      }
+      catch (e)
+      {
+        finish();
+      }
+    });
+
+    mermaidFontLoads[key] = entry;
+  }
+
+  return mermaidFontLoads[key];
+}
+
+// Resolves once the fonts of the diagram have loaded or timed out; never rejects
+function loadMermaidFonts(text)
+{
+  return Promise.all(mermaidFonts(text).map(function(font)
+  {
+    return loadMermaidFont(font).promise;
+  }));
+}
+
+// Whether parseText would measure the labels of this diagram in its fonts now.
+// Starts loading the fonts that aren't.
+function mermaidFontsReady(text)
+{
+  return mermaidFonts(text).every(function(font)
+  {
+    return loadMermaidFont(font).done;
+  });
+}
+
+// EditorUi.parseMermaidDiagram's message for a conversion without cells
+var MERMAID_NOTHING_TO_DRAW = 'Nothing to draw: the diagram is empty or its statements were not recognized';
+
+function mermaidXmlHasCells(xml)
+{
+  return / (vertex|edge)="1"/.test(xml);
 }
 
 function convertMermaidToXml(mermaidText)
 {
+  return loadMermaidFonts(mermaidText).then(function()
+  {
+    return convertMermaidToXmlNow(mermaidText);
+  });
+}
+
+function convertMermaidToXmlNow(mermaidText)
+{
   // Cache hit — skip parseText entirely.
   if (mermaidText === lastConvertedMermaidText &&
-      lastConvertedMermaidXml != null)
+      lastConvertedMermaidXml != null && lastConvertedMermaidFonts)
   {
     return Promise.resolve(lastConvertedMermaidXml);
   }
@@ -1617,6 +1758,14 @@ function convertMermaidToXml(mermaidText)
     if (xml == null)
     {
       return Promise.reject(new Error("Unsupported Mermaid diagram type"));
+    }
+
+    // The parsers skip statements they don't recognize, so a diagram can
+    // convert to no cells at all: say so, as draw.io does, instead of
+    // showing an empty frame
+    if (!mermaidXmlHasCells(xml))
+    {
+      return Promise.reject(new Error(MERMAID_NOTHING_TO_DRAW));
     }
 
     // Stabilize cell IDs so the streaming preview and the final render
@@ -8543,7 +8692,11 @@ function handleMermaidPartial(partialMermaid)
   // parseText would produce the same XML and the merge would be a no-op.
   if (healed === lastMergedMermaidText) return;
 
+  // Starts loading the diagram's fonts; until they are there, the preview is
+  // measured in a fallback font and not reused for the final conversion
+  var fontsReady = mermaidFontsReady(healed);
   var xml;
+
   try
   {
     // Same config and defaults version as convertMermaidToXml
@@ -8567,7 +8720,7 @@ function handleMermaidPartial(partialMermaid)
   // Pre-populate the convertMermaidToXml cache so finalize doesn't
   // re-parse this text. The finalize call passes the raw partial text
   // (args.mermaid), which usually equals the last streamed partial.
-  rememberMermaidConversion(partialMermaid, xml);
+  rememberMermaidConversion(partialMermaid, xml, fontsReady);
 
   // Hand off to the same merge pipeline used by XML streaming.
   try
@@ -10697,7 +10850,7 @@ function lenient(name, schema)
 // The first words of the Mermaid diagram types draw.io converts, as
 // mermaidDiagramType returns them (lowercased). A Mermaid diagram passed as
 // create_diagram's xml is recognized by them; the list in the tool
-// description names the same types.
+// description names the types of the reference.
 var MERMAID_DIAGRAM_TYPES =
 [
   "flowchart", "graph", "sequencediagram", "classdiagram", "classdiagram-v2",
@@ -10708,6 +10861,10 @@ var MERMAID_DIAGRAM_TYPES =
   "architecture", "architecture-beta", "packet", "packet-beta", "kanban",
   "radar", "radar-beta", "treemap", "treemap-beta", "treeview-beta",
   "venn-beta", "ishikawa-beta", "zenuml", "wardley-beta", "eventmodeling",
+  // Converted too, though the reference doesn't teach them
+  "eventmodeling-beta", "flowchart-elk", "swimlane-beta", "usecase-beta",
+  "agentflow-beta", "cynefin-beta", "railroad-beta", "railroad-ebnf-beta",
+  "railroad-abnf-beta", "railroad-peg-beta",
 ];
 
 function isMermaidSource(text)
