@@ -51,7 +51,7 @@ Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copil
 You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](https://hub.docker.com/r/jgraph/drawio-mcp) Docker image, or deploy your own instance to Cloudflare Workers.
 
 **Tools:**
-- **`create_diagram`** — Renders draw.io XML or Mermaid (28 diagram types) as an interactive diagram inline in chat
+- **`create_diagram`** — Renders draw.io XML, Mermaid (28 diagram types), PlantUML or draw.io CSV as an interactive diagram inline in chat. Mermaid flowcharts, ER and sequence diagrams, PlantUML sequence and activity diagrams and CSV are converted on the server into editable draw.io shapes, laid out and styled, and a syntax error comes back with its line and how to fix it
 - **`search_shapes`** — Searches 10,000+ shapes across all draw.io libraries (AWS, Azure, GCP, P&ID, electrical, Cisco, Kubernetes, UML, BPMN, etc.) by keyword, supplemented by the draw.io icon service (brand logos and general-purpose concept icons) when the built-in libraries have no good match. Returns exact style strings that can be used directly in XML. Use this to find the correct shape before calling `create_diagram`.
 - **`get_drawio_reference`** — Returns the XML or Mermaid generation reference, which the model reads once per format before its first diagram.
 - **`create_semantic_diagram`** — The fast mode for flowcharts and swimlane diagrams, used only when you ask for a quick or cheap diagram (see below).
