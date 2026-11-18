@@ -4,7 +4,7 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 
 ## How It Works
 
-1. The LLM calls the `create_diagram` tool with draw.io XML or Mermaid, or, when the user asks for a quick or cheap flowchart, `create_semantic_diagram` with a description that the server lays out
+1. The LLM calls the `create_diagram` tool with draw.io XML or Mermaid (or PlantUML or draw.io CSV the user gives it), or, when the user asks for a quick or cheap flowchart, `create_semantic_diagram` with a description that the server lays out
 2. The host fetches the UI resource and renders it in a sandboxed iframe
 3. The diagram is rendered using the official [draw.io viewer](https://viewer.diagrams.net)
 4. The user sees an interactive diagram inline with zoom, pan, and layers support
@@ -13,12 +13,14 @@ The MCP App server renders draw.io diagrams **inline** in AI chat interfaces usi
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `xml` | string | One of `xml` / `mermaid` | draw.io XML in mxGraphModel format. Mutually exclusive with `mermaid`. |
-| `mermaid` | string | One of `xml` / `mermaid` | Mermaid.js diagram definition (28 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. Mutually exclusive with `xml`. |
+| `xml` | string | One of the four | draw.io XML in mxGraphModel format. |
+| `mermaid` | string | One of the four | Mermaid.js diagram definition (28 supported diagram types — flowchart, sequence, class, state, ER, gantt, mindmap, timeline, quadrant, C4, architecture, …). Parsed and laid out natively, then converted to draw.io. |
+| `plantuml` | string | One of the four | PlantUML from `@startuml` to `@enduml` (or the `@start…`/`@end…` lines of its type). Converted in the viewer by draw.io's PlantUML converter (drawio-plantuml), as draw.io's *Arrange > Insert > Advanced > PlantUML* does; no PlantUML server. "Open in draw.io" keeps the source, so the diagram can be edited as PlantUML there. |
+| `csv` | string | One of the four | draw.io CSV: `#` configuration lines (label, style, connect, layout, …), a header line and one line per shape, as *Arrange > Insert > Advanced > CSV* imports it. `%column%` placeholders work in labels and styles. All layouts except `orgchart`. |
 | `postLayout` | enum | No | Optional ELK layered-flow pass applied after render. Only value: `"elk"`. Vertex positions are replaced; only edge topology survives. |
 | `direction` | enum | No | XML-only flow direction for `postLayout: "elk"`: `"vertical"` (default) or `"horizontal"`. Ignored for Mermaid (direction comes from the `flowchart TD/LR` code). |
 
-Provide exactly one of `xml` or `mermaid` as a plain string — not an object or array.
+Provide exactly one of `xml`, `mermaid`, `plantuml` or `csv` as a plain string — not an object or array. `postLayout`, `direction` and `routing` don't apply to PlantUML and CSV.
 
 The rendered diagram includes:
 - Interactive zoom, pan, and navigation
@@ -186,7 +188,7 @@ Enable the server when prompted (or under **Cursor Settings → MCP**), then ask
 }
 ```
 
-OpenCode has no MCP Apps UI, so nothing renders inline: `create_diagram` detects that and returns an `app.diagrams.net` link that opens the diagram in the editor instead. If you would rather have diagrams open in your browser directly (and also author them as Mermaid or CSV), use the stdio [`@drawio/mcp`](../mcp-tool-server/README.md#opencode) tool server.
+OpenCode has no MCP Apps UI, so nothing renders inline: `create_diagram` detects that and returns an `app.diagrams.net` link that opens the diagram in the editor instead. If you would rather have diagrams open in your browser directly, use the stdio [`@drawio/mcp`](../mcp-tool-server/README.md#opencode) tool server.
 
 ## Self-Hosting
 
@@ -320,6 +322,14 @@ OPENSSL=/opt/homebrew/opt/openssl@3/bin/openssl
 mcp-publisher login dns --domain draw.io --private-key "$($OPENSSL pkey -in ~/.drawio-mcp-registry-key.pem -noout -text | grep -A3 'priv:' | tail -n +2 | tr -d ' :\n')"
 mcp-publisher publish
 ```
+
+**The npm package** — `server.json` also lists the tool server, `@drawio/mcp` on npm, under `packages`, next to the hosted endpoint under `remotes`. The registry accepts that entry only when the `package.json` of the npm version it names carries `"mcpName": "io.draw/mcp"`, the server's name: 1.13.1 is the first release with it, 1.13.0 and earlier were published without it. Before each publish, set `packages[0].version` to the current npm release (release the tool server first when it has changes of its own) and check that npm has it with `mcpName`:
+
+```bash
+npm view "@drawio/mcp@$(node -p "require('./server.json').packages[0].version")" mcpName   # must print io.draw/mcp
+```
+
+The registry takes each `version` of `io.draw/mcp` once, and that `version` follows the app server's, so a tool server release alone can't be published here: it is listed with the next app server release. `test/server-json.test.js` checks the entry against the tool server's `package.json`: the same package and name, and a version from 1.13.1 up to the one there.
 
 The `io.draw` namespace is the reverse-DNS form of the verified `draw.io` domain (the same pattern as the registry's own `io.modelcontextprotocol/everything`). The alternative would be `io.github.jgraph/...` via `mcp-publisher login github`, but that requires jgraph org-owner rights and gives up the brand naming.
 

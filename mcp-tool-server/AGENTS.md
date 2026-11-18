@@ -57,7 +57,7 @@ The ~900 KB bundle is not vendored — `src/elk-engine.js` pulls it from `viewer
 
 Opens draw.io with CSV data converted to a diagram. Useful for org charts, but CSV processing can fail — prefer Mermaid when possible.
 
-**Avoid** using `%column%` placeholders in style attributes (like `fillColor=%color%`) — causes "URI malformed" errors.
+`%column%` placeholders work in style attributes (like `fillColor=%color%`): `compressData` URL-encodes before it compresses, so draw.io's `decodeURIComponent` after inflating gets them back (checked in app.diagrams.net on 2026-11-18). CSV compressed without that encoding fails there with "URI malformed".
 
 ### `open_drawio_mermaid`
 
@@ -150,3 +150,5 @@ Bump `version` in `package.json`, commit, then run the **Publish Tool Server** w
 This matters beyond convenience: the account's 2FA is `auth-and-writes`, so a local `npm publish` demands an OTP (recovery codes are rejected for writes), and npm is removing direct-publish access from granular tokens in January 2027.
 
 The trust is registered on npmjs.com (Package settings → Publishing access → Trusted publisher) against the repository **and the workflow filename** — renaming `publish-tool-server.yml` breaks publishing until it is updated there too.
+
+`"mcpName": "io.draw/mcp"` in `package.json` lets the MCP Registry list this package under the server `io.draw/mcp` (`packages` in `mcp-app-server/server.json`): the registry checks it in the published version that entry names, so keep it. 1.13.1 is the first release with it. The registry takes each `version` of `io.draw/mcp` once and that version follows the app server's, so a release here is listed with the next app server release, which sets `packages[0].version` to it (runbook in `mcp-app-server/README.md`, "Publishing to the MCP Registry").
