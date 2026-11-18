@@ -69,6 +69,44 @@ Without such words, and for every other diagram type, the model uses `create_dia
 
 Self-hosted servers leave the tool out with `DRAWIO_SEMANTIC_TYPES=off`. Details are in [`shared/semantic/FAST-MODE.md`](shared/semantic/FAST-MODE.md).
 
+**Mermaid, PlantUML and CSV.** Besides draw.io XML, `create_diagram` takes Mermaid, PlantUML and draw.io CSV. The model picks a format, or uses the one you ask for or paste. These types are converted on the server into editable draw.io shapes, laid out and styled, and the model gets the diagram back as draw.io XML:
+
+- **Mermaid:** flowcharts (`flowchart`, `graph`), ER diagrams and sequence diagrams
+- **PlantUML:** sequence diagrams, and activity diagrams in the new syntax
+- **CSV:** draw.io's [CSV import format](https://www.drawio.com/docs/manual/insert/insert-from-csv/) with the tree, flow and `none` layouts; each row keeps its columns as shape data
+
+A syntax error comes back to the model with its line and how to fix it, so the model can correct the source and send it again. Everything else goes to the viewer, which converts it with draw.io's own converters, as *Arrange > Insert > Advanced* does in the editor, and the model gets a note that says so: the other Mermaid types (class, state, Gantt, mind map, …), the other PlantUML types (class, use case, component, state, activity in the old syntax, …) and CSV with `# list`, `# container`, the `circle` layout or a custom layout. Self-hosted servers leave all of it to the viewer with `DRAWIO_CONVERT=off`.
+
+One example per format, each converted on the server. Mermaid, a flowchart with a decision shape and labelled connectors:
+
+```
+flowchart LR
+  A[Order received] --> B{Paid?}
+  B -->|yes| C[Ship order]
+  B -->|no| D[Send reminder]
+```
+
+PlantUML, a sequence diagram with a lifeline for each participant and a line for each message:
+
+```
+@startuml
+Customer -> Shop: Place order
+Shop --> Customer: Confirmation
+@enduml
+```
+
+CSV, an org chart drawn as a tree, each shape keeping its `name` and `manager` as shape data:
+
+```
+# label: %name%
+# connect: {"from": "manager", "to": "name", "invert": true}
+# layout: verticaltree
+name,manager
+CEO,
+CTO,CEO
+CFO,CEO
+```
+
 **[Full documentation →](mcp-app-server/README.md)**
 
 > **Note:** Diagrams appear inline in hosts that support the MCP Apps extension, such as Claude.ai, ChatGPT, VS Code with GitHub Copilot and Cursor. In other hosts, such as GitHub Copilot CLI, the tool still works and answers with a link that opens the diagram in draw.io.
