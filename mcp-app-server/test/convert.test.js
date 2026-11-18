@@ -6,7 +6,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { buildHtml, createServer, resolveConvertFormats } from "../src/shared.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "../src/semantic-bundle.js";
-import { convertSource, serverConverts, FORMATS } from "../../shared/convert/index.js";
+import { convertSource, serverConverts, typeName, FORMATS } from "../../shared/convert/index.js";
 import { csvFields } from "../../shared/convert/csv.js";
 
 // Mermaid, PlantUML and draw.io CSV converted on the server (shared/convert):
@@ -591,6 +591,27 @@ test("a syntax error is a tool error the model can fix", async function()
 
   assert.equal(result.isError, true);
   assert.match(text, /^Mermaid syntax error on line 3/);
+});
+
+test("the note on a type left to the viewer names it as Mermaid writes it", async function()
+{
+  const classes = await call(client, { mermaid: "classDiagram\n class Car\n Car *-- Wheel" });
+  const c4 = await call(client, { mermaid: "C4Context\n Person(u, \"User\")" });
+  const plantUseCase = await call(client, { plantuml: "@startuml\nusecase Checkout\nactor Buyer\nBuyer --> (Checkout)\n@enduml" });
+  const mindmap = await call(client, { plantuml: "@startmindmap\n* root\n** a\n@endmindmap" });
+
+  assert.match(classes.text, /Note: Mermaid `classDiagram` diagrams are converted by draw\.io's own converter in the viewer/);
+  assert.match(c4.text, /Note: Mermaid `C4Context` diagrams are converted/);
+  assert.match(plantUseCase.text, /Note: PlantUML use case diagrams are converted/);
+  assert.match(mindmap.text, /Note: PlantUML `@startmindmap` diagrams are converted/);
+  assert.doesNotMatch(classes.text + c4.text, /classdiagram|c4context/);
+  // every Mermaid header as Mermaid writes it, also in the misspelled-header hint
+  assert.equal(typeName("mermaid", "statediagram-v2"), "`stateDiagram-v2`");
+  assert.equal(typeName("mermaid", "treeview-beta"), "`treeView-beta`");
+  assert.equal(typeName("mermaid", "gantt"), "`gantt`");
+  assert.equal(typeName("plantuml", "uml"), null);
+  assert.equal(typeName("csv", "csv"), null);
+  assert.match((await convertSource("mermaid", "C4Dynamc\n title x\n")).error, /`C4Dynamic`/);
 });
 
 test("with the conversion off, Mermaid goes to the viewer as before", async function()

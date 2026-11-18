@@ -21,7 +21,7 @@ import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
 import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES } from "../../shared/semantic/index.js";
 import { describeTool as describeSemanticTool, describeSchema as describeSemanticSchema, DESCRIBED_BY as SEMANTIC_DESCRIBED_BY } from "../../shared/semantic/description.js";
 import { readList as readSemanticList, typeName as semanticTypeName, fieldText as semanticFieldText } from "../../shared/semantic/spec.js";
-import { convertSource, serverConverts, FORMATS as CONVERT_FORMATS } from "../../shared/convert/index.js";
+import { convertSource, serverConverts, typeName, FORMATS as CONVERT_FORMATS } from "../../shared/convert/index.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -11276,8 +11276,9 @@ export function convertedNote(format, conversion, postLayout, elk)
 
   if (conversion.xml == null)
   {
+    var type = typeName(format, conversion.type);
     var what = conversion.reason != null ? name + " with " + conversion.reason + " is" :
-      name + (conversion.type && conversion.type !== format ? " " + conversion.type : "") + " diagrams are";
+      name + (type != null ? " " + type : "") + " diagrams are";
 
     return "Note: " + what + " converted by draw.io's own " + (format === "csv" ? "import" : "converter") +
       " in the viewer, not on the server, so this result has no draw.io XML and the server checked " +

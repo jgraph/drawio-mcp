@@ -7,9 +7,9 @@
 // viewer). Headless and deterministic: the Worker, Node and the browser.
 
 import { semanticToXml } from "../semantic/index.js";
-import { readHeader, parseFlowchart, parseErDiagram, parseSequence, SERVER_TYPES } from "./mermaid.js";
+import { readHeader, parseFlowchart, parseErDiagram, parseSequence, mermaidTypeName, SERVER_TYPES } from "./mermaid.js";
 import { sequenceToXml } from "./sequence.js";
-import { convertPlantUml, plantUmlConverts } from "./plantuml.js";
+import { convertPlantUml, plantUmlConverts, plantUmlTypeName } from "./plantuml.js";
 import { convertCsv, csvConverts } from "./csv.js";
 
 export const MERMAID_SERVER_TYPES = SERVER_TYPES;
@@ -18,6 +18,31 @@ export const MERMAID_SERVER_TYPES = SERVER_TYPES;
  * The formats this module converts.
  */
 export const FORMATS = ["mermaid", "plantuml", "csv"];
+
+/**
+ * The `type` of a `fallback` as a message names it: a Mermaid header as
+ * Mermaid writes it (`classDiagram`, `C4Context`), a PlantUML family in
+ * words (`use case`), or null where there is no type to name (CSV, an
+ * `@startuml` diagram of no family this module tells apart).
+ *
+ * @param {string} format
+ * @param {string} type
+ * @returns {string|null}
+ */
+export function typeName(format, type)
+{
+  if (type == null || type === format)
+  {
+    return null;
+  }
+
+  if (format === "mermaid")
+  {
+    return "`" + mermaidTypeName(type) + "`";
+  }
+
+  return format === "plantuml" ? plantUmlTypeName(type) : type;
+}
 
 /**
  * Whether this module converts the diagram (a type it reads), rather than

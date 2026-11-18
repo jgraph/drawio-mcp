@@ -180,6 +180,34 @@ function familyOf(block)
 }
 
 /**
+ * A family as the messages that name it say it: `usecase` → `use case`, a
+ * diagram of its own start line (`mindmap`) → `` `@startmindmap` ``, and an
+ * `@startuml` diagram of no family this module tells apart → null.
+ *
+ * @param {string} family - from familyOf
+ * @returns {string|null}
+ */
+export function plantUmlTypeName(family)
+{
+  if (family === "uml")
+  {
+    return null;
+  }
+
+  if (family === "usecase")
+  {
+    return "use case";
+  }
+
+  if (family === "activity (old syntax)")
+  {
+    return "old-syntax activity";
+  }
+
+  return OTHER_FAMILY.some(function(f) { return f[1] === family; }) ? family : "`@start" + family + "`";
+}
+
+/**
  * Whether the server converts this PlantUML diagram (a sequence or an
  * activity diagram), decided by what has arrived of it.
  *

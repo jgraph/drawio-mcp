@@ -29,13 +29,28 @@ export const MERMAID_TYPES =
   "swimlane-beta", "usecase", "usecase-beta", "railroad-beta", "cynefin-beta"
 ];
 
-// The spelling of each header as Mermaid writes it, for the error message
+// The spelling of each header as Mermaid writes it, where it isn't all
+// lowercase (drawio-mermaid's header table)
 const HEADER_SPELLING =
 {
-  sequencediagram: "sequenceDiagram", classdiagram: "classDiagram", statediagram: "stateDiagram-v2",
-  erdiagram: "erDiagram", gitgraph: "gitGraph", quadrantchart: "quadrantChart", requirementdiagram: "requirementDiagram",
-  c4context: "C4Context", c4container: "C4Container", c4component: "C4Component"
+  sequencediagram: "sequenceDiagram", classdiagram: "classDiagram", "classdiagram-v2": "classDiagram-v2",
+  statediagram: "stateDiagram", "statediagram-v2": "stateDiagram-v2", erdiagram: "erDiagram", gitgraph: "gitGraph",
+  quadrantchart: "quadrantChart", requirementdiagram: "requirementDiagram", c4context: "C4Context",
+  c4container: "C4Container", c4component: "C4Component", c4dynamic: "C4Dynamic", c4deployment: "C4Deployment",
+  "treeview-beta": "treeView-beta"
 };
+
+/**
+ * A header type as Mermaid writes it (`classdiagram` → `classDiagram`), for
+ * the messages that name it.
+ *
+ * @param {string} type - lowercased, one of MERMAID_TYPES
+ * @returns {string}
+ */
+export function mermaidTypeName(type)
+{
+  return HEADER_SPELLING[type] || type;
+}
 
 const ERR = "Mermaid";
 
@@ -364,7 +379,8 @@ function closestType(type)
     best = "sequencediagram";
   }
 
-  return best == null ? null : (HEADER_SPELLING[best] || best);
+  // stateDiagram-v2, the one the Mermaid reference teaches
+  return best == null ? null : (best === "statediagram" ? "stateDiagram-v2" : mermaidTypeName(best));
 }
 
 function editDistance(a, b)

@@ -14,7 +14,7 @@ The app server's `create_diagram` sends a model's Mermaid, PlantUML or draw.io C
 
 | File | Purpose |
 |------|---------|
-| `index.js` | `convertSource(format, text, {elk, partial})` → `{xml, type, warnings, stats}` (a Mermaid flowchart also `direction` and `elk`, for the viewer's ELK pass), `{error}` or `{fallback: true, type, reason?}`; `serverConverts(format, text)`, the same decision for the viewer; `FORMATS` |
+| `index.js` | `convertSource(format, text, {elk, partial})` → `{xml, type, warnings, stats}` (a Mermaid flowchart also `direction` and `elk`, for the viewer's ELK pass), `{error}` or `{fallback: true, type, reason?}`; `serverConverts(format, text)`, the same decision for the viewer; `typeName(format, type)`, a fallback's `type` (lowercased) as the server's note names it: the Mermaid header as Mermaid writes it (`classDiagram`), the PlantUML family in words; `FORMATS` |
 | `common.js` | `syntaxError`, labels as plain text (`plainLabel`: `<br>`, Markdown, entities), CSS-like declarations as draw.io keys (`cssToStyle`, `cssColor`, CSS color names in hex) |
 | `mermaid.js` | `readHeader` (frontmatter, `%%{init}%%`, the type, a misspelled type as an error that names the likely one), `parseFlowchart`, `parseErDiagram`, `parseSequence`; `SERVER_TYPES` |
 | `plantuml.js` | `convertPlantUml`, `plantUmlConverts`: the `@start…` block, the family (sequence, activity in the new syntax, or one for the viewer), `parseSequence` and `parseActivity` |
