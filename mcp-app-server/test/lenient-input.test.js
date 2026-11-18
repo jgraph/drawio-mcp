@@ -84,7 +84,15 @@ test("the headers draw.io converts that the reference doesn't teach are Mermaid 
     const text = header + "\n  A --> B";
     const result = await call("create_diagram", { xml: text });
 
-    assert.equal(payload(result).mermaid, text, header);
+    // a flowchart-elk is converted on the server, the others in the viewer
+    if (header.startsWith("flowchart-elk"))
+    {
+      assert.equal(payload(result).converted, "mermaid", header);
+    }
+    else
+    {
+      assert.equal(payload(result).mermaid, text, header);
+    }
   }
 });
 

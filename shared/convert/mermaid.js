@@ -26,7 +26,8 @@ export const MERMAID_TYPES =
   "architecture", "architecture-beta", "packet", "packet-beta", "kanban",
   "radar", "radar-beta", "treemap", "treemap-beta", "treeview-beta",
   "venn-beta", "ishikawa", "ishikawa-beta", "zenuml", "wardley-beta", "eventmodeling",
-  "swimlane-beta", "usecase", "usecase-beta", "railroad-beta", "cynefin-beta"
+  "eventmodeling-beta", "swimlane-beta", "usecase", "usecase-beta", "agentflow-beta",
+  "cynefin-beta", "railroad-beta", "railroad-ebnf-beta", "railroad-abnf-beta", "railroad-peg-beta"
 ];
 
 // The spelling of each header as Mermaid writes it, where it isn't all
