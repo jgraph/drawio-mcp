@@ -25,6 +25,12 @@ var zlib = require("zlib");
 
 var BUNDLE_BASE = "https://viewer.diagrams.net/js/";
 var BUNDLES = ["viewer-static.min.js", "elk/drawio-elk.min.js", "mermaid/drawio-mermaid.min.js"];
+// libavoid as draw.io loads it, the router and then its routing core
+// (globalThis.Avoid, AvoidRouting): drawio-mermaid routes the edges of
+// swimlane diagrams with them. Without them a diagram converts as before,
+// its swimlane edges as the layout drew them.
+var ROUTER_BUNDLES = ["libavoid-js/libavoid.min.js", "libavoid-js/libavoid-routing.js"];
+var ROUTER_TIMEOUT = 20000;
 var EDITOR_URL = "https://app.diagrams.net/?pv=0&grid=0";
 
 // The defaults of Mermaid 12 (ELK layout, redux theme), as the MCP servers use
@@ -292,14 +298,17 @@ async function openPage(cdp, url)
   };
 }
 
-// Runs in the page: loads the draw.io viewer, drawio-elk and drawio-mermaid
-function loadConverter(base, bundles)
+// Runs in the page: loads the draw.io viewer, drawio-elk and drawio-mermaid,
+// then the optional scripts, each of which is skipped when it fails to load
+// or takes longer than optionalTimeout
+function loadConverter(base, bundles, optional, optionalTimeout)
 {
   window.DRAWIO_BASE_URL = "https://app.diagrams.net";
+  var all = bundles.concat(optional || []);
 
   function load(i)
   {
-    if (i >= bundles.length)
+    if (i >= all.length)
     {
       return Promise.resolve(typeof HeadlessEditorUi !== "undefined" &&
         typeof mxMermaidToDrawio !== "undefined");
@@ -315,12 +324,25 @@ function loadConverter(base, bundles)
     return new Promise(function(resolve, reject)
     {
       var script = document.createElement("script");
-      script.src = base + bundles[i];
+      script.src = base + all[i];
       script.onload = resolve;
       script.onerror = function()
       {
-        reject(new Error("Could not load " + script.src));
+        if (i >= bundles.length)
+        {
+          resolve();
+        }
+        else
+        {
+          reject(new Error("Could not load " + script.src));
+        }
       };
+
+      if (i >= bundles.length)
+      {
+        setTimeout(resolve, optionalTimeout);
+      }
+
       document.head.appendChild(script);
     }).then(function()
     {
@@ -392,7 +414,8 @@ async function convertMermaid(texts, options)
       evaluate = await openPage(cdp);
     }
 
-    if (!(await evaluate(loadConverter, options.bundleBase || BUNDLE_BASE, BUNDLES)))
+    if (!(await evaluate(loadConverter, options.bundleBase || BUNDLE_BASE, BUNDLES,
+      ROUTER_BUNDLES, ROUTER_TIMEOUT)))
     {
       throw new Error("The draw.io converter did not load from " + (options.bundleBase || BUNDLE_BASE));
     }
