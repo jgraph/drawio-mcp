@@ -11,7 +11,7 @@ Renders draw.io diagrams inline in AI chat interfaces using the MCP Apps protoco
 | `src/worker.js` | Cloudflare Workers entry (Web Standard fetch handler) |
 | `src/build-html.js` | Build script: generates `generated-html.js` for the Worker |
 | `src/semantic-bundle.js` | Bundles the semantic engine (`shared/semantic`) into one classic script for the viewer's preview of `create_semantic_diagram` — see [Semantic diagrams](#semantic-diagrams-create_semantic_diagram) |
-| `server.json` | MCP Community Registry manifest (`io.draw/mcp`, remote `https://mcp.draw.io/mcp`) — publish runbook in README "Publishing to the MCP Registry"; keep `version` in lockstep with `package.json` |
+| `server.json` | MCP Community Registry manifest (`io.draw/mcp`, remote `https://mcp.draw.io/mcp` and the npm package `@drawio/mcp`) — publish runbook in README "Publishing to the MCP Registry"; keep `version` in lockstep with `package.json` |
 | `snippet/mcp_edge.js` | Cloudflare Snippet in front of the Worker on `mcp.draw.io`: answers pings, notifications, session-less requests, GET/HEAD/DELETE/OPTIONS and OAuth discovery probes without a Worker invocation — see [Edge snippet](#edge-snippet) |
 | `openai-plugin/` | OpenAI Plugins Directory package (`.codex-plugin/plugin.json`: names, descriptions, starter prompts, policy URLs, icon; `.mcp.json`: the server, which can never change on an existing plugin) — zipped and uploaded as a new version in the portal; its own `version`, runbook in `OPENAI-SUBMISSION.md` |
 
