@@ -57,7 +57,7 @@ The ~900 KB bundle is not vendored — `src/elk-engine.js` pulls it from `viewer
 
 Opens draw.io with CSV data converted to a diagram. Useful for org charts, but CSV processing can fail — prefer Mermaid when possible.
 
-**Avoid** using `%column%` placeholders in style attributes (like `fillColor=%color%`) — causes "URI malformed" errors.
+`%column%` placeholders work in style attributes (like `fillColor=%color%`): `compressData` URL-encodes before it compresses, so draw.io's `decodeURIComponent` after inflating gets them back (checked in app.diagrams.net on 2026-11-18). CSV compressed without that encoding fails there with "URI malformed".
 
 ### `open_drawio_mermaid`
 

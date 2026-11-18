@@ -89,6 +89,17 @@ if (process.env.MERMAID_PATH)
   console.error("Inlining local drawio-mermaid from", process.env.MERMAID_PATH);
 }
 
+// drawio-plantuml (the PlantUML converter) is loaded by the viewer from the
+// CDN only when a PlantUML diagram comes in. PLANTUML_PATH inlines a local
+// build instead, e.g. drawio-dev's src/main/webapp/js/plantuml/drawio-plantuml.min.js.
+var plantumlJs = null;
+
+if (process.env.PLANTUML_PATH)
+{
+  plantumlJs = fs.readFileSync(path.resolve(process.env.PLANTUML_PATH), "utf-8");
+  console.error("Inlining local drawio-plantuml from", process.env.PLANTUML_PATH);
+}
+
 // libavoid (obstacle-avoiding edge router, powers the routing: "libavoid"
 // pass) is NOT inlined — the HTML loads the pure-JS router bundle + shared
 // routing core from the viewer.diagrams.net CDN, like drawio-elk and
@@ -200,7 +211,7 @@ if (semanticTypes.length > 0)
 // `let` — the daily libavoid version check rebuilds it in place (each
 // /mcp request creates its McpServer from the current value).
 let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl, semanticJs });
+  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl, semanticJs, plantumlJs });
 
 // --- Sessions ---
 
@@ -304,7 +315,7 @@ async function startStreamableHTTPServer()
       {
         libavoidScriptUrls = urls;
         html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl, semanticJs });
+          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl, semanticJs, plantumlJs });
         console.log("libavoid CDN versions changed; HTML rebuilt");
       }
     }
