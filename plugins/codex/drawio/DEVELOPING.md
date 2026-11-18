@@ -1,14 +1,15 @@
 # Codex Plugin: drawio
 
 A Codex CLI plugin that ships the `drawio` skill: it generates native `.drawio` files,
-authored either as Mermaid (converted + laid out by the draw.io desktop CLI) or as draw.io
+authored either as Mermaid (converted + laid out by the draw.io desktop CLI, or without it by
+`scripts/mermaid-to-drawio.js` in a headless Chrome, Edge or Chromium) or as draw.io
 XML directly, with optional ELK `--layout` for XML, export to PNG/SVG/PDF (with embedded XML)
 via the desktop CLI, or a browser URL that opens the diagram directly at `app.diagrams.net`.
 No MCP server required.
 
 This is the Codex counterpart of the [Claude Code plugin](../../claude-code/README.md). The
 skill body is host-agnostic — it drives the draw.io Desktop CLI directly — so
-`skills/drawio/` (`SKILL.md` and `scripts/find-shapes.js`) is kept **byte-identical** to the
+`skills/drawio/` (`SKILL.md` and `scripts/`) is kept **byte-identical** to the
 Claude plugin's copy (including the `/drawio:drawio` invocation examples, which Codex uses too). Only the host
 wrapping differs: the manifest schema (`.codex-plugin/plugin.json` vs `.claude-plugin/plugin.json`),
 the `interface` block (Codex-only — logo, brand color, default prompts), and the marketplace
@@ -21,6 +22,7 @@ format.
 | `.codex-plugin/plugin.json` | Codex plugin manifest — name, version, description, author, license, and the `interface` block (display name, logo, `brandColor`, default prompts) |
 | `skills/drawio/SKILL.md` | The skill itself (its folder name `drawio` becomes the second half of the `/drawio:drawio` invocation); byte-identical to the Claude plugin's copy |
 | `skills/drawio/scripts/find-shapes.js` | The shape and icon lookup the skill runs; byte-identical to the Claude plugin's copy |
+| `skills/drawio/scripts/mermaid-to-drawio.js` | Mermaid to `.drawio` without draw.io Desktop, in a headless Chrome, Edge or Chromium; byte-identical to the Claude plugin's copy |
 | `assets/drawio-logo.svg` | Official draw.io logo (vector `drawio-desktop` icon), referenced by `interface.composerIcon`/`logo`/`logoDark` |
 | `README.md` | Installation and usage documentation |
 | `../../../.agents/plugins/marketplace.json` | Codex marketplace manifest at the repo root; lists this plugin with `source.path: "./plugins/codex/drawio"` and inherits the rest of its metadata from `plugin.json` |
@@ -36,7 +38,7 @@ root is nested one level inside the host directory:
 plugins/codex/          ← host group directory
 └── drawio/             ← Codex plugin root (folder name == plugin.json "name" = "drawio")
     ├── .codex-plugin/plugin.json
-    ├── skills/drawio/SKILL.md, scripts/find-shapes.js
+    ├── skills/drawio/SKILL.md, scripts/find-shapes.js, scripts/mermaid-to-drawio.js
     ├── assets/drawio-logo.svg
     ├── README.md
     └── DEVELOPING.md

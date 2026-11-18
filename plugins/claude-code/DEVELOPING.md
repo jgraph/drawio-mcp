@@ -1,6 +1,6 @@
 # Claude Code Plugin: drawio
 
-A Claude Code plugin that ships the `drawio` skill: it generates native `.drawio` files, authored either as Mermaid (converted + laid out by the draw.io desktop CLI) or as draw.io XML directly, with optional ELK `--layout` for XML, export to PNG/SVG/PDF (with embedded XML) via the desktop CLI, or a browser URL that opens the diagram directly at `app.diagrams.net`. No MCP server required.
+A Claude Code plugin that ships the `drawio` skill: it generates native `.drawio` files, authored either as Mermaid (converted + laid out by the draw.io desktop CLI, or without it by `scripts/mermaid-to-drawio.js` in a headless Chrome, Edge or Chromium) or as draw.io XML directly, with optional ELK `--layout` for XML, export to PNG/SVG/PDF (with embedded XML) via the desktop CLI, or a browser URL that opens the diagram directly at `app.diagrams.net`. No MCP server required.
 
 Previously distributed as a bare `SKILL.md` users copied into `~/.claude/skills/`; now packaged as a real plugin so it loads via `claude --plugin-dir ./plugins/claude-code` and is distributed through the [`drawio` marketplace](../../.claude-plugin/marketplace.json) at the repo root (`/plugin install drawio@drawio`).
 
@@ -22,7 +22,7 @@ Everything becomes a native `.drawio` file first, then is delivered in the reque
 
 1. User invokes `/drawio:drawio` or Claude detects a diagram request
 2. Claude picks an authoring route:
-   - **Mermaid** (preferred for standard types when the desktop CLI is present) — writes a `.mmd` file, then `drawio -x -f xml -o name.drawio name.mmd` converts and lays it out; the `.mmd` is deleted
+   - **Mermaid** (preferred for standard types) — writes a `.mmd` file, then `drawio -x -f xml -o name.drawio name.mmd` converts and lays it out, or without the desktop CLI `node scripts/mermaid-to-drawio.js name.mmd` (see [Mermaid without the desktop app](#mermaid-without-the-desktop-app)); the `.mmd` is deleted
    - **XML** — writes mxGraphModel XML to `name.drawio`; optionally `drawio -x -f xml --layout <preset|json> -o name.drawio name.drawio` applies an ELK layout (reading and overwriting the same path is supported)
 3. Format-specific handling (identical for both routes, since both produce a `.drawio`):
    - **png/svg/pdf** — the draw.io CLI exports to `.drawio.png` / `.drawio.svg` / `.drawio.pdf` with `--embed-diagram`, then deletes the source `.drawio` file
@@ -53,7 +53,7 @@ On Windows and WSL2 the default path is only the start of the chain: draw.io Des
 
 ## Authoring routes
 
-A `.drawio` file is native mxGraphModel XML. The skill produces one two ways: **Mermaid** (converted to `.drawio` by the desktop CLI, `-f xml`) or **XML** (generated directly). Both need no server — Mermaid conversion and ELK layout run locally in the desktop app's headless export path. When no desktop CLI is available, only the XML route is usable (`.drawio` file or `url`); Mermaid conversion, ELK layout, and image export all require the desktop app.
+A `.drawio` file is native mxGraphModel XML. The skill produces one two ways: **Mermaid** (converted to `.drawio` by the desktop CLI, `-f xml`, or by `scripts/mermaid-to-drawio.js`) or **XML** (generated directly). Both need no server: Mermaid conversion and ELK layout run locally, in the desktop app's headless export path or in a local headless browser. Without the desktop app, ELK layout and image export are not available; without a browser either, Mermaid goes out as a `#create=` link that draw.io converts when it opens, or the diagram is authored as XML.
 
 ## References
 
@@ -68,6 +68,17 @@ Shared references live at the repo root (single source of truth for all prompts)
 `scripts/find-shapes.js` gives the skill what the MCP servers' `search_shapes` tool gives them ([#90](https://github.com/jgraph/drawio-mcp/issues/90)), so it never guesses `mxgraph.*` names. It downloads `shape-search/search-index.json` from jsDelivr (`@main`, the URL the tool server uses, ~430 KB brotli) and lists, in index order, up to six shapes whose tags contain every word of a query. With fewer than six it adds up to three results from the draw.io icon service, styled with `ICON_STYLE_PREFIX` from `shared/icon-search.js`. Relative library images (`image=img/lib/…`) become `https://app.diagrams.net/` URLs, as `shared/shape-search.js` does for the MCP servers: an SVG export from draw.io Desktop would otherwise point them at the local app bundle.
 
 It is a bundled script rather than an inline `node -e` because the skill body must stay under 24,000 bytes. It matches whole words rather than reusing the shared Soundex ranking, which keeps it small; a library name in the query (`aws4 lambda`, `azure2 sql`) does the narrowing, since every shape's first tag is its library.
+
+## Mermaid without the desktop app
+
+`scripts/mermaid-to-drawio.js` converts Mermaid to a `.drawio` file when draw.io Desktop isn't installed. With Node's built-ins only, it starts an installed Chrome, Edge, Chromium or Brave headless (`CHROME_PATH`, else the usual install paths and `PATH` names) over `--remote-debugging-pipe`, loads `viewer-static.min.js`, `drawio-elk.min.js` and `drawio-mermaid.min.js` from `viewer.diagrams.net` into a blank page and runs `HeadlessEditorUi.parseMermaidDiagram`, as the desktop CLI's `-x -f xml` does, then `createMermaidPageXml`. So shapes, connectors and labels come out as native cells, as in the editor. Only the scripts and the diagram's fonts (Recursive, from Google Fonts) are downloaded; the Mermaid is converted in the page and sent nowhere. It passes Mermaid 12's defaults (`version: "12"`), as the MCP servers do; the desktop CLI passes none (Mermaid 11's).
+
+- **Without a browser or the CDN** it exits with 3, and the skill falls back to `--link`: a `#create=` link of type `mermaid` (the tool server's format) that draw.io converts when it opens, or to XML.
+- **Sandbox:** Chrome for Testing and Chromium builds without the AppArmor profile of an installed Chrome can't start their sandbox on Ubuntu 23.10+. The script retries those once with `--no-sandbox`, since the page runs only draw.io's scripts on the Mermaid text.
+- **Swimlanes:** the editor routes the edges of `swimlane-beta` diagrams with libavoid, which isn't on the CDN, so here they keep the layout's routes.
+- **Tests:** `mcp-app-server/test/mermaid-types.test.js` runs every Mermaid type through it and through the app server's viewer, and checks that the result is editable (see the app server's `AGENTS.md`, **Mermaid Conversion**).
+
+It is a script rather than a `node -e` block in `SKILL.md` for the same reason as `find-shapes.js`.
 
 ## Coding Conventions
 

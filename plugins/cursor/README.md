@@ -6,8 +6,7 @@ The official draw.io plugin for [Cursor](https://cursor.com). It bundles two thi
   Cursor's Agent chat as interactive draw.io diagrams you can zoom, pan, copy or open in the
   draw.io editor (Cursor 2.6 or later).
 - **The `drawio` skill**, which writes native `.drawio` files into your project when you ask for
-  a file or an export: authored as **Mermaid** (converted and laid out by the draw.io desktop
-  CLI) or as **draw.io XML**, with optional **ELK auto-layout**, export to PNG/SVG/PDF (with the
+  a file or an export: authored as **Mermaid** (converted to editable draw.io shapes and laid out by the draw.io desktop CLI or, without it, by draw.io's converter in a headless Chrome, Edge or Chromium) or as **draw.io XML**, with optional **ELK auto-layout**, export to PNG/SVG/PDF (with the
   diagram embedded, so the file stays editable in draw.io), or a browser URL that opens the
   diagram in `app.diagrams.net`.
 
@@ -30,9 +29,9 @@ same file, and the draw.io guidance itself is the shared single source of truth 
 ## Prerequisites
 
 - [Cursor](https://cursor.com) 2.6 or later for inline diagrams in the chat
-- [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases) for Mermaid files, ELK
-  layout and PNG/SVG/PDF export. Not needed for inline diagrams, plain XML `.drawio` files or
-  `url` output
+- [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases) for ELK layout and
+  PNG/SVG/PDF export. Not needed for inline diagrams, `.drawio` files or `url` output: without
+  it, Mermaid files are converted in an installed Chrome, Edge or Chromium
 
 ## Installation
 
