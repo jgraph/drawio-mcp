@@ -102,14 +102,33 @@ function findBrowser()
   return null;
 }
 
+// What Chrome prints on Linux when it can't start its sandbox: no user
+// namespaces (Chrome for Testing, Chromium without an AppArmor profile), run
+// as root (Docker, dev containers, CI jobs), a SUID helper that isn't set up,
+// or a container that may not make namespaces
+var SANDBOX_FAILED = /No usable sandbox|without --no-sandbox|SUID sandbox helper|Failed to move to new namespace/;
+
+// Chrome on Linux never starts its sandbox as root, so it gets none from the start
+function runsAsRoot()
+{
+  return process.platform === "linux" && typeof process.getuid === "function" && process.getuid() === 0;
+}
+
 // The Chrome DevTools protocol over --remote-debugging-pipe: Chrome reads
 // commands from fd 3 and writes replies to fd 4, each message ending in \0.
 function launch(browser, extraArgs)
 {
   var profile = fs.mkdtempSync(path.join(os.tmpdir(), "drawio-mermaid-"));
+  var extra = (extraArgs || []).slice();
+
+  if (runsAsRoot() && extra.indexOf("--no-sandbox") < 0)
+  {
+    extra.push("--no-sandbox");
+  }
+
   var args = ["--headless=new", "--remote-debugging-pipe", "--user-data-dir=" + profile,
     "--no-first-run", "--no-default-browser-check", "--disable-extensions", "--disable-sync",
-    "--mute-audio", "--hide-scrollbars", "--window-size=1280,1000"].concat(extraArgs || [], ["about:blank"]);
+    "--mute-audio", "--hide-scrollbars", "--window-size=1280,1000"].concat(extra, ["about:blank"]);
 
   var child = childProcess.spawn(browser, args, { stdio: ["ignore", "ignore", "pipe", "pipe", "pipe"] });
   var pending = {};
@@ -131,7 +150,7 @@ function launch(browser, extraArgs)
   child.stderr.on("data", function(chunk)
   {
     stderr = (stderr + chunk.toString()).slice(-2000);
-    noSandbox = noSandbox || stderr.indexOf("No usable sandbox") >= 0;
+    noSandbox = noSandbox || SANDBOX_FAILED.test(stderr);
   });
 
   child.on("error", function(err)
@@ -385,8 +404,9 @@ async function convertMermaid(texts, options)
       }
 
       // Chrome for Testing and Chromium builds without the AppArmor profile of
-      // an installed Chrome (Ubuntu 23.10+) can't start their sandbox. The page
-      // runs only draw.io's scripts on the Mermaid text, so it runs without it.
+      // an installed Chrome (Ubuntu 23.10+) can't start their sandbox, nor can
+      // a browser in a container that may not make namespaces. The page runs
+      // only draw.io's scripts on the Mermaid text, so it runs without it.
       await cdp.close();
       cdp = launch(browser, ["--no-sandbox"]);
       evaluate = await openPage(cdp);
