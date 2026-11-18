@@ -16,6 +16,17 @@
       "sizes": ["any"]
     }
   ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@drawio/mcp",
+      "version": "1.13.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",

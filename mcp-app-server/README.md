@@ -323,6 +323,14 @@ mcp-publisher login dns --domain draw.io --private-key "$($OPENSSL pkey -in ~/.d
 mcp-publisher publish
 ```
 
+**The npm package** — `server.json` also lists the tool server, `@drawio/mcp` on npm, under `packages`, next to the hosted endpoint under `remotes`. The registry accepts that entry only when the `package.json` of the npm version it names carries `"mcpName": "io.draw/mcp"`, the server's name: 1.13.1 is the first release with it, 1.13.0 and earlier were published without it. Before each publish, set `packages[0].version` to the current npm release (release the tool server first when it has changes of its own) and check that npm has it with `mcpName`:
+
+```bash
+npm view "@drawio/mcp@$(node -p "require('./server.json').packages[0].version")" mcpName   # must print io.draw/mcp
+```
+
+The registry takes each `version` of `io.draw/mcp` once, and that `version` follows the app server's, so a tool server release alone can't be published here: it is listed with the next app server release. `test/server-json.test.js` checks the entry against the tool server's `package.json`: the same package and name, and a version from 1.13.1 up to the one there.
+
 The `io.draw` namespace is the reverse-DNS form of the verified `draw.io` domain (the same pattern as the registry's own `io.modelcontextprotocol/everything`). The alternative would be `io.github.jgraph/...` via `mcp-publisher login github`, but that requires jgraph org-owner rights and gives up the brand naming.
 
 ## Architecture
