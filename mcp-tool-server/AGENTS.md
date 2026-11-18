@@ -147,8 +147,8 @@ Published as `@drawio/mcp` on npm. Run with `npx @drawio/mcp`.
 
 Bump `version` in `package.json`, commit, then run the **Publish Tool Server** workflow (`.github/workflows/publish-tool-server.yml`) — `gh workflow run publish-tool-server.yml`, or with `-f dry_run=true` to pack and verify without publishing. It runs the tests, refuses a version that is already on the registry, and publishes through **npm Trusted Publishing**: the registry trusts the workflow's OIDC identity, so there is no npm token in the repo or on a laptop, nothing expires, no 2FA prompt, and npm attaches a provenance attestation automatically.
 
-`"mcpName": "io.draw/mcp"` in `package.json` lets the MCP Registry list this package under the server `io.draw/mcp` (`packages` in `mcp-app-server/server.json`): the registry checks it in the published version that entry names. Keep it, and after a release set that version there before the next registry publish.
-
 This matters beyond convenience: the account's 2FA is `auth-and-writes`, so a local `npm publish` demands an OTP (recovery codes are rejected for writes), and npm is removing direct-publish access from granular tokens in January 2027.
 
 The trust is registered on npmjs.com (Package settings → Publishing access → Trusted publisher) against the repository **and the workflow filename** — renaming `publish-tool-server.yml` breaks publishing until it is updated there too.
+
+`"mcpName": "io.draw/mcp"` in `package.json` lets the MCP Registry list this package under the server `io.draw/mcp` (`packages` in `mcp-app-server/server.json`): the registry checks it in the published version that entry names, so keep it. 1.13.1 is the first release with it. The registry takes each `version` of `io.draw/mcp` once and that version follows the app server's, so a release here is listed with the next app server release, which sets `packages[0].version` to it (runbook in `mcp-app-server/README.md`, "Publishing to the MCP Registry").
