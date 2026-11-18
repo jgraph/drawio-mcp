@@ -57,7 +57,8 @@ export function serverConverts(format, text)
  * @returns {Promise<{xml: string, type: string, warnings: string[], stats: object, direction?: string, elk?: boolean}|
  *   {error: string, type?: string}|{fallback: true, type: string, reason?: string}>}
  *   direction and elk: a Mermaid flowchart's flow ("vertical" or
- *   "horizontal") and whether its header asks for ELK (`flowchart-elk`);
+ *   "horizontal") and whether its source asks for ELK (`flowchart-elk`,
+ *   or `layout: elk` or `defaultRenderer: "elk"` in its config);
  *   reason: what in a CSV makes it draw.io's own import's
  *   fallback: a type this module doesn't convert, for draw.io's own converter
  */
@@ -112,7 +113,7 @@ export async function convertSource(format, text, options)
 
 async function convertMermaid(text, opts)
 {
-  const head = readHeader(text);
+  const head = readHeader(text, { partial: opts.partial === true });
 
   if (head.error != null)
   {
@@ -122,7 +123,11 @@ async function convertMermaid(text, opts)
   head.partial = opts.partial === true;
 
   const type = head.type === "graph" || head.type === "flowchart-elk" ? "flowchart" : head.type;
-  const themed = head.themed ? ["The Mermaid theme and config (`%%{init}%%`, frontmatter `config`) are not used: the diagram " +
+  // ELK, as draw.io reads it: the flowchart-elk header, or `layout: elk` or
+  // `defaultRenderer: "elk"` in the config (frontmatter, %%{init}%%)
+  const elk = type === "flowchart" && (head.type === "flowchart-elk" || head.elk);
+  const themed = head.themed || (head.elk && !elk) ? [(elk ? "Apart from the ELK layout, the" : "The") +
+    " Mermaid theme and config (`%%{init}%%`, frontmatter `config`) are not used: the diagram " +
     "takes draw.io's calm colors, with the colors of its classDef and style lines."] : [];
 
   if (SERVER_TYPES.indexOf(head.type) < 0)
@@ -143,7 +148,7 @@ async function convertMermaid(text, opts)
     // caller that lays the cells out again with ELK (postLayout)
     const d = await drawSemantic(r.spec, type, themed.concat(r.warnings), r.stats, opts);
 
-    return d.xml != null ? Object.assign(d, { direction: r.spec.direction, elk: head.type === "flowchart-elk" }) : d;
+    return d.xml != null ? Object.assign(d, { direction: r.spec.direction, elk: elk }) : d;
   }
 
   if (type === "erdiagram")

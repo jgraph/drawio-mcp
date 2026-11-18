@@ -11838,8 +11838,9 @@ export function createServer(html, options = {})
   {
     var xml = absolutizeImageUrls(finishDiagramXml(conversion.xml));
     var payload = { xml: xml, converted: format, _buildId: buildId };
-    // A Mermaid flowchart keeps its ELK layout (postLayout, or a
-    // flowchart-elk header): the viewer lays the converted cells out again
+    // A Mermaid flowchart keeps its ELK layout (postLayout, a flowchart-elk
+    // header, or `layout: elk` or `defaultRenderer: "elk"` in its config):
+    // the viewer lays the converted cells out again
     // in the flowchart's direction, as it does XML with postLayout. The
     // other conversions have their own layout.
     var elk = format === "mermaid" && conversion.type === "flowchart" && (postLayout === "elk" || conversion.elk === true);

@@ -224,6 +224,57 @@ test("a flowchart-elk header asks for ELK", async function()
   assert.equal(r.direction, "horizontal");
 });
 
+test("a Mermaid config that selects ELK asks for ELK, as in draw.io", async function()
+{
+  const unused = /Mermaid theme and config .* are not used/;
+  const frontmatter = await convertSource("mermaid", "---\nconfig:\n  layout: elk\n---\nflowchart TD\n A --> B");
+  const directive = await convertSource("mermaid", "%%{init: {\"flowchart\": {\"defaultRenderer\": \"elk\"}}}%%\nflowchart LR\n A --> B");
+  const layout = await convertSource("mermaid", "%%{init: {'layout': 'elk'}}%%\ngraph TD\n A --> B");
+  const themed = await convertSource("mermaid", "---\nconfig:\n  theme: dark\n  layout: elk\n---\nflowchart TD\n A --> B");
+  const theme = await convertSource("mermaid", "%%{init: {\"theme\": \"dark\"}}%%\nflowchart TD\n A --> B");
+  const er = await convertSource("mermaid", "---\nconfig:\n  layout: elk\n---\nerDiagram\n A ||--o{ B : has");
+
+  assert.equal(frontmatter.elk, true);
+  assert.deepEqual(frontmatter.warnings, []);
+  assert.equal(directive.elk, true);
+  assert.equal(directive.direction, "horizontal");
+  assert.deepEqual(directive.warnings, []);
+  assert.equal(layout.elk, true);
+  // the rest of the config is still not used
+  assert.equal(themed.elk, true);
+  assert.match(themed.warnings.join("\n"), /^Apart from the ELK layout, the Mermaid theme and config/);
+  assert.equal(theme.elk, false);
+  assert.match(theme.warnings.join("\n"), unused);
+  // an ER diagram has a layout of its own
+  assert.match(er.warnings.join("\n"), unused);
+});
+
+test("a stray quote in Mermaid text doesn't swallow the lines after it", async function()
+{
+  const labels = function(r)
+  {
+    return [...r.xml.matchAll(/value="([^"]+)"/g)].map(function(m) { return m[1]; });
+  };
+  // a `"` in a sequence message or note is text
+  const sequence = await convertSource("mermaid", "sequenceDiagram\n Alice->>Bob: The 27\" monitor\n Bob->>Alice: OK\n" +
+    " Alice->>Bob: 12\" screen\n Note right of Bob: a \" note");
+  // and in a comment or an accessibility line
+  const comment = await convertSource("mermaid", "flowchart TD\n %% 3.5\" drive\n accTitle: a 27\" title\n A --> B\n B --> C");
+  // a quote still open at the end opened no label
+  const stray = await convertSource("mermaid", "flowchart TD\n A[\"ok\"] --> B\n B --> C[27\" monitor]\n C --> D");
+  // a quoted label still runs over several lines
+  const label = await convertSource("mermaid", "flowchart TD\n A[\"line one\n line two\"] --> B");
+
+  assert.deepEqual(sequence.stats.edges, 3);
+  assert.deepEqual(labels(sequence).slice(2), ["The 27&quot; monitor", "OK", "12&quot; screen", "a &quot; note"]);
+  assert.equal(comment.stats.nodes, 3);
+  assert.equal(comment.stats.edges, 2);
+  assert.equal(stray.stats.nodes, 4);
+  assert.equal(stray.stats.edges, 3);
+  assert.match(cell(stray.xml, "C"), /value="27&quot; monitor"/);
+  assert.match(cell(label.xml, "A"), /value="line one&lt;br&gt;line two"/);
+});
+
 // ── PlantUML ──
 
 test("a PlantUML sequence diagram keeps its participants, boxes, numbers, groups and notes", async function()
@@ -512,6 +563,7 @@ test("a converted Mermaid flowchart keeps its ELK layout in the viewer", async f
 {
   const asked = await call(client, { mermaid: "flowchart LR\n A --> B --> C", postLayout: "elk" });
   const header = await call(client, { mermaid: "flowchart-elk TD\n A --> B" });
+  const config = await call(client, { mermaid: "---\nconfig:\n  layout: elk\n---\nflowchart LR\n A --> B" });
   const erElk = await call(client, { mermaid: er, postLayout: "elk" });
 
   assert.equal(asked.payload.postLayout, "elk");
@@ -519,6 +571,8 @@ test("a converted Mermaid flowchart keeps its ELK layout in the viewer", async f
   assert.match(asked.text, /The viewer lays it out again with ELK/);
   assert.equal(header.payload.postLayout, "elk");
   assert.equal(header.payload.direction, "vertical");
+  assert.equal(config.payload.postLayout, "elk");
+  assert.equal(config.payload.direction, "horizontal");
   // ER has a layout of its own
   assert.equal(erElk.payload.postLayout, undefined);
   assert.match(erElk.text, /postLayout was not applied/);

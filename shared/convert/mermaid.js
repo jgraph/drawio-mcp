@@ -43,20 +43,67 @@ const ERR = "Mermaid";
 
 /**
  * The source as logical lines with their line numbers: a line break inside
- * a quoted label or an `@{ … }` block joins the lines (the label keeps it as
- * a new line).
+ * an `@{ … }` block joins the lines, and so does one inside a quoted label
+ * on a line from `quoteFrom` on (the label keeps it as a new line). Quotes
+ * open a label only where Mermaid reads a string: not in a `%%` comment or
+ * directive, nor in an accessibility line (`accTitle:`, `accDescr`), and a
+ * quote still open at the end of the text opened none, so the lines after
+ * it are read as lines of their own (`27" monitor`). In text still
+ * streaming in (`partial`) such a quote is a label still being written.
  *
  * @param {string} text
+ * @param {number} quoteFrom - the first line whose quotes may continue onto
+ *   the next line (Infinity: none, as in a sequence diagram, where `"` in a
+ *   message or note is text)
+ * @param {boolean} partial
  * @returns {Array<{text: string, line: number}>}
  */
-function logicalLines(text)
+function logicalLines(text, quoteFrom, partial)
+{
+  const stray = new Set();
+
+  for (;;)
+  {
+    const r = scanLines(text, quoteFrom, stray);
+
+    if (r.open < 0 || partial)
+    {
+      return r.lines;
+    }
+
+    // the quote that is still open is text, and the lines after it are
+    // read again
+    stray.add(r.open);
+  }
+}
+
+// A line that holds text to its end, whatever its quotes: a comment, a
+// directive, an accessibility line
+const PLAIN_LINE = /^[ \t]*(%%|acc(Title|Descr)[ \t]*:)/;
+const ACC_BLOCK = /^[ \t]*accDescr[ \t]*\{/;
+
+/**
+ * logicalLines' scan, with the quotes at the indices in `stray` read as
+ * text: the lines, and the index of the quote still open at the end (-1
+ * for none).
+ *
+ * @param {string} text
+ * @param {number} quoteFrom
+ * @param {Set<number>} stray
+ * @returns {{lines: Array<{text: string, line: number}>, open: number}}
+ */
+function scanLines(text, quoteFrom, stray)
 {
   const out = [];
   let cur = "";
   let start = 1;
   let line = 1;
   let quote = false;
+  let opened = -1;
   let braces = 0;
+  // "line": a comment or accessibility line, to its end; "block": an
+  // `accDescr { … }` block, to its `}`
+  let plain = null;
 
   for (let i = 0; i < text.length; i++)
   {
@@ -67,15 +114,33 @@ function logicalLines(text)
       continue;
     }
 
+    if (plain == null && !quote && braces === 0 && (i === 0 || text[i - 1] === "\n"))
+    {
+      const eol = text.indexOf("\n", i);
+      const physical = text.substring(i, eol < 0 ? text.length : eol);
+
+      plain = ACC_BLOCK.test(physical) ? (physical.indexOf("}") < 0 ? "block" : "line") :
+        PLAIN_LINE.test(physical) ? "line" : null;
+    }
+
     if (c === "\n")
     {
+      const ended = line;
+
       line++;
 
-      if (quote)
+      if (plain === "line")
+      {
+        plain = null;
+      }
+
+      if (quote && ended >= quoteFrom)
       {
         cur += "<br>";
         continue;
       }
+
+      quote = false;
 
       if (braces > 0)
       {
@@ -89,9 +154,18 @@ function logicalLines(text)
       continue;
     }
 
-    if (c === "\"")
+    if (plain === "block" && c === "}")
+    {
+      plain = null;
+    }
+    else if (plain != null || stray.has(i))
+    {
+      // text
+    }
+    else if (c === "\"")
     {
       quote = !quote;
+      opened = quote ? i : -1;
     }
     else if (!quote && c === "{" && text[i - 1] === "@")
     {
@@ -111,23 +185,58 @@ function logicalLines(text)
 
   out.push({ text: cur, line: start });
 
-  return out;
+  return { lines: out, open: quote ? opened : -1 };
+}
+
+// The selectors of draw.io's ELK layout in a Mermaid config, as
+// EditorUi.isMermaidElkFlowchart (drawio-dev) and drawio-mermaid read them:
+// `layout: elk` and the older `flowchart: { defaultRenderer: "elk" }`
+const ELK_SELECTOR = /["']?\b(layout|defaultRenderer)["']?\s*:\s*["']?elk(?![\w.-])["']?/;
+
+/**
+ * What a Mermaid config (a `%%{init}%%` directive, a frontmatter `config`
+ * block) asks for: the ELK layout, and anything else (a theme, a look,
+ * flowchart options), which the conversion doesn't use.
+ *
+ * @param {string} text
+ * @returns {{elk: boolean, other: boolean}}
+ */
+function readConfig(text)
+{
+  const rest = text.replace(new RegExp(ELK_SELECTOR.source, "g"), "")
+    .replace(/%%|\b(init|initialize|config|flowchart)\b/g, "");
+
+  return { elk: ELK_SELECTOR.test(text), other: /[A-Za-z0-9]/.test(rest) };
 }
 
 /**
  * The header of a Mermaid source: its type, title (frontmatter or a `title`
- * line), whether it carries a theme or config, and the lines after it.
+ * line), whether its config selects the ELK layout (`elk`) or carries a
+ * theme or other config (`themed`), and the lines after it.
  *
  * @param {string} text
- * @returns {{type: string, keyword: string, rest: string, line: number, title: string, themed: boolean,
+ * @param {{partial?: boolean}} [options] - partial: the text is still
+ *   streaming in, so a quote open at its end is a label still being written
+ * @returns {{type: string, keyword: string, rest: string, line: number, title: string, elk: boolean, themed: boolean,
  *   body: Array<{text: string, line: number}>}|{error: string}}
  */
-export function readHeader(text)
+export function readHeader(text, options)
 {
-  const lines = logicalLines(String(text || ""));
+  const source = String(text || "");
+  // no label runs over several lines before the header
+  const lines = logicalLines(source, Infinity, false);
   let k = 0;
   let title = "";
+  let elk = false;
   let themed = false;
+
+  const config = function(t)
+  {
+    const c = readConfig(t);
+
+    elk = elk || c.elk;
+    themed = themed || c.other;
+  };
 
   const skip = function()
   {
@@ -135,7 +244,7 @@ export function readHeader(text)
     {
       if (/^\s*%%\{/.test(lines[k].text))
       {
-        themed = true;
+        config(lines[k].text);
       }
 
       k++;
@@ -147,23 +256,44 @@ export function readHeader(text)
   if (k < lines.length && lines[k].text.trim() === "---")
   {
     const open = lines[k].line;
+    let block = null;
 
     k++;
 
     while (k < lines.length && lines[k].text.trim() !== "---")
     {
-      const m = /^title\s*:\s*(.*)$/.exec(lines[k].text.trim());
+      const t = lines[k].text;
+      const m = /^title\s*:\s*(.*)$/.exec(t.trim());
 
-      if (m != null && /^\S/.test(lines[k].text))
+      if (block != null && (t.trim() === "" || /^\s/.test(t)))
       {
-        title = plainLabel(unquote(m[1]));
+        // a line of the config block
+        block += "\n" + t;
       }
-      else if (/^config\s*:/.test(lines[k].text))
+      else
       {
-        themed = true;
+        if (block != null)
+        {
+          config(block);
+          block = null;
+        }
+
+        if (m != null && /^\S/.test(t))
+        {
+          title = plainLabel(unquote(m[1]));
+        }
+        else if (/^config\s*:/.test(t))
+        {
+          block = t.replace(/^config\s*:/, "");
+        }
       }
 
       k++;
+    }
+
+    if (block != null)
+    {
+      config(block);
     }
 
     if (k >= lines.length)
@@ -194,8 +324,17 @@ export function readHeader(text)
       "`classDiagram`, `stateDiagram-v2`, `erDiagram` or `gantt`.")) };
   }
 
-  return { type: type, keyword: keyword, rest: m != null ? m[2] : "", line: lines[k].line, title: title, themed: themed,
-    body: lines.slice(k + 1) };
+  // in a sequence diagram a `"` in a message or note is text; elsewhere a
+  // quoted label may run over several lines
+  const at = lines[k].line;
+  const body = type === "sequencediagram" ? lines.slice(k + 1) :
+    logicalLines(source, at + 1, options != null && options.partial === true).filter(function(l)
+    {
+      return l.line > at;
+    });
+
+  return { type: type, keyword: keyword, rest: m != null ? m[2] : "", line: at, title: title, elk: elk, themed: themed,
+    body: body };
 }
 
 /**
