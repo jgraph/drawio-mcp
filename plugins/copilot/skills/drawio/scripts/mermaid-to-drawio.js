@@ -142,9 +142,28 @@ function launch(browser, extraArgs)
 
   child.on("exit", function(code)
   {
-    exited = new Error("The browser exited (" + code + "): " + stderr.trim().split("\n").pop());
-    exited.code = noSandbox ? "NO_SANDBOX" : "EXITED";
-    failAll(exited);
+    // Node can fire exit before the last of stderr is read, and the line
+    // that says the sandbox is missing decides on a relaunch without it. A
+    // process Chrome started may hold stderr open, so not for more than 1 s.
+    var settle = function()
+    {
+      if (exited == null)
+      {
+        exited = new Error("The browser exited (" + code + "): " + stderr.trim().split("\n").pop());
+        exited.code = noSandbox ? "NO_SANDBOX" : "EXITED";
+        failAll(exited);
+      }
+    };
+
+    if (child.stderr.readableEnded)
+    {
+      settle();
+    }
+    else
+    {
+      child.stderr.once("end", settle);
+      setTimeout(settle, 1000).unref();
+    }
   });
 
   child.stdio[4].on("data", function(chunk)
@@ -227,7 +246,8 @@ function launch(browser, extraArgs)
         resolve();
       };
 
-      if (exited != null)
+      // Also once exit has fired and its error waits for stderr
+      if (exited != null || child.exitCode != null || child.signalCode != null)
       {
         done();
         return;
