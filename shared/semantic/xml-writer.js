@@ -75,20 +75,27 @@ export function writeModel(cells)
     {
       let geo = '<mxGeometry relative="1" as="geometry"';
 
-      if (c.points != null && c.points.length > 0)
+      // an end without a cell (a sequence message from the diagram's edge)
+      // is a point
+      const ends = (c.source == null && c.sourcePoint != null ? '<mxPoint x="' + num(c.sourcePoint.x) + '" y="' +
+        num(c.sourcePoint.y) + '" as="sourcePoint"/>' : "") + (c.target == null && c.targetPoint != null ? '<mxPoint x="' +
+        num(c.targetPoint.x) + '" y="' + num(c.targetPoint.y) + '" as="targetPoint"/>' : "");
+
+      if ((c.points != null && c.points.length > 0) || ends !== "")
       {
-        geo += '><Array as="points">' + c.points.map(function(p)
+        geo += ">" + ends + ((c.points != null && c.points.length > 0) ? '<Array as="points">' + c.points.map(function(p)
         {
           return '<mxPoint x="' + num(p.x) + '" y="' + num(p.y) + '"/>';
-        }).join("") + "</Array></mxGeometry>";
+        }).join("") + "</Array>" : "") + "</mxGeometry>";
       }
       else
       {
         geo += "/>";
       }
 
-      lines.push(head + ' edge="1" parent="' + escapeXml(c.parent || "1") + '" source="' + escapeXml(c.source) +
-        '" target="' + escapeXml(c.target) + '">' + geo + "</mxCell>");
+      lines.push(head + ' edge="1" parent="' + escapeXml(c.parent || "1") + '"' +
+        (c.source != null ? ' source="' + escapeXml(c.source) + '"' : "") +
+        (c.target != null ? ' target="' + escapeXml(c.target) + '"' : "") + '>' + geo + "</mxCell>");
     }
     else
     {

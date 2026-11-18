@@ -21,6 +21,7 @@ import { ICON_TABLE, ICON_DATA } from "../../shared/icon-table.js";
 import { semanticToXml, SUPPORTED_TYPES as SEMANTIC_SUPPORTED_TYPES } from "../../shared/semantic/index.js";
 import { describeTool as describeSemanticTool, describeSchema as describeSemanticSchema, DESCRIBED_BY as SEMANTIC_DESCRIBED_BY } from "../../shared/semantic/description.js";
 import { readList as readSemanticList, typeName as semanticTypeName, fieldText as semanticFieldText } from "../../shared/semantic/spec.js";
+import { convertSource, serverConverts, typeName, FORMATS as CONVERT_FORMATS } from "../../shared/convert/index.js";
 import pkg from "../package.json" with { type: "json" };
 
 /**
@@ -101,7 +102,8 @@ export function editorLinkBase(drawioBaseUrl)
  * @param {string[]} [options.libavoidUrls] - The two libavoid script URLs in load order (pure-JS router bundle, routing core), typically ETag-versioned (libavoid-versions.js) so a draw.io release busts the browser cache immediately. Defaults to the plain CDN URLs; ignored when libavoidJs inlines a local build.
  * @param {string} [options.buildId] - Build identifier (git SHA + timestamp). Exposed as window.__DRAWIO_BUILD in the iframe.
  * @param {string} [options.drawioBaseUrl] - The draw.io editor "Open in draw.io" opens (DRAWIO_BASE_URL, see editorLinkBase). Exposed as window.__DRAWIO_EDITOR_URL in the iframe; pass the same value to createServer.
- * @param {string} [options.semanticJs] - The semantic engine as a classic script (bundleSemanticEngine in src/semantic-bundle.js), inlined so the viewer lays out a create_semantic_diagram description while it streams. Pass it when that tool is offered; without it the diagram shows when the result arrives.
+ * @param {string} [options.semanticJs] - The semantic engine as a classic script (bundleSemanticEngine in src/semantic-bundle.js), inlined so the viewer lays out a create_semantic_diagram description while it streams, and previews Mermaid, PlantUML and CSV with the server's conversion (shared/convert). Pass it when that tool is offered or a format is converted; without it the diagram shows when the result arrives.
+ * @param {string[]} [options.convertFormats] - The formats create_diagram converts on the server (resolveConvertFormats); pass the same list to createServer. The viewer previews them with the same conversion.
  * @returns {string} Self-contained HTML string.
  */
 export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
@@ -115,6 +117,9 @@ export function buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs, options)
   // when create_semantic_diagram is offered: the preview while a
   // description streams in.
   var semanticJs = (options && options.semanticJs) || null;
+  // The formats the server converts (shared/convert): the viewer previews
+  // them with the same conversion, from the engine script above.
+  var convertFormats = (options && options.convertFormats) || CONVERT_FORMATS;
   var buildId = (options && options.buildId) || "unknown";
   // The URL comes from the environment: never let it close the script element
   var editorUrlJs = JSON.stringify(editorLinkBase(options && options.drawioBaseUrl)).replace(/</g, "\\u003C");
@@ -818,6 +823,9 @@ function healPartialXml(partialXml)
 
 // See MERMAID_DEFAULTS_VERSION in shared.js
 var MERMAID_DEFAULTS_VERSION = ${JSON.stringify(MERMAID_DEFAULTS_VERSION)};
+// The formats the server converts into draw.io cells (shared/convert): the
+// preview runs the same conversion (DrawioSemantic.convertSource).
+var CONVERT_FORMATS = ${JSON.stringify(convertFormats)};
 
 // De-dupe: last healed+parsed text we merged. Reset on endStreaming.
 var lastMergedMermaidText = null;
@@ -7454,6 +7462,7 @@ function endStreaming()
   currentPlantUmlText = null;
   lastSourceConversion = null;
   sourceRender = null;
+  lastConvertKey = null;
   originalCellGeometries = null;
   originalCellStyles = null;
   currentLayoutState = 'none';
@@ -9376,6 +9385,140 @@ function mergeSemanticXml(xml)
   }
 }
 
+// --- Preview of a diagram the server converts (shared/convert) ---
+//
+// Mermaid flowcharts, ER and sequence diagrams (and the PlantUML and CSV
+// diagrams the server reads) are converted into draw.io cells on the server.
+// The viewer runs the same conversion (DrawioSemantic.convertSource, from the
+// engine script) on what has streamed in, so the preview is the diagram the
+// result will be, and merges it like the preview of a description. The other
+// types keep draw.io's own converters in the viewer.
+
+var CONVERT_FORMAT_NAMES = { mermaid: 'Mermaid', plantuml: 'PlantUML', csv: 'CSV' };
+var convertPending = null;
+var convertTimer = null;
+var convertRunMs = 0;
+var lastConvertKey = null;
+
+/**
+ * Whether the server converts this diagram, so the viewer previews it with
+ * the server's conversion (decided by the header).
+ */
+function convertsOnServer(format, text)
+{
+  if (typeof text !== 'string' || CONVERT_FORMATS.indexOf(format) < 0 ||
+      typeof DrawioSemantic === 'undefined' || typeof DrawioSemantic.serverConverts !== 'function')
+  {
+    return false;
+  }
+
+  try
+  {
+    return DrawioSemantic.serverConverts(format, text);
+  }
+  catch (e)
+  {
+    return false;
+  }
+}
+
+/**
+ * The text of a diagram still streaming in, without its last line, which
+ * may be cut off; the whole text once the input is complete.
+ */
+function convertPreviewText(text, complete)
+{
+  if (complete)
+  {
+    return text;
+  }
+
+  var end = text.lastIndexOf('\\n');
+
+  return (end > 0) ? text.substring(0, end) : null;
+}
+
+function handleConvertPartial(format, text, complete)
+{
+  convertPending = { format: format, text: text, complete: complete };
+
+  if (complete)
+  {
+    if (convertTimer != null)
+    {
+      clearTimeout(convertTimer);
+      convertTimer = null;
+    }
+
+    runConvertPreview();
+  }
+  else if (convertTimer == null)
+  {
+    convertTimer = setTimeout(function()
+    {
+      convertTimer = null;
+      runConvertPreview();
+    }, Math.max(150, 2 * convertRunMs));
+  }
+}
+
+function runConvertPreview()
+{
+  var p = convertPending;
+  convertPending = null;
+
+  if (p == null || semanticResultSeen || !isDocumentLaidOut() || typeof Graph === 'undefined' ||
+      typeof mxUtils === 'undefined')
+  {
+    return;
+  }
+
+  var text = convertPreviewText(p.format === 'csv' ? trimCsv(p.text) : p.text, p.complete);
+
+  if (text == null)
+  {
+    return;
+  }
+
+  var key = p.format + '|' + (p.complete ? 'c' : 'p') + '|' + text;
+
+  if (key === lastConvertKey)
+  {
+    return;
+  }
+
+  lastConvertKey = key;
+  var t0 = Date.now();
+
+  // partial: what is still open at the end of the text (a subgraph, a
+  // block) is closed there
+  DrawioSemantic.convertSource(p.format, text, { partial: !p.complete }).then(function(r)
+  {
+    convertRunMs = Date.now() - t0;
+
+    if (r.xml != null && !semanticResultSeen)
+    {
+      showConvertedSource(p.format);
+      mermaidPreviewEl.style.display = 'none';
+      mergeSemanticXml(expandDiagramShorthand(absolutizeImageUrls(r.xml)).xml);
+    }
+  }).catch(function(_e)
+  {
+    // A text cut off mid-way can't always be converted: the next partial
+    // or the result will be. The result reports a syntax error.
+  });
+}
+
+// The diagram shown is the server's conversion of a source: the model is
+// told so (modelContextText), and "Open in draw.io" opens the cells, which
+// are the diagram (no source is wrapped in).
+function showConvertedSource(format)
+{
+  currentMermaidText = null;
+  currentPlantUmlText = null;
+  currentSourceFormat = CONVERT_FORMAT_NAMES[format] || null;
+}
+
 app.ontoolinputpartial = function(params)
 {
   if (params && isSemanticArgs(params.arguments))
@@ -9386,10 +9529,18 @@ app.ontoolinputpartial = function(params)
     return;
   }
 
-  // PlantUML and CSV are drawn once they are complete (renderSourceDiagram);
-  // an empty one beside XML or Mermaid is a parameter the call doesn't use
-  if (params && sourceArgument(params.arguments) != null)
+  // PlantUML and CSV the server converts are previewed with its conversion;
+  // the others are drawn once they are complete (renderSourceDiagram). An
+  // empty one beside XML or Mermaid is a parameter the call doesn't use.
+  var partialSource = params ? sourceArgument(params.arguments) : null;
+
+  if (partialSource != null)
   {
+    if (convertsOnServer(partialSource.format, partialSource.text))
+    {
+      handleConvertPartial(partialSource.format, partialSource.text, false);
+    }
+
     return;
   }
 
@@ -9399,6 +9550,14 @@ app.ontoolinputpartial = function(params)
   if (partialMermaid != null && typeof partialMermaid === 'string' &&
       !isXmlInMermaid(partialMermaid) && !isPlantUmlText(partialMermaid))
   {
+    // a flowchart, ER or sequence diagram: the server's conversion
+    if (convertsOnServer('mermaid', partialMermaid))
+    {
+      handleConvertPartial('mermaid', partialMermaid, false);
+
+      return;
+    }
+
     handleMermaidPartial(partialMermaid);
 
     // Once any sibling key (e.g. postLayout) appears
@@ -9594,13 +9753,21 @@ app.ontoolinput = function(params)
     return;
   }
 
-  // PlantUML and CSV: converted here, as the result will be (the server
-  // only removes blank lines before a CSV's configuration lines)
+  // PlantUML and CSV: converted as the server converts them, or here with
+  // draw.io's converters, as the result will be (the server only removes
+  // blank lines before a CSV's configuration lines)
   var source = sourceArgument(args);
 
   if (source != null)
   {
-    renderSourceDiagram(source.format, source.text, { skipIntroAnim: true, fadeIn: true });
+    if (convertsOnServer(source.format, source.text))
+    {
+      handleConvertPartial(source.format, source.text, true);
+    }
+    else
+    {
+      renderSourceDiagram(source.format, source.text, { skipIntroAnim: true, fadeIn: true });
+    }
 
     return;
   }
@@ -9620,6 +9787,14 @@ app.ontoolinput = function(params)
     // the server: the result renders it.
     if (isXmlInMermaid(mermaidText) || isPlantUmlText(mermaidText))
     {
+      return;
+    }
+
+    // converted as the server converts it: the result renders it
+    if (convertsOnServer('mermaid', mermaidText))
+    {
+      handleConvertPartial('mermaid', mermaidText, true);
+
       return;
     }
 
@@ -9684,14 +9859,21 @@ app.ontoolinput = function(params)
 
 app.ontoolresult = function(result)
 {
-  // No description preview after this: the result is the diagram.
+  // No description or conversion preview after this: the result is the diagram.
   semanticResultSeen = true;
   semanticPending = null;
+  convertPending = null;
 
   if (semanticTimer != null)
   {
     clearTimeout(semanticTimer);
     semanticTimer = null;
+  }
+
+  if (convertTimer != null)
+  {
+    clearTimeout(convertTimer);
+    convertTimer = null;
   }
 
   // Cancel pending ontoolinput render — tool result is authoritative
@@ -9734,6 +9916,8 @@ app.ontoolresult = function(result)
     // PlantUML or CSV, converted here ('plantuml' or 'csv')
     var sourceFormat = null;
     var sourceText = null;
+    // Mermaid, PlantUML or CSV the server converted into the cells of xml
+    var convertedFrom = null;
 
     try
     {
@@ -9761,6 +9945,11 @@ app.ontoolresult = function(result)
         direction = parsed.direction || null;
         routing = parsed.routing || null;
 
+        if (typeof parsed.converted === 'string' && CONVERT_FORMAT_NAMES[parsed.converted] != null)
+        {
+          convertedFrom = parsed.converted;
+        }
+
         // create_semantic_diagram says so in its result, for a host that
         // hands over the result without the input before it
         if (parsed.described === true)
@@ -9782,8 +9971,10 @@ app.ontoolresult = function(result)
 
     // described: the result follows the preview of a description, whose cells
     // it moves into the parents of the final layout
+    // converted: the result follows the preview of the same conversion,
+    // whose cells it moves into place like a description's
     var layoutOpts = { skipIntroAnim: true, fadeIn: true, postLayout: postLayout, routing: routing,
-      autoRoute: mermaidText == null, described: shownFromDescription && mermaidText == null };
+      autoRoute: mermaidText == null, described: (shownFromDescription || convertedFrom != null) && mermaidText == null };
 
     // The result is drawn from here: a conversion of the tool input still
     // running is dropped (renderSourceDiagram's own shares its conversion)
@@ -9817,9 +10008,16 @@ app.ontoolresult = function(result)
       var normalizedXml = normalizeDiagramXml(rawXml);
 
       // Plain-XML diagram: ensure no stale Mermaid source wraps the export.
+      // A converted one is told apart for the model (modelContextText).
       currentMermaidText = null;
       currentSourceFormat = null;
       currentPlantUmlText = null;
+
+      if (convertedFrom != null)
+      {
+        mermaidPreviewEl.style.display = 'none';
+        showConvertedSource(convertedFrom);
+      }
 
       if (normalizedXml)
       {
@@ -10537,7 +10735,8 @@ app.connect().then(function()
     </script>
     ${semanticJs
       ? '<!-- The semantic engine (shared/semantic, bundled by src/semantic-bundle.js): defines\n' +
-        '         DrawioSemantic, which lays out a create_semantic_diagram description while it streams.\n' +
+        '         DrawioSemantic, which lays out a create_semantic_diagram description while it streams\n' +
+        '         and converts Mermaid, PlantUML and CSV as the server does (shared/convert).\n' +
         '         After the script above, whose icon table, icon resolver and shorthand expansion it reads. -->\n' +
         '    <script>' + semanticJs + '<\/script>'
       : ''
@@ -11222,6 +11421,61 @@ function isMermaidSource(text)
 // needs it), CSV with the CSV import in the viewer bundle. The server only
 // checks what would fail there, so the model can correct it.
 
+var FORMAT_NAMES = { mermaid: "Mermaid", plantuml: "PlantUML", csv: "CSV" };
+
+/**
+ * What the model is told about a converted diagram: for one converted here,
+ * what it got and how to change it; for a type left to the viewer, that
+ * draw.io's converter there draws it and the server checked less.
+ *
+ * @param {string} format - "mermaid", "plantuml" or "csv"
+ * @param {object} conversion - convertSource's result
+ * @param {string} [postLayout] - a postLayout the server didn't apply
+ * @param {boolean} [elk] - the viewer lays the cells out again with ELK
+ * @returns {string}
+ */
+export function convertedNote(format, conversion, postLayout, elk)
+{
+  var name = FORMAT_NAMES[format] || format;
+
+  if (conversion.xml == null)
+  {
+    var type = typeName(format, conversion.type);
+    var what = conversion.reason != null ? name + " with " + conversion.reason + " is" :
+      name + (type != null ? " " + type : "") + " diagrams are";
+
+    return "Note: " + what + " converted by draw.io's own " + (format === "csv" ? "import" : "converter") +
+      " in the viewer, not on the server, so this result has no draw.io XML and the server checked " +
+      (format === "mermaid" ? "only the header" : "only the outline") + ".";
+  }
+
+  var st = conversion.stats || {};
+  var parts = [];
+
+  if (st.nodes != null)
+  {
+    parts.push(st.nodes + (conversion.type === "sequence" ? " participants" : (conversion.type === "er" ? " tables" : " shapes")));
+  }
+
+  if (st.edges != null)
+  {
+    parts.push(st.edges + (conversion.type === "sequence" ? " messages" : (conversion.type === "er" ? " relationships" : " connectors")));
+  }
+
+  if (st.groups)
+  {
+    parts.push(st.groups + " groups");
+  }
+
+  return "Converted from " + name + " (" + conversion.type + ") on the server into editable draw.io cells" +
+    (parts.length > 0 ? " (" + parts.join(", ") + ")" : "") + ", laid out and styled; the XML above is the diagram. " +
+    "To change it, send the changed " + name + " again; for what " + name + " can't say (moving or restyling single " +
+    "shapes), pass this XML as `xml` instead." +
+    (elk ? " The viewer lays it out again with ELK (postLayout); to change it as XML, start from the diagram as shown, " +
+      "which the viewer sends you, not from this XML." : "") +
+    (postLayout ? " postLayout was not applied: the server laid out the diagram." : "");
+}
+
 // The line PlantUML starts with (@startuml, @startmindmap, @startgantt, …)
 // and the one it ends with.
 var PLANTUML_START = /^\s*@start[a-z]+\b/im;
@@ -11301,12 +11555,14 @@ function sourceArgument(args)
 /**
  * What is wrong with a draw.io CSV before it is imported, or null: it needs a
  * header line and a data line after the # configuration lines, and the
- * orgchart layout needs a draw.io bundle the chat view doesn't load.
+ * orgchart layout needs a draw.io bundle the chat view doesn't load (the
+ * server's conversion draws it in layers).
  *
  * @param {string} text - trimmed by trimCsv
+ * @param {boolean} [converted] - the server converts this CSV
  * @returns {string|null}
  */
-function csvProblem(text)
+function csvProblem(text, converted)
 {
   var lines = text.split("\n");
   var index = 0;
@@ -11336,7 +11592,7 @@ function csvProblem(text)
     return "The CSV needs a header line and at least one data line after its # configuration lines.";
   }
 
-  if (orgChart)
+  if (orgChart && !converted)
   {
     return "The orgchart layout isn't available here. Use `# layout: verticaltree` (or horizontaltree, " +
       "verticalflow, horizontalflow, organic, circle or auto) instead.";
@@ -11432,6 +11688,32 @@ export const SEMANTIC_TOO_LARGE_NEXT = "Draw it with create_diagram instead, as 
  * @param {string|undefined} value
  * @returns {string[]}
  */
+/**
+ * The formats create_diagram converts on the server (shared/convert), from
+ * DRAWIO_CONVERT: unset, `on`, `true` or `1` all of them (mermaid, plantuml,
+ * csv), `off` (or `false`, `0`) none, so every diagram source is converted in
+ * the viewer by draw.io's own converters, as before; a comma list the
+ * formats it names.
+ *
+ * @param {string|undefined} value
+ * @returns {string[]}
+ */
+export function resolveConvertFormats(value)
+{
+  if (value == null || /^\s*(on|true|1)?\s*$/i.test(String(value)))
+  {
+    return CONVERT_FORMATS.slice();
+  }
+
+  if (/^\s*(off|false|0)\s*$/i.test(String(value)))
+  {
+    return [];
+  }
+
+  return String(value).split(",").map(function(t) { return t.trim().toLowerCase(); })
+    .filter(function(t, i, all) { return CONVERT_FORMATS.indexOf(t) >= 0 && all.indexOf(t) === i; });
+}
+
 export function resolveSemanticTypes(value)
 {
   if (value == null)
@@ -11679,7 +11961,7 @@ export function createServer(html, options = {})
 {
   const { domain, xmlReference = "", mermaidReference = "", shapeIndex = null,
     iconServiceUrl = DEFAULT_ICON_SERVICE_URL, buildId = "unknown", drawioBaseUrl, uiSession = null,
-    semanticTypes = SEMANTIC_TYPES_ON } = options;
+    semanticTypes = SEMANTIC_TYPES_ON, convertFormats = CONVERT_FORMATS } = options;
   const linkBase = editorLinkBase(drawioBaseUrl);
   // The version clients see in serverInfo is the package version, so it moves
   // with each release instead of drifting from package.json/server.json.
@@ -11712,6 +11994,51 @@ export function createServer(html, options = {})
       uiSession.hidden === true;
   }
 
+  /**
+   * The result of a diagram converted here (shared/convert): the XML after
+   * the passes every XML diagram gets, what was converted, what was left
+   * out, the link for clients without the app and the note on the answer.
+   */
+  async function convertedResult(conversion, format, postLayout, swapNote)
+  {
+    var xml = absolutizeImageUrls(finishDiagramXml(conversion.xml));
+    var payload = { xml: xml, converted: format, _buildId: buildId };
+    // A Mermaid flowchart keeps its ELK layout (postLayout, a flowchart-elk
+    // header, or `layout: elk` or `defaultRenderer: "elk"` in its config):
+    // the viewer lays the converted cells out again
+    // in the flowchart's direction, as it does XML with postLayout. The
+    // other conversions have their own layout.
+    var elk = format === "mermaid" && conversion.type === "flowchart" && (postLayout === "elk" || conversion.elk === true);
+
+    if (elk)
+    {
+      payload.postLayout = "elk";
+      payload.direction = conversion.direction || "vertical";
+    }
+    var content = [{ type: "text", text: JSON.stringify(payload) }];
+
+    if (swapNote != null)
+    {
+      content.push({ type: "text", text: swapNote });
+    }
+
+    content.push({ type: "text", text: convertedNote(format, conversion, elk ? null : postLayout, elk) });
+
+    if (conversion.warnings.length > 0)
+    {
+      content.push({ type: "text", text: "WARNINGS (what the diagram doesn't show as written):\n- " +
+        conversion.warnings.join("\n- ") });
+    }
+
+    var inline = await rendersInline();
+    var hidden = hiddenUi();
+
+    appendOpenUrl(content, inline, hidden, xml, "xml", elk ? "elk" : null, linkBase);
+    appendAnswerNote(content, inline, hidden);
+
+    return { content: content };
+  }
+
   registerAppTool(
     server,
     "create_diagram",
@@ -11724,7 +12051,8 @@ export function createServer(html, options = {})
       // whole batch, other servers' tools included (jgraph/drawio-mcp#76).
       // test/tools.test.js caps every description at 2048 characters.
       description:
-        "Creates and displays an interactive draw.io diagram from Mermaid, draw.io XML, PlantUML or CSV — provide exactly one.\n\n" +
+        "Send Mermaid, PlantUML or CSV and get back an editable, styled draw.io diagram with an edit link (syntax errors by line), " +
+        "or send draw.io XML you placed. Exactly one.\n\n" +
         "**Choose the format first.** Use `xml` for diagrams of boxes and lines up to about 30 shapes: flowcharts, pipelines, decision trees, " +
         "org charts, ER schemas, UML class, state and use case diagrams, mind maps, timelines, architecture, cloud and network diagrams, " +
         "swimlanes, UI mockups, floor plans and anything with stencils. You place every shape yourself, laid out for the chat view " +
@@ -11734,12 +12062,12 @@ export function createServer(html, options = {})
         "flowcharts, class and state diagrams of more than about 30 shapes (flowcharts with postLayout elk). " +
         "Whenever the user asks for draw.io XML or no Mermaid, use XML for the rest of the conversation.\n\n" +
         "**Call `get_drawio_reference` before your first diagram in a conversation**, once per format, with the format you chose: " +
-        "\"mermaid\" has the syntax for every type (a misspelled header renders blank), \"xml\" the styles, layout grid, edges, " +
+        "\"mermaid\" has the syntax for every type, \"xml\" the styles, layout grid, edges, " +
         "containers, layers and dark mode. For AWS, Azure, GCP and Kubernetes icons write `icon=aws lambda` in the style; " +
         "call `search_shapes` first for other industry icons (Cisco, P&ID, electrical) or logos.\n\n" +
         "XML essentials: <mxGraphModel adaptiveColors=\"auto\"><root><mxCell id=\"0\"/><mxCell id=\"1\" parent=\"0\"/>…</root></mxGraphModel>. " +
         "Every cell has a unique id. Vertices: vertex=\"1\" with <mxGeometry x y width height as=\"geometry\"/>. " +
-        "Edges: edge=\"1\" with source and target, always with a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
+        "Edges: edge=\"1\" with source and target and a child <mxGeometry relative=\"1\" as=\"geometry\"/>. " +
         "Put html=1 in every style and XML-escape HTML in values (&lt; &gt; &amp; &quot;). No XML comments. " +
         "Don't add waypoints. Place the shapes yourself (no postLayout) and set `routing: \"libavoid\"` only when an edge would otherwise cross a shape.",
       inputSchema:
@@ -11754,19 +12082,31 @@ export function createServer(html, options = {})
           .string()
           .optional()
           .describe(
-            "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format. Mutually exclusive with 'xml'."
+            "Mermaid.js diagram definition (e.g. 'graph TD\\n  A-->B'). Supports 28 diagram types — see the tool description for the full list. " +
+            (convertFormats.indexOf("mermaid") >= 0 ?
+              "Flowcharts, ER and sequence diagrams are converted on the server into editable draw.io cells, laid out and styled (draw.io's calm theme, with the colors of classDef and style lines), and a syntax error comes back with its line and how to fix it; the other types are converted in the viewer by draw.io's native Mermaid converter (no upstream mermaid runtime)." :
+              "The diagram is parsed and laid out natively (no upstream mermaid runtime) and converted to draw.io format.") +
+            " Mutually exclusive with 'xml'."
           ),
         plantuml: z
           .string()
           .optional()
           .describe(
-            "PlantUML source from @startuml to @enduml (or the @start…/@end… lines of its type, such as @startmindmap, @startwbs, @startgantt, @startjson, @startyaml, @startsalt or @startnwdiag): sequence, class, activity, state, use case, component, deployment and the other PlantUML diagrams. Converted to draw.io shapes natively, as draw.io's Arrange > Insert > Advanced > PlantUML does (no PlantUML server). Use it when the user gives you PlantUML or asks for it. Mutually exclusive with the other formats; postLayout, direction and routing don't apply."
+            "PlantUML source from @startuml to @enduml (or the @start…/@end… lines of its type, such as @startmindmap, @startwbs, @startgantt, @startjson, @startyaml, @startsalt or @startnwdiag): sequence, class, activity, state, use case, component, deployment and the other PlantUML diagrams. " +
+            (convertFormats.indexOf("plantuml") >= 0 ?
+              "Sequence and activity diagrams (the new syntax) are converted on the server into editable draw.io cells, laid out and styled, and a syntax error comes back with its line and how to fix it; the other diagrams are converted to draw.io shapes in the viewer, as draw.io's Arrange > Insert > Advanced > PlantUML does (no PlantUML server)." :
+              "Converted to draw.io shapes natively, as draw.io's Arrange > Insert > Advanced > PlantUML does (no PlantUML server).") +
+            " Use it when the user gives you PlantUML or asks for it. Mutually exclusive with the other formats; postLayout, direction and routing don't apply."
           ),
         csv: z
           .string()
           .optional()
           .describe(
-            "draw.io CSV, as draw.io's Arrange > Insert > Advanced > CSV imports it: configuration lines starting with # (label, style, connect, width, height, layout, …), then a header line and one line per shape. %column% placeholders take the values of each row, in labels and in styles (e.g. `# style: fillColor=%fill%;`). For org charts and other diagrams made from tabular data the user gives you. Layouts: auto, verticaltree, horizontaltree, verticalflow, horizontalflow, organic, circle, none (not orgchart). Mutually exclusive with the other formats; postLayout, direction and routing don't apply."
+            "draw.io CSV, as draw.io's Arrange > Insert > Advanced > CSV imports it: configuration lines starting with # (label, style, identity, parent, connect, width, height, layout, …), then a header line and one line per shape. %column% placeholders take the values of each row, in labels and in styles (e.g. `# style: fillColor=%fill%;`). For org charts and other diagrams made from tabular data the user gives you. " +
+            (convertFormats.indexOf("csv") >= 0 ?
+              "Converted on the server into editable draw.io cells that keep each row's columns as data, laid out and styled, and an error comes back with its line and how to fix it. Layouts: auto, verticaltree, horizontaltree, orgchart, verticalflow, horizontalflow, organic (drawn in layers), none (each row at its left and top columns); circle, `# list` and `# container` go to draw.io's own import in the viewer." :
+              "Layouts: auto, verticaltree, horizontaltree, verticalflow, horizontalflow, organic, circle, none (not orgchart).") +
+            " Mutually exclusive with the other formats; postLayout, direction and routing don't apply."
           ),
         postLayout: lenient("postLayout", z.enum(XML_OPTION_VALUES.postLayout).optional())
           .describe(
@@ -11847,17 +12187,48 @@ export function createServer(html, options = {})
         swapNote = "Note: the `mermaid` argument held draw.io XML, so it was drawn as XML. Pass draw.io XML as `xml`.";
       }
 
+      // Mermaid, PlantUML and CSV: the types shared/convert reads are
+      // converted here into draw.io cells, laid out and styled, and come back
+      // as XML; a syntax error comes back with its line and fix. The other
+      // types are converted in the viewer by draw.io's own converters, as
+      // before (convertedNote says which).
+      var sourceFormat = hasMermaid ? "mermaid" : (hasPlantUml ? "plantuml" : (hasCsv ? "csv" : null));
+      var fallbackNote = null;
+
+      if (sourceFormat != null)
+      {
+        var sourceText = hasMermaid ? mermaid : (hasPlantUml ? plantuml : trimCsv(csv));
+        var sourceProblem = hasPlantUml ? plantUmlProblem(sourceText) : (hasCsv ? csvProblem(sourceText,
+          convertFormats.indexOf("csv") >= 0 && serverConverts("csv", sourceText)) : null);
+
+        if (sourceProblem != null)
+        {
+          return { content: [{ type: "text", text: sourceProblem }], isError: true };
+        }
+
+        if (convertFormats.indexOf(sourceFormat) >= 0)
+        {
+          var conversion = await convertSource(sourceFormat, sourceText);
+
+          if (conversion.error != null)
+          {
+            return { content: [{ type: "text", text: conversion.error }], isError: true };
+          }
+
+          if (conversion.xml != null)
+          {
+            return convertedResult(conversion, sourceFormat, postLayout, swapNote);
+          }
+
+          fallbackNote = convertedNote(sourceFormat, conversion);
+        }
+      }
+
       // PlantUML and CSV: the viewer converts them, as it does Mermaid. The
       // pass options are for XML and Mermaid and don't apply.
       if (hasPlantUml || hasCsv)
       {
         var source = hasPlantUml ? plantuml : trimCsv(csv);
-        var problem = hasPlantUml ? plantUmlProblem(source) : csvProblem(source);
-
-        if (problem != null)
-        {
-          return { content: [{ type: "text", text: problem }], isError: true };
-        }
 
         var sourcePayload = hasPlantUml ? { plantuml: source } : { csv: source };
         sourcePayload._buildId = buildId;
@@ -11867,6 +12238,11 @@ export function createServer(html, options = {})
         if (swapNote != null)
         {
           sourceContent.push({ type: "text", text: swapNote });
+        }
+
+        if (fallbackNote != null)
+        {
+          sourceContent.push({ type: "text", text: fallbackNote });
         }
 
         var sourceInline = await rendersInline();
@@ -11891,6 +12267,11 @@ export function createServer(html, options = {})
         if (swapNote != null)
         {
           mermaidContent.push({ type: "text", text: swapNote });
+        }
+
+        if (fallbackNote != null)
+        {
+          mermaidContent.push({ type: "text", text: fallbackNote });
         }
 
         var mermaidInline = await rendersInline();

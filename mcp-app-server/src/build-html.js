@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { buildHtml, processAppBundle, resolveSemanticTypes } from "./shared.js";
+import { buildHtml, processAppBundle, resolveSemanticTypes, resolveConvertFormats } from "./shared.js";
 import { readReference } from "./references.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
 
@@ -155,14 +155,21 @@ console.log(`Build ID: ${buildId}`);
 // tool for the same types:
 //   DRAWIO_SEMANTIC_TYPES=off npx wrangler deploy --env staging
 const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+// The formats create_diagram converts on the server, as DRAWIO_CONVERT in
+// the Node server (resolveConvertFormats): read at build time too, since the
+// viewer previews them with the same conversion from the engine script.
+const convertFormats = resolveConvertFormats(process.env.DRAWIO_CONVERT);
+const semanticJs = (semanticTypes.length > 0 || convertFormats.length > 0) ?
+  bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {
   console.log(`Semantic diagram types: ${semanticTypes.join(", ")}`);
 }
 
-const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId, viewerJs, libavoidJs, drawioBaseUrl, semanticJs });
+console.log(`Converted on the server: ${convertFormats.length > 0 ? convertFormats.join(", ") : "none"}`);
+
+const html = buildHtml(appWithDepsJs, pakoDeflateJs, null, { buildId, viewerJs, libavoidJs, drawioBaseUrl, semanticJs, convertFormats });
 const outPath = path.join(__dirname, "generated-html.js");
 
 fs.writeFileSync(outPath,
@@ -170,6 +177,7 @@ fs.writeFileSync(outPath,
   `export const buildId = ${JSON.stringify(buildId)};\n` +
   `export const drawioBaseUrl = ${JSON.stringify(drawioBaseUrl)};\n` +
   `export const semanticTypes = ${JSON.stringify(semanticTypes)};\n` +
+  `export const convertFormats = ${JSON.stringify(convertFormats)};\n` +
   `export const html = ${JSON.stringify(html)};\n` +
   `export const xmlReference = ${JSON.stringify(xmlReference)};\n` +
   `export const mermaidReference = ${JSON.stringify(mermaidReference)};\n` +

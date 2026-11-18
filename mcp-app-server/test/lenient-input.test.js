@@ -67,7 +67,9 @@ test("Mermaid passed as xml is drawn as Mermaid, and the model is told", async f
 {
   const result = await call("create_diagram", { xml: mermaid });
 
-  assert.equal(payload(result).mermaid, mermaid);
+  // a flowchart, converted on the server
+  assert.equal(payload(result).converted, "mermaid");
+  assert.match(payload(result).xml, /<mxCell id="A" value="Start"/);
   assert.match(texts(result), /Pass Mermaid as `mermaid`/);
 });
 
@@ -82,7 +84,15 @@ test("the headers draw.io converts that the reference doesn't teach are Mermaid 
     const text = header + "\n  A --> B";
     const result = await call("create_diagram", { xml: text });
 
-    assert.equal(payload(result).mermaid, text, header);
+    // a flowchart-elk is converted on the server, the others in the viewer
+    if (header.startsWith("flowchart-elk"))
+    {
+      assert.equal(payload(result).converted, "mermaid", header);
+    }
+    else
+    {
+      assert.equal(payload(result).mermaid, text, header);
+    }
   }
 });
 

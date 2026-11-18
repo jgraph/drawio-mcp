@@ -189,7 +189,8 @@ test("the result after a preview moves the cells too and drops what the last par
   // the merge of the result asks for the move when the diagram came from a description
   assert.match(source, /streamMergeXmlDelta\(streamGraph, streamPendingEdges, doc\.documentElement, opts\.described\)/);
   assert.match(source, /if \(opts\.replaceMode \|\| opts\.described\)/);
-  assert.match(source, /autoRoute: mermaidText == null, described: shownFromDescription && mermaidText == null \}/);
+  // (and when it follows the preview of a diagram the server converted)
+  assert.match(source, /autoRoute: mermaidText == null, described: \(shownFromDescription \|\| convertedFrom != null\) && mermaidText == null \}/);
   // and every preview of a description does
   assert.match(source, /streamMergeXmlDelta\(streamGraph, streamPendingEdges, xmlNode, true\)/);
 });

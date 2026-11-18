@@ -663,8 +663,9 @@ test("the viewer's engine reads the icon table and the shorthand from the page",
   const alone = bundleSemanticEngine();
   const js = bundleSemanticEngine({ externals: VIEWER_GLOBALS });
 
-  // without a second copy of what the viewer has: under half the size
-  assert.ok(js.length < alone.length / 2, js.length + " of " + alone.length);
+  // without a second copy of what the viewer has: the icon table and the
+  // shorthand (about 400 KB) stay out
+  assert.ok(alone.length - js.length > 350000, js.length + " of " + alone.length);
   assert.doesNotMatch(js, /__modules\["icon-table\.js"\] = \(function/);
   assert.doesNotMatch(js, /<\/script/i);
 

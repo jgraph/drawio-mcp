@@ -92,7 +92,7 @@ function now()
  *
  * @param {object|string} input - the description (FORMAT.md) or its JSON text
  * @param {{elk?: {layout: function(object): Promise<object>}, hints?: boolean|"ask", route?: boolean,
- *   sizeRule?: boolean, partial?: boolean, keepTurned?: boolean}} [options] -
+ *   sizeRule?: boolean, partial?: boolean, keepTurned?: boolean, styles?: boolean}} [options] -
  *   elk: an optional ELK instance (`new ELK()` from elkjs, or the global ELK
  *   in the browser), used for large schemas; hints: false ignores the
  *   placement hints (row, col) of the description, "ask" reads them as the
@@ -107,7 +107,8 @@ function now()
  *   counts as in a lane for the size rule, since the groups may come last;
  *   keepTurned: how a preview showed the diagram before (stats.turned),
  *   kept unless the other way round is clearly better (shared/grid-layout.js,
- *   KEEP_MARGIN)
+ *   KEEP_MARGIN); styles: true adds the `style` of nodes, groups and edges
+ *   to the engine's (the converters of shared/convert, never the tool)
  * @returns {Promise<{xml: string|null, error: string|null, warnings: string[],
  *   stats: object|null, tooLarge?: {type: string, nodes: number, max: number, lanes?: false}}>}
  */
@@ -115,7 +116,7 @@ export async function semanticToXml(input, options)
 {
   const t0 = now();
   const opts = options || {};
-  const n = normalizeSpec(input, { hints: opts.hints !== false });
+  const n = normalizeSpec(input, { hints: opts.hints !== false, styles: opts.styles === true });
 
   if (n.error != null)
   {

@@ -22,9 +22,9 @@ This repository offers four approaches for integrating draw.io with AI assistant
 
 ### Mermaid in, editable draw.io out
 
-Every way takes Mermaid and gives a native draw.io diagram, not a picture of one: shapes, connectors that end on the shapes they join, and labels that are the shapes' own text, so the diagram can be edited, moved and restyled in draw.io like one drawn there. draw.io converts Mermaid with its own parser and layout, the same in the editor, draw.io Desktop and both servers: the 28 diagram types of the [Mermaid reference](shared/mermaid-reference.md), plus swimlane, use case, agent flow, railroad and Cynefin diagrams.
+Every way takes Mermaid and gives a native draw.io diagram, not a picture of one: shapes, connectors that end on the shapes they join, and labels that are the shapes' own text, so the diagram can be edited, moved and restyled in draw.io like one drawn there. draw.io converts Mermaid with its own parser and layout, the same in the editor, draw.io Desktop, the tool server and the app server's viewer: the 28 diagram types of the [Mermaid reference](shared/mermaid-reference.md), plus swimlane, use case, agent flow, railroad and Cynefin diagrams.
 
-- **App Server:** the inline viewer converts it; "Open in draw.io" opens the converted diagram, with the Mermaid kept on it for editing the source.
+- **App Server:** flowcharts, ER and sequence diagrams are converted on the server into editable cells, laid out and styled in the calm theme (see [MCP App Server](#mcp-app-server)); the inline viewer converts the other types, and "Open in draw.io" opens those with the Mermaid kept on them for editing the source.
 - **Tool Server:** the draw.io editor converts it when the link opens.
 - **Plugins:** draw.io Desktop's CLI converts it to a `.drawio` file, or without Desktop the skill's `mermaid-to-drawio.js` runs the same converter in an installed Chrome, Edge or Chromium.
 
@@ -61,7 +61,7 @@ Add this URL as a remote MCP server in Claude.ai, ChatGPT, VS Code (GitHub Copil
 You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](https://hub.docker.com/r/jgraph/drawio-mcp) Docker image, or deploy your own instance to Cloudflare Workers.
 
 **Tools:**
-- **`create_diagram`** — Renders draw.io XML or Mermaid (28 diagram types) as an interactive diagram inline in chat
+- **`create_diagram`** — Renders draw.io XML, Mermaid (28 diagram types), PlantUML or draw.io CSV as an interactive diagram inline in chat. Mermaid flowcharts, ER and sequence diagrams, PlantUML sequence and activity diagrams and CSV are converted on the server into editable draw.io shapes, laid out and styled, and a syntax error comes back with its line and how to fix it
 - **`search_shapes`** — Searches 10,000+ shapes across all draw.io libraries (AWS, Azure, GCP, P&ID, electrical, Cisco, Kubernetes, UML, BPMN, etc.) by keyword, supplemented by the draw.io icon service (brand logos and general-purpose concept icons) when the built-in libraries have no good match. Returns exact style strings that can be used directly in XML. Use this to find the correct shape before calling `create_diagram`.
 - **`get_drawio_reference`** — Returns the XML or Mermaid generation reference, which the model reads once per format before its first diagram.
 - **`create_semantic_diagram`** — The fast mode for flowcharts and swimlane diagrams, used only when you ask for a quick or cheap diagram (see below).
@@ -78,6 +78,44 @@ Without such words, and for every other diagram type, the model uses `create_dia
 - Flowcharts without lanes get up to 24 steps; larger ones are drawn with `create_diagram`.
 
 Self-hosted servers leave the tool out with `DRAWIO_SEMANTIC_TYPES=off`. Details are in [`shared/semantic/FAST-MODE.md`](shared/semantic/FAST-MODE.md).
+
+**Mermaid, PlantUML and CSV.** Besides draw.io XML, `create_diagram` takes Mermaid, PlantUML and draw.io CSV. The model picks a format, or uses the one you ask for or paste. These types are converted on the server into editable draw.io shapes, laid out and styled, and the model gets the diagram back as draw.io XML:
+
+- **Mermaid:** flowcharts (`flowchart`, `graph`), ER diagrams and sequence diagrams
+- **PlantUML:** sequence diagrams, and activity diagrams in the new syntax
+- **CSV:** draw.io's [CSV import format](https://www.drawio.com/docs/manual/insert/insert-from-csv/) with the tree, flow and `none` layouts; each row keeps its columns as shape data
+
+A syntax error comes back to the model with its line and how to fix it, so the model can correct the source and send it again. Everything else goes to the viewer, which converts it with draw.io's own converters, as *Arrange > Insert > Advanced* does in the editor, and the model gets a note that says so: the other Mermaid types (class, state, Gantt, mind map, …), the other PlantUML types (class, use case, component, state, activity in the old syntax, …) and CSV with `# list`, `# container`, the `circle` layout or a custom layout. Self-hosted servers leave all of it to the viewer with `DRAWIO_CONVERT=off`.
+
+One example per format, each converted on the server. Mermaid, a flowchart with a decision shape and labelled connectors:
+
+```
+flowchart LR
+  A[Order received] --> B{Paid?}
+  B -->|yes| C[Ship order]
+  B -->|no| D[Send reminder]
+```
+
+PlantUML, a sequence diagram with a lifeline for each participant and a line for each message:
+
+```
+@startuml
+Customer -> Shop: Place order
+Shop --> Customer: Confirmation
+@enduml
+```
+
+CSV, an org chart drawn as a tree, each shape keeping its `name` and `manager` as shape data:
+
+```
+# label: %name%
+# connect: {"from": "manager", "to": "name", "invert": true}
+# layout: verticaltree
+name,manager
+CEO,
+CTO,CEO
+CFO,CEO
+```
 
 **[Full documentation →](mcp-app-server/README.md)**
 

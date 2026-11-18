@@ -95,9 +95,11 @@ test("an XML diagram gets a #R link", async function()
   assert.equal(decompress(decodeURIComponent(url.hash.substring(2))), xml);
 });
 
-test("a Mermaid diagram gets a #create link", async function()
+// Mermaid the viewer converts (here a gantt chart) goes into the link as
+// Mermaid, which draw.io converts on open.
+test("a Mermaid diagram converted in the viewer gets a #create link", async function()
 {
-  const mermaid = "flowchart TD\n  A[Start] --> B[End]";
+  const mermaid = "gantt\n  title Plan\n  section A\n  Task :a1, 2024-01-01, 3d";
   const url = await linkFor({ mermaid: mermaid });
 
   assert.ok(url.hash.startsWith("#create="), url.hash.substring(0, 20));
@@ -106,6 +108,15 @@ test("a Mermaid diagram gets a #create link", async function()
 
   assert.equal(createObj.type, "mermaid");
   assert.equal(decompress(createObj.data), mermaid);
+});
+
+// A flowchart is converted on the server: the link carries its cells.
+test("a Mermaid flowchart converted on the server gets an #R link with its cells", async function()
+{
+  const url = await linkFor({ mermaid: "flowchart TD\n  A[Start] --> B[End]" });
+
+  assert.ok(url.hash.startsWith("#R"), url.hash.substring(0, 20));
+  assert.match(decompress(decodeURIComponent(url.hash.substring(2))), /<mxCell id="A" value="Start"/);
 });
 
 test("the viewer's Open in draw.io button gets a #create link with the pop effect", function()
@@ -131,7 +142,7 @@ test("DRAWIO_BASE_URL points both links at a self-hosted draw.io", async functio
   try
   {
     const xmlLink = (await linkFor({ xml: xml }, c, selfHosted)).href;
-    const mermaidLink = (await linkFor({ mermaid: "flowchart TD\n  A --> B" }, c, selfHosted)).href;
+    const mermaidLink = (await linkFor({ mermaid: "gantt\n  title Plan\n  section A\n  Task :a1, 2024-01-01, 3d" }, c, selfHosted)).href;
 
     assert.ok(xmlLink.startsWith(selfHosted + "?pv=0&grid=0#R"), xmlLink.substring(0, 60));
     assert.ok(mermaidLink.startsWith(selfHosted + "?pv=0&grid=0#create="), mermaidLink.substring(0, 60));

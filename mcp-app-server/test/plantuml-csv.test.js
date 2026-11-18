@@ -7,13 +7,18 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import { buildHtml, createServer, PLANTUML_URL } from "../src/shared.js";
 
-// create_diagram's plantuml and csv inputs. The viewer converts them with
-// draw.io's own converters (drawio-plantuml, loaded from the CDN for a
-// PlantUML diagram, and the CSV import of the viewer bundle); the server
-// checks what would fail there and hands the source on. The conversion itself
-// needs a browser: it was checked in headless Chrome with the app resource in
-// a sandboxed frame (sequence and class diagrams, an org chart with %fill% in
-// its style, stylePlaceholders=1, an ELK layout).
+// create_diagram's plantuml and csv inputs. The server converts what
+// shared/convert reads (PlantUML sequence and activity diagrams, CSV without
+// lists, containers and the circle layout; test/convert.test.js), and the
+// viewer converts the rest with draw.io's own converters (drawio-plantuml,
+// loaded from the CDN for a PlantUML diagram, and the CSV import of the
+// viewer bundle). These tests run the viewer's path with the conversion
+// switched off (DRAWIO_CONVERT=off, `convertFormats: []`), and with it on
+// for a type it leaves to the viewer: the server checks what would fail there
+// and hands the source on. The viewer's conversion needs a browser: it was
+// checked in headless Chrome with the app resource in a sandboxed frame
+// (sequence and class diagrams, an org chart with %fill% in its style,
+// stylePlaceholders=1, an ELK layout).
 
 const UI = { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: [RESOURCE_MIME_TYPE] } } };
 
@@ -30,10 +35,12 @@ const csv = "# label: %name%\n" +
 
 let ui;
 let plain;
+let converting;
+let convertingPlain;
 
-async function connect(capabilities)
+async function connect(capabilities, convertFormats)
 {
-  const server = createServer("", { iconServiceUrl: null, buildId: "test" });
+  const server = createServer("", { iconServiceUrl: null, buildId: "test", convertFormats: convertFormats });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
   await server.connect(serverTransport);
@@ -47,14 +54,18 @@ async function connect(capabilities)
 
 before(async function()
 {
-  ui = await connect(UI);
-  plain = await connect({});
+  ui = await connect(UI, []);
+  plain = await connect({}, []);
+  converting = await connect(UI);
+  convertingPlain = await connect({});
 });
 
 after(async function()
 {
   await ui.close();
   await plain.close();
+  await converting.close();
+  await convertingPlain.close();
 });
 
 function call(client, args)
@@ -147,6 +158,61 @@ test("PlantUML passed as xml or mermaid is drawn as PlantUML", async function()
     assert.equal(payload(result).plantuml, plantuml);
     assert.match(texts(result), new RegExp("the `" + key + "` argument held PlantUML"));
   }
+});
+
+test("PlantUML and CSV the server reads come back as draw.io XML", async function()
+{
+  const sequence = await call(converting, { plantuml: plantuml, postLayout: "elk" });
+  const table = await call(converting, { csv: "\n" + csv });
+
+  assert.equal(payload(sequence).converted, "plantuml");
+  assert.match(payload(sequence).xml, /^<mxGraphModel/);
+  assert.match(texts(sequence), /Converted from PlantUML \(sequence\) on the server into editable draw\.io cells/);
+  assert.match(texts(sequence), /postLayout was not applied/);
+  assert.equal(payload(table).converted, "csv");
+  assert.match(payload(table).xml, /<UserObject id="row2" label="%name%" name="Bob" manager="Ada" fill="#d5e8d4" placeholders="1">/);
+});
+
+test("PlantUML and CSV the server doesn't read go to the viewer with a note", async function()
+{
+  const classes = "@startuml\nclass Car\nclass Wheel\nCar *-- Wheel\n@enduml";
+  const circle = csv.replace("verticaltree", "circle");
+  const pClass = await call(converting, { plantuml: classes });
+  const cCircle = await call(converting, { csv: circle });
+
+  assert.deepEqual(payload(pClass), { plantuml: classes, _buildId: "test" });
+  assert.match(texts(pClass), /PlantUML class diagrams are converted by draw\.io's own converter in the viewer/);
+  assert.deepEqual(payload(cCircle), { csv: circle, _buildId: "test" });
+  assert.match(texts(cCircle), /CSV with the layout circle is converted by draw\.io's own import in the viewer/);
+});
+
+test("a syntax error comes back with its line and fix", async function()
+{
+  const plantError = await call(converting, { plantuml: "@startuml\nalt ok\nA -> B: hi\n@enduml" });
+  const csvError = await call(converting, { csv: "# connect: {\"from\": \"boss\", \"to\": \"name\"}\nname,manager\nAda,\n" });
+
+  assert.equal(plantError.isError, true);
+  assert.match(texts(plantError), /^PlantUML syntax error on line 2 \(`alt ok`\)/);
+  assert.match(texts(plantError), /Fix: /);
+  assert.equal(csvError.isError, true);
+  assert.match(texts(csvError), /^CSV syntax error on line 1 .*"boss", which the header doesn't have\. Fix: use one of name and manager\./);
+});
+
+test("a client without the app gets a link to the converted PlantUML", async function()
+{
+  const result = await call(convertingPlain, { plantuml: plantuml });
+  const url = new URL(texts(result).match(/https:\/\/app\.diagrams\.net\/\S+/)[0]);
+
+  assert.ok(url.hash.startsWith("#R"));
+  assert.doesNotMatch(texts(result), /a draw.io link can't carry PlantUML/);
+});
+
+test("the orgchart layout is drawn when the server converts the CSV", async function()
+{
+  const result = await call(converting, { csv: csv.replace("verticaltree", "orgchart") });
+
+  assert.equal(result.isError, undefined);
+  assert.equal(payload(result).converted, "csv");
 });
 
 test("CSV without data lines or with the orgchart layout is an error the model can fix", async function()
