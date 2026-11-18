@@ -15,8 +15,9 @@ import { LIBAVOID_FILES } from "../src/libavoid-versions.js";
 // js/libavoid-js/libavoid.min.js and libavoid-routing.js). The plugins'
 // scripts/mermaid-to-drawio.js loads both from the CDN, as the app server's
 // viewer does. Converted through a local mirror of viewer.diagrams.net/js/,
-// which logs what the script loads and can leave libavoid out: then the
-// diagram converts as before, its edges as the layout drew them.
+// which logs what the script loads and can leave libavoid out or send it late:
+// then the diagram converts as before, its edges as the layout drew them, and
+// a late libavoid never runs in the page.
 //
 // The routing needs a drawio-mermaid that has it (jgraph/drawio-mermaid#20).
 // MERMAID_PATH=<built bundle> serves that one in place of the CDN's, as the
@@ -70,12 +71,14 @@ const APP_STUB = "var App = function() {};" +
 
 // A mirror of the CDN's js/ folder on 127.0.0.1. It logs every file asked
 // for, keeps the CDN's answers for the next run, serves mermaidJs as the
-// drawio-mermaid bundle when given, and answers 404 for libavoid while
-// withoutRouter is set.
+// drawio-mermaid bundle when given, answers 404 for libavoid while
+// withoutRouter is set and sends it routerDelay ms late. sent logs the files
+// it has answered, pending counts those it has yet to answer.
 function startMirror(mermaidJs)
 {
   var cache = Object.create(null);
-  var mirror = { log: [], status: Object.create(null), withoutRouter: false, mermaidJs: null };
+  var mirror = { log: [], sent: [], pending: 0, status: Object.create(null), withoutRouter: false,
+    routerDelay: 0, mermaidJs: null };
 
   function upstream(file)
   {
@@ -97,6 +100,7 @@ function startMirror(mermaidJs)
     var answer;
 
     mirror.log.push(file);
+    mirror.pending++;
 
     if (mirror.withoutRouter && file.indexOf("libavoid-js/") === 0)
     {
@@ -111,9 +115,21 @@ function startMirror(mermaidJs)
       answer = upstream(file);
     }
 
+    if (mirror.routerDelay > 0 && file.indexOf("libavoid-js/") === 0)
+    {
+      var delay = mirror.routerDelay;
+
+      answer = answer.then(function(a)
+      {
+        return new Promise(function(resolve) { setTimeout(function() { resolve(a); }, delay); });
+      });
+    }
+
     answer.then(function(a)
     {
       mirror.status[file] = a.status;
+      mirror.sent.push(file);
+      mirror.pending--;
 
       if (file === MERMAID_FILE && a.status === 200)
       {
@@ -125,6 +141,7 @@ function startMirror(mermaidJs)
       res.end(a.body);
     }, function(e)
     {
+      mirror.pending--;
       res.writeHead(502, { "Content-Type": "text/plain" });
       res.end(e.message);
     });
@@ -181,6 +198,57 @@ function loadScript(src)
     script.onerror = function() { resolve(false); };
     document.head.appendChild(script);
   });
+}
+
+// Waits up to 30 s for done()
+async function until(done)
+{
+  var start = Date.now();
+
+  while (!done() && Date.now() - start < 30000)
+  {
+    await new Promise(function(resolve) { setTimeout(resolve, 100); });
+  }
+}
+
+// Runs in the page: whether libavoid is there
+function hasRouter()
+{
+  return typeof Avoid !== "undefined" && typeof AvoidRouting !== "undefined";
+}
+
+// The plugins' loader of the optional scripts in a blank page: libavoid sent
+// later than its timeout never runs, not even once it has arrived, and
+// libavoid in time runs
+async function loadRouter(browser, mirror)
+{
+  var page = await openPage(browser);
+
+  try
+  {
+    var files = converter.ROUTER_BUNDLES;
+    var late = {};
+
+    // Once what the last conversion asked for has been answered
+    await until(function() { return mirror.pending === 0; });
+    mirror.routerDelay = 2000;
+    mirror.sent = [];
+    late.loaded = await page.evaluate(converter.loadOptional, mirror.base, files, 300);
+    await until(function() { return mirror.sent.length >= files.length; });
+
+    late.sent = mirror.sent.slice();
+    await new Promise(function(resolve) { setTimeout(resolve, 1000); });
+    late.router = await page.evaluate(hasRouter);
+    mirror.routerDelay = 0;
+
+    return { late: late, loaded: await page.evaluate(converter.loadOptional, mirror.base, files, 60000),
+      router: await page.evaluate(hasRouter) };
+  }
+  finally
+  {
+    mirror.routerDelay = 0;
+    await page.cdp.close();
+  }
 }
 
 // Runs in the app's page: the viewer's conversion, as a chat shows it
@@ -384,6 +452,8 @@ async function convertAll()
     var unrouted;
     var routedLog;
     var routedStatus;
+    var late;
+    var loader;
 
     try
     {
@@ -393,6 +463,13 @@ async function convertAll()
       mirror.withoutRouter = true;
       unrouted = (await converter.convertMermaid([SWIMLANE], { browser: browser, bundleBase: mirror.base }))[0];
       mirror.withoutRouter = false;
+
+      // libavoid later than the converter waits for it
+      mirror.routerDelay = 3000;
+      late = (await converter.convertMermaid([SWIMLANE], { browser: browser, bundleBase: mirror.base,
+        routerTimeout: 500 }))[0];
+      mirror.routerDelay = 0;
+      loader = await loadRouter(browser, mirror);
     }
     catch (e)
     {
@@ -432,7 +509,7 @@ async function convertAll()
         drawn[key] = (converted[key].xml != null) ? await page.evaluate(measureInPage, converted[key].xml) : null;
       }
 
-      return { routed: routed, unrouted: unrouted, viewer: viewer, drawn: drawn,
+      return { routed: routed, unrouted: unrouted, late: late, loader: loader, viewer: viewer, drawn: drawn,
         routedLog: routedLog, routedStatus: routedStatus,
         routingBuild: /AvoidRouting/.test(mirror.mermaidJs || "") };
     }
@@ -459,9 +536,15 @@ test("the plugins' converter loads libavoid after its bundles, from the CDN as d
   var mermaidAt = log.indexOf(MERMAID_FILE);
 
   assert.ok(log.indexOf(VIEWER_FILE) >= 0 && mermaidAt > log.indexOf(VIEWER_FILE), log.join(", "));
-  assert.deepEqual(log.filter(function(f) { return f.indexOf("libavoid-js/") === 0; }), ROUTER_FILES,
-    "the router, then its routing core: " + log.join(", "));
-  assert.ok(log.indexOf(ROUTER_FILES[0]) > mermaidAt, log.join(", "));
+  assert.deepEqual(converter.ROUTER_BUNDLES, ROUTER_FILES, "the router, then its routing core");
+
+  // Fetched together, so they may arrive in either order; they run in this one
+  assert.deepEqual(log.filter(function(f) { return f.indexOf("libavoid-js/") === 0; }).sort(),
+    ROUTER_FILES.slice().sort(), log.join(", "));
+  ROUTER_FILES.forEach(function(file)
+  {
+    assert.ok(log.indexOf(file) > mermaidAt, log.join(", "));
+  });
 
   ROUTER_FILES.forEach(function(file)
   {
@@ -484,6 +567,23 @@ test("without libavoid the plugins' converter converts a swimlane diagram as bef
     // A drawio-mermaid without the routing doesn't use libavoid
     assert.equal(results.routed.xml, results.unrouted.xml);
   }
+});
+
+test("libavoid in time runs in the page, and libavoid sent too late never runs", { skip: skip }, function()
+{
+  var loader = results.loader;
+
+  assert.equal(loader.late.loaded, false, "the loader gave up on libavoid");
+  assert.deepEqual(loader.late.sent.slice().sort(), ROUTER_FILES.slice().sort(), "the mirror sent it later");
+  assert.equal(loader.late.router, false, "libavoid that arrived late is not in the page");
+  assert.equal(loader.loaded, true, "the loader ran libavoid");
+  assert.equal(loader.router, true, "globalThis.Avoid and AvoidRouting in the page");
+});
+
+test("with libavoid too late the plugins' converter converts a swimlane diagram as without it", { skip: skip }, function()
+{
+  assert.equal(results.late.error, undefined, results.late.error);
+  assert.equal(results.late.xml, results.unrouted.xml);
 });
 
 test("the plugins' converter routes swimlane edges around the shapes with libavoid", { skip: noRouting }, function()

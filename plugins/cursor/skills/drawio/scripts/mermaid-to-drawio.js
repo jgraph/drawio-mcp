@@ -27,8 +27,9 @@ var BUNDLE_BASE = "https://viewer.diagrams.net/js/";
 var BUNDLES = ["viewer-static.min.js", "elk/drawio-elk.min.js", "mermaid/drawio-mermaid.min.js"];
 // libavoid as draw.io loads it, the router and then its routing core
 // (globalThis.Avoid, AvoidRouting): drawio-mermaid routes the edges of
-// swimlane diagrams with them. Without them a diagram converts as before,
-// its swimlane edges as the layout drew them.
+// swimlane diagrams with them. Unless both arrive within ROUTER_TIMEOUT,
+// neither runs, and a diagram converts as before, its swimlane edges as the
+// layout drew them.
 var ROUTER_BUNDLES = ["libavoid-js/libavoid.min.js", "libavoid-js/libavoid-routing.js"];
 var ROUTER_TIMEOUT = 20000;
 var EDITOR_URL = "https://app.diagrams.net/?pv=0&grid=0";
@@ -298,17 +299,14 @@ async function openPage(cdp, url)
   };
 }
 
-// Runs in the page: loads the draw.io viewer, drawio-elk and drawio-mermaid,
-// then the optional scripts, each of which is skipped when it fails to load
-// or takes longer than optionalTimeout
-function loadConverter(base, bundles, optional, optionalTimeout)
+// Runs in the page: loads the draw.io viewer, drawio-elk and drawio-mermaid
+function loadConverter(base, bundles)
 {
   window.DRAWIO_BASE_URL = "https://app.diagrams.net";
-  var all = bundles.concat(optional || []);
 
   function load(i)
   {
-    if (i >= all.length)
+    if (i >= bundles.length)
     {
       return Promise.resolve(typeof HeadlessEditorUi !== "undefined" &&
         typeof mxMermaidToDrawio !== "undefined");
@@ -324,25 +322,12 @@ function loadConverter(base, bundles, optional, optionalTimeout)
     return new Promise(function(resolve, reject)
     {
       var script = document.createElement("script");
-      script.src = base + all[i];
+      script.src = base + bundles[i];
       script.onload = resolve;
       script.onerror = function()
       {
-        if (i >= bundles.length)
-        {
-          resolve();
-        }
-        else
-        {
-          reject(new Error("Could not load " + script.src));
-        }
+        reject(new Error("Could not load " + script.src));
       };
-
-      if (i >= bundles.length)
-      {
-        setTimeout(resolve, optionalTimeout);
-      }
-
       document.head.appendChild(script);
     }).then(function()
     {
@@ -351,6 +336,50 @@ function loadConverter(base, bundles, optional, optionalTimeout)
   }
 
   return load(0);
+}
+
+// Runs in the page: loads optional scripts, all of them or none. They are
+// fetched together and run in their order only when every one has arrived
+// within timeout, so a late one never runs between two conversions. Resolves
+// to whether they ran.
+function loadOptional(base, files, timeout)
+{
+  var controller = new AbortController();
+  var timer = setTimeout(function()
+  {
+    controller.abort();
+  }, timeout);
+
+  return Promise.all(files.map(function(file)
+  {
+    return fetch(base + file, { signal: controller.signal }).then(function(res)
+    {
+      if (!res.ok)
+      {
+        throw new Error(res.status + " " + res.url);
+      }
+
+      return res.text();
+    });
+  })).then(function(texts)
+  {
+    clearTimeout(timer);
+
+    texts.forEach(function(text)
+    {
+      var script = document.createElement("script");
+      script.text = text;
+      document.head.appendChild(script);
+    });
+
+    return true;
+  }, function()
+  {
+    clearTimeout(timer);
+    controller.abort();
+
+    return false;
+  });
 }
 
 // Runs in the page: the conversion the desktop app's CLI runs (export.js),
@@ -376,7 +405,8 @@ function convertInPage(text, version)
 
 // Converts each Mermaid text to draw.io XML (an <mxGraphModel>). Returns
 // [{ type, xml } or { type, error }] in the order of the texts. Throws when no
-// browser is found or the converter can't be loaded.
+// browser is found or the converter can't be loaded. Options: browser,
+// version, and for tests bundleBase and routerTimeout.
 async function convertMermaid(texts, options)
 {
   options = options || {};
@@ -414,10 +444,21 @@ async function convertMermaid(texts, options)
       evaluate = await openPage(cdp);
     }
 
-    if (!(await evaluate(loadConverter, options.bundleBase || BUNDLE_BASE, BUNDLES,
-      ROUTER_BUNDLES, ROUTER_TIMEOUT)))
+    if (!(await evaluate(loadConverter, options.bundleBase || BUNDLE_BASE, BUNDLES)))
     {
       throw new Error("The draw.io converter did not load from " + (options.bundleBase || BUNDLE_BASE));
+    }
+
+    // libavoid within ROUTER_TIMEOUT, else none: the converter is loaded,
+    // so a slow or missing router never keeps a diagram from converting
+    try
+    {
+      await evaluate(loadOptional, options.bundleBase || BUNDLE_BASE, ROUTER_BUNDLES,
+        options.routerTimeout || ROUTER_TIMEOUT);
+    }
+    catch (e)
+    {
+      // Converted without libavoid, as the layout drew the edges
     }
 
     var results = [];
@@ -543,5 +584,6 @@ if (require.main === module)
 else
 {
   module.exports = { convertMermaid: convertMermaid, findBrowser: findBrowser, launch: launch,
-    openPage: openPage, mermaidLink: mermaidLink, MERMAID_DEFAULTS_VERSION: MERMAID_DEFAULTS_VERSION };
+    openPage: openPage, loadOptional: loadOptional, mermaidLink: mermaidLink,
+    MERMAID_DEFAULTS_VERSION: MERMAID_DEFAULTS_VERSION, ROUTER_BUNDLES: ROUTER_BUNDLES };
 }
