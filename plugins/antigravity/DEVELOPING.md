@@ -1,13 +1,14 @@
 # Antigravity Plugin: drawio
 
 An Antigravity plugin that ships the `drawio` skill: it generates native `.drawio` files,
-authored either as Mermaid (converted + laid out by the draw.io desktop CLI) or as draw.io
+authored either as Mermaid (converted + laid out by the draw.io desktop CLI, or without it by
+`scripts/mermaid-to-drawio.js` in a headless Chrome, Edge or Chromium) or as draw.io
 XML directly, with optional ELK `--layout` for XML, export to PNG/SVG/PDF (with embedded
 XML) via the desktop CLI, or a browser URL that opens the diagram directly at
 `app.diagrams.net`. No MCP server required.
 
 This is the Antigravity counterpart of the [Claude Code plugin](../claude-code/README.md).
-`skills/drawio/` (`SKILL.md` and `scripts/find-shapes.js`) is kept **byte-identical** to the
+`skills/drawio/` (`SKILL.md` and `scripts/`) is kept **byte-identical** to the
 Claude plugin's copy (`.github/workflows/check-skill-sync.yml` checks it). Only the host wrapping differs.
 
 ## Key Files
@@ -17,6 +18,7 @@ Claude plugin's copy (`.github/workflows/check-skill-sync.yml` checks it). Only 
 | `plugin.json` | Antigravity plugin manifest at the plugin root. Its schema allows only `name`, `description` and `$schema` — skills, MCP servers, rules and hooks are found by folder (`skills/`, `mcp_config.json`, `rules/`, `hooks.json`) |
 | `skills/drawio/SKILL.md` | The skill itself; byte-identical to the Claude plugin's copy |
 | `skills/drawio/scripts/find-shapes.js` | The shape and icon lookup the skill runs; byte-identical to the Claude plugin's copy |
+| `skills/drawio/scripts/mermaid-to-drawio.js` | Mermaid to `.drawio` without draw.io Desktop, in a headless Chrome, Edge or Chromium; byte-identical to the Claude plugin's copy |
 | `README.md` | Installation and usage documentation |
 
 ## Layout
@@ -24,7 +26,7 @@ Claude plugin's copy (`.github/workflows/check-skill-sync.yml` checks it). Only 
 ```
 plugins/antigravity/    ← Antigravity plugin root
 ├── plugin.json
-├── skills/drawio/SKILL.md, scripts/find-shapes.js
+├── skills/drawio/SKILL.md, scripts/find-shapes.js, scripts/mermaid-to-drawio.js
 ├── README.md
 └── DEVELOPING.md
 ```

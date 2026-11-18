@@ -15,10 +15,20 @@ This repository offers four approaches for integrating draw.io with AI assistant
 | **How it works** | Renders diagrams inline in chat | Opens diagrams in your browser | Generates `.drawio` files, optional PNG/SVG/PDF export or browser URL | Claude generates draw.io URLs via Python |
 | **Diagram output** | Interactive viewer embedded in conversation | draw.io editor in a new tab | `.drawio`, `.drawio.png` / `.svg` / `.pdf`, or browser URL | Clickable link to draw.io |
 | **Requires installation** | No (hosted at `mcp.draw.io`) | Yes (npm package) | One-line plugin install (draw.io Desktop only for PNG/SVG/PDF export) | No — just paste instructions |
-| **Supports XML, CSV, Mermaid** | ✅ All three, and PlantUML | ✅ All three | XML and Mermaid (Mermaid needs draw.io Desktop) | ✅ All three |
+| **Supports XML, CSV, Mermaid** | ✅ All three, and PlantUML | ✅ All three | XML and Mermaid (Mermaid converted by draw.io Desktop or an installed Chrome, Edge or Chromium) | ✅ All three |
 | **Editable in draw.io** | Via "Open in draw.io" button | ✅ Directly | ✅ Directly | Via link |
 | **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, GitHub Copilot CLI, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity, OpenCode | Claude.ai (with Projects) |
 | **Best for** | Inline previews in chat | Local desktop workflows | Local development workflows | Quick setup, no install needed |
+
+### Mermaid in, editable draw.io out
+
+Every way takes Mermaid and gives a native draw.io diagram, not a picture of one: shapes, connectors that end on the shapes they join, and labels that are the shapes' own text, so the diagram can be edited, moved and restyled in draw.io like one drawn there. draw.io converts Mermaid with its own parser and layout, the same in the editor, draw.io Desktop, the tool server and the app server's viewer: the 28 diagram types of the [Mermaid reference](shared/mermaid-reference.md), plus swimlane, use case, agent flow, railroad and Cynefin diagrams.
+
+- **App Server:** flowcharts, ER and sequence diagrams are converted on the server into editable cells, laid out and styled in the calm theme (see [MCP App Server](#mcp-app-server)); the inline viewer converts the other types, and "Open in draw.io" opens those with the Mermaid kept on them for editing the source.
+- **Tool Server:** the draw.io editor converts it when the link opens.
+- **Plugins:** draw.io Desktop's CLI converts it to a `.drawio` file, or without Desktop the skill's `mermaid-to-drawio.js` runs the same converter in an installed Chrome, Edge or Chromium.
+
+[`mcp-app-server/test/mermaid-types.test.js`](mcp-app-server/test/mermaid-types.test.js) converts a diagram of each type both ways and checks the result. In a few types some parts still come out as drawings: loose lines in timelines, tree views, Ishikawa, railroad, event modeling and Cynefin diagrams, radar curves as images, and names beside their shapes in architecture and Wardley diagrams ([details](mcp-app-server/AGENTS.md#mermaid-conversion)).
 
 ---
 
@@ -212,7 +222,7 @@ nothing is sent.
 | **MCP App Server — hosted (`mcp.draw.io`)** | **Yes** — it is sent to the draw.io server as the MCP request. Self-host instead (below) to keep it local. |
 | **MCP App Server — self-hosted** (local Node, the `jgraph/drawio-mcp` Docker image, or your own Cloudflare) | No — processed by your server and embedded in HTML that renders client-side. |
 | **MCP Tool Server** (`@drawio/mcp`) | No — carried in the URL `#fragment`, which browsers do not transmit to the server. |
-| **Assistant Plugins** (Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity) | No — written locally and exported by your local draw.io Desktop CLI. The Claude Code and Cursor plugins also bundle the hosted App Server: diagrams drawn with it are sent to `mcp.draw.io` (row above). |
+| **Assistant Plugins** (Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity) | No — written locally and exported by your local draw.io Desktop CLI. Without Desktop, Mermaid is converted in a local headless browser, which downloads only draw.io's scripts (viewer.diagrams.net) and fonts (Google Fonts); its `--link` fallback carries the Mermaid in the URL `#fragment`. The Claude Code and Cursor plugins also bundle the hosted App Server: diagrams drawn with it are sent to `mcp.draw.io` (row above). |
 
 By default the servers do not write diagram content to their logs — only request
 metadata (method, session, status, timing). The Cloudflare-hosted App Server logs

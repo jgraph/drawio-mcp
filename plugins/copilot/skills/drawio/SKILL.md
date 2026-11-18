@@ -5,21 +5,21 @@ description: "Always use when user asks to create, generate, draw, or design a d
 
 # Draw.io Diagram Skill
 
-Generate draw.io diagrams as native `.drawio` files. Author each diagram either as **Mermaid** (concise text that the draw.io desktop CLI converts and lays out for you) or as **draw.io XML** directly. Optionally auto-layout XML-authored diagrams with **ELK**, export to PNG/SVG/PDF with the diagram XML embedded (so the exported file stays editable in draw.io), or generate a browser URL that opens the diagram directly in the draw.io editor.
+Generate draw.io diagrams as native `.drawio` files. Author each diagram either as **Mermaid** (concise text that draw.io converts to editable shapes and connectors and lays out) or as **draw.io XML** directly. Optionally auto-layout XML with **ELK**, export to PNG/SVG/PDF with the diagram XML embedded (so the file stays editable in draw.io), or open the diagram in the draw.io editor through a browser URL.
 
 **Inline viewer first.** This skill writes files and opens them with a shell command. If the draw.io MCP server's `create_diagram` tool is available in a chat that shows diagrams inline (VS Code's or Cursor's own chat, Claude.ai, ChatGPT), and the user hasn't asked for a `.drawio` file, an export or a URL, call `create_diagram` instead: the diagram appears in the conversation, with no file and no shell command. Claude Code, Codex and Copilot CLI don't show diagrams inline, not even in their VS Code or JetBrains extensions: there `create_diagram` only returns a link, so use this skill.
 
 ## Authoring: Mermaid or XML?
 
-The desktop CLI converts Mermaid to a native `.drawio` file and lays it out automatically, which is far more reliable than hand-positioning cells in XML.
+Converted Mermaid is a native `.drawio` file, laid out automatically, which is far more reliable than hand-positioning cells in XML.
 
-| Author as | Best for | Needs desktop CLI? |
-|-----------|----------|--------------------|
-| **Mermaid** | Flowcharts, sequence, class, state, ER, gantt, mindmap, timeline, user journey, quadrant, C4, git graph, pie, and other standard types | Yes — to convert to `.drawio` |
-| **XML** | Custom styling, precise/hand positioning, specific shape libraries (AWS, Azure, network, UML detail…), or when the desktop CLI is not installed | No (optional ELK `--layout` needs the CLI) |
+| Author as | Best for | Needs |
+|-----------|----------|-------|
+| **Mermaid** | Flowcharts, sequence, class, state, ER, gantt, mindmap, timeline, user journey, quadrant, C4, git graph, pie, and other standard types | The desktop CLI, or an installed Chrome, Edge or Chromium, to convert it |
+| **XML** | Custom styling, precise/hand positioning, specific shape libraries (AWS, Azure, network, UML detail…) | Nothing (optional ELK `--layout` needs the CLI) |
 
-- **Prefer Mermaid** when the desktop CLI is available and the request is one of the standard types above.
-- **Use XML** for precise control, or as the universal fallback: XML needs no CLI, so it's the only option when the desktop app isn't installed (deliver a `.drawio` file or a `url`). For XML you can let the CLI apply an [ELK auto-layout](#elk-layout-for-xml) instead of computing coordinates yourself.
+- **Prefer Mermaid** for the standard types above.
+- **Use XML** for precise control, or when nothing can convert Mermaid (deliver a `.drawio` file or a `url`). For XML the CLI can apply an [ELK auto-layout](#elk-layout-for-xml) instead of you computing coordinates.
 
 If you're unsure whether the desktop CLI is present, detect it first (see [Locating the CLI](#locating-the-cli)).
 
@@ -32,6 +32,10 @@ Every diagram becomes a native `.drawio` file first, then is delivered in the re
      ```bash
      drawio -x -f xml -o diagram.drawio diagram.mmd
      ```
+     Without the CLI, the skill's script converts it with draw.io's converter in an installed Chrome, Edge or Chromium (Node.js 18+, network; the Mermaid stays local):
+     ```bash
+     node <skill-folder>/scripts/mermaid-to-drawio.js diagram.mmd
+     ```
      Delete the `.mmd` afterward — the `.drawio` is the artifact.
    - **XML**: write the mxGraphModel XML to `diagram.drawio` (see [XML format](#xml-format)), then run the [repair pass](#repair-pass) on it. Optionally apply an [ELK layout](#elk-layout-for-xml).
 2. **Deliver** (identical for both sources):
@@ -43,9 +47,9 @@ Every diagram becomes a native `.drawio` file first, then is delivered in the re
    - **url** → build a browser URL from the `.drawio` XML, open it, and keep the `.drawio` as a local copy (see [Browser URL output](#browser-url-output)).
 3. **Open the result** — the exported file, the URL, or the `.drawio` (see [Opening the result](#opening-the-result)). If the open command fails, print the absolute path (or URL) so the user can open it manually.
 
-**Always convert Mermaid to `.drawio` first, then export** — direct Mermaid → PNG export with `-e` is broken in current draw.io Desktop (the embedded-XML step crashes); the two-step path is reliable and produces an editable embed.
+**Always convert Mermaid to `.drawio` first, then export**: direct `.mmd` → PNG with `-e` crashes in current draw.io Desktop.
 
-If Mermaid was requested but no desktop CLI is available, author the same diagram as XML.
+If the script finds no browser (exit code 3), `node <skill-folder>/scripts/mermaid-to-drawio.js --link diagram.mmd` prints an `app.diagrams.net` URL that converts the Mermaid when opened: deliver that for `url` or no format, saying there is no local file. For a file or an export, author the same diagram as XML. PNG, SVG and PDF need the desktop CLI either way.
 
 ## ELK layout for XML
 
@@ -284,7 +288,7 @@ Key flags:
 - `-x` / `--export`: export mode (also used for Mermaid conversion and layouts)
 - `-f` / `--format`: output format (`xml`, png, svg, pdf, jpg) — use `xml` to produce a `.drawio` from Mermaid or a layout
 - `--layout`: run a layout before writing the output — an ELK preset name, `libavoid` edge routing, or a custom-layout JSON array
-- `--mermaid-image 1`: convert Mermaid to a single static SVG image cell (the Mermaid source stays on the cell for re-editing) instead of an editable diagram — only when the user explicitly asks for a non-editable image cell
+- `--mermaid-image 1`: Mermaid as one static image cell instead of editable shapes — only when the user explicitly asks for that
 - `-e` / `--embed-diagram`: embed diagram XML in the output (PNG, SVG, PDF only)
 - `-o` / `--output`: output file path
 - `-b` / `--border`: border width around diagram (default: 0)
@@ -293,7 +297,7 @@ Key flags:
 - `--width` / `--height`: fit into specified dimensions (preserves aspect ratio)
 - `-a` / `--all-pages`: export all pages (PDF only)
 - `-p` / `--page-index`: select a specific page (1-based)
-- `--disable-gpu`: skip GPU initialisation — add it when a command dies with `GPU process isn't usable` (Windows remote-desktop sessions, VMs, CI runners); no convert, layout, or export path needs the GPU
+- `--disable-gpu`: skip GPU initialisation, when a command dies with `GPU process isn't usable` (see [Troubleshooting](#troubleshooting))
 
 ### Opening the result
 
@@ -345,7 +349,7 @@ Every diagram must have this structure:
 
 ### CRITICAL: XML well-formedness
 
-- **NEVER include ANY XML comments (`<!-- -->`) in the output.** XML comments are strictly forbidden — they waste tokens, can cause parse errors, and serve no purpose in diagram XML.
+- **NEVER include ANY XML comments (`<!-- -->`) in the output.** They waste tokens and can cause parse errors.
 - Escape special characters in attribute values: `&amp;`, `&lt;`, `&gt;`, `&quot;`
 - Always use unique `id` values for each `mxCell`
 - Every edge needs a child `<mxGeometry relative="1" as="geometry" />` — a self-closing edge `mxCell` doesn't render
@@ -390,8 +394,8 @@ node <skill-folder>/scripts/find-shapes.js "aws4 lambda" "github" "slack"
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| draw.io CLI not found | Desktop app not installed or not on PATH | Work through [Locating the CLI](#locating-the-cli); if it's really absent, author as XML and deliver a `.drawio` file or `url`, and tell the user that installing the draw.io desktop app enables Mermaid conversion, layouts and image export |
-| Mermaid → PNG export crashes | Direct `.mmd` → PNG with `-e` is broken in current draw.io Desktop | Convert Mermaid to `.drawio` first (`-f xml`), then export the `.drawio` |
+| draw.io CLI not found | Desktop app not installed or not on PATH | Work through [Locating the CLI](#locating-the-cli); if it's really absent, convert Mermaid with `scripts/mermaid-to-drawio.js` or author as XML, deliver a `.drawio` file or `url`, and tell the user that installing the draw.io desktop app enables layouts and image export |
+| `mermaid-to-drawio.js` exits with 3 | No Chrome, Edge or Chromium found, or viewer.diagrams.net unreachable | Set `CHROME_PATH` to the browser, or use `--link` or XML as in [the pipeline](#the-pipeline) |
 | Blank diagram from Mermaid | Misspelled type keyword, or a syntax error (bad node ID, unquoted label) | Check the [Mermaid reference](#mermaid-syntax-reference); the first non-directive line's keyword selects the diagram type |
 | Layout does nothing / errors | Unknown preset name, custom JSON not an array, or a desktop build too old for `--layout` / `.mmd` input | Use a [preset](#layout-presets) or a JSON array starting with `[`; on an old desktop build, author as XML with explicit positions and tell the user updating draw.io Desktop enables Mermaid conversion and layouts |
 | Export produces empty/corrupt file, or the diagram looks blank | Invalid XML, or missing root cells `id="0"` and `id="1"` | Run the [repair pass](#repair-pass) and check the [basic structure](#basic-structure) |
