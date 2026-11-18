@@ -32,6 +32,9 @@ var BUNDLES = ["viewer-static.min.js", "elk/drawio-elk.min.js", "mermaid/drawio-
 // layout drew them.
 var ROUTER_BUNDLES = ["libavoid-js/libavoid.min.js", "libavoid-js/libavoid-routing.js"];
 var ROUTER_TIMEOUT = 20000;
+// The diagram types drawio-mermaid routes with libavoid. A run without one
+// of them loads no libavoid.
+var ROUTED_TYPES = ["swimlane-beta"];
 var EDITOR_URL = "https://app.diagrams.net/?pv=0&grid=0";
 
 // The defaults of Mermaid 12 (ELK layout, redux theme), as the MCP servers use
@@ -401,6 +404,23 @@ function loadOptional(base, files, timeout)
   });
 }
 
+// Runs in the page: whether one of the texts is of one of the types, by
+// draw.io's own detection. Where the converter has none, any text may be.
+function hasDiagramType(texts, types)
+{
+  var ui = new HeadlessEditorUi();
+
+  if (typeof ui.getMermaidDiagramType !== "function")
+  {
+    return true;
+  }
+
+  return texts.some(function(text)
+  {
+    return types.indexOf(ui.getMermaidDiagramType(text)) >= 0;
+  });
+}
+
 // Runs in the page: the conversion the desktop app's CLI runs (export.js),
 // which loads the diagram's web fonts first, so labels are measured in the
 // font they are drawn in, and then makes the converted cells a page
@@ -469,12 +489,16 @@ async function convertMermaid(texts, options)
       throw new Error("The draw.io converter did not load from " + (options.bundleBase || BUNDLE_BASE));
     }
 
-    // libavoid within ROUTER_TIMEOUT, else none: the converter is loaded,
-    // so a slow or missing router never keeps a diagram from converting
+    // libavoid within ROUTER_TIMEOUT, else none, and only for a run with a
+    // diagram that uses it: the converter is loaded, so a slow or missing
+    // router never keeps a diagram from converting
     try
     {
-      await evaluate(loadOptional, options.bundleBase || BUNDLE_BASE, ROUTER_BUNDLES,
-        options.routerTimeout || ROUTER_TIMEOUT);
+      if (await evaluate(hasDiagramType, texts, ROUTED_TYPES))
+      {
+        await evaluate(loadOptional, options.bundleBase || BUNDLE_BASE, ROUTER_BUNDLES,
+          options.routerTimeout || ROUTER_TIMEOUT);
+      }
     }
     catch (e)
     {
@@ -605,5 +629,6 @@ else
 {
   module.exports = { convertMermaid: convertMermaid, findBrowser: findBrowser, launch: launch,
     openPage: openPage, loadOptional: loadOptional, mermaidLink: mermaidLink,
-    MERMAID_DEFAULTS_VERSION: MERMAID_DEFAULTS_VERSION, ROUTER_BUNDLES: ROUTER_BUNDLES };
+    MERMAID_DEFAULTS_VERSION: MERMAID_DEFAULTS_VERSION, ROUTER_BUNDLES: ROUTER_BUNDLES,
+    ROUTED_TYPES: ROUTED_TYPES };
 }

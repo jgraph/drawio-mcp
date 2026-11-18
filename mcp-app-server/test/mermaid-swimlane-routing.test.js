@@ -60,6 +60,11 @@ const SWIMLANE = "swimlane-beta LR\n" +
   "  Pick --> Ship\n" +
   "  Pay --> Invoice";
 
+// A diagram drawio-mermaid doesn't route: a run with it alone loads no libavoid
+const FLOWCHART = "flowchart LR\n" +
+  "  A[Order] --> B[Pay]\n" +
+  "  B --> C[Ship]";
+
 // The MCP Apps host isn't there: the viewer's App gets nothing from it
 const APP_STUB = "var App = function() {};" +
   "App.prototype.connect = function() { return new Promise(function() {}); };" +
@@ -452,14 +457,24 @@ async function convertAll()
     var unrouted;
     var routedLog;
     var routedStatus;
+    var plain;
+    var plainLog;
     var late;
     var loader;
 
     try
     {
-      routed = (await converter.convertMermaid([SWIMLANE], { browser: browser, bundleBase: mirror.base }))[0];
+      // The swimlane diagram after one that doesn't use libavoid: the run
+      // loads it all the same
+      routed = (await converter.convertMermaid([FLOWCHART, SWIMLANE],
+        { browser: browser, bundleBase: mirror.base }))[1];
       routedLog = mirror.log.slice();
       routedStatus = Object.assign({}, mirror.status);
+
+      // A run without a swimlane diagram
+      plain = (await converter.convertMermaid([FLOWCHART], { browser: browser, bundleBase: mirror.base }))[0];
+      plainLog = mirror.log.slice(routedLog.length);
+
       mirror.withoutRouter = true;
       unrouted = (await converter.convertMermaid([SWIMLANE], { browser: browser, bundleBase: mirror.base }))[0];
       mirror.withoutRouter = false;
@@ -510,7 +525,7 @@ async function convertAll()
       }
 
       return { routed: routed, unrouted: unrouted, late: late, loader: loader, viewer: viewer, drawn: drawn,
-        routedLog: routedLog, routedStatus: routedStatus,
+        routedLog: routedLog, routedStatus: routedStatus, plain: plain, plainLog: plainLog,
         routingBuild: /AvoidRouting/.test(mirror.mermaidJs || "") };
     }
     finally
@@ -550,6 +565,16 @@ test("the plugins' converter loads libavoid after its bundles, from the CDN as d
   {
     assert.equal(results.routedStatus[file], 200, CDN + file);
   });
+});
+
+test("the plugins' converter loads no libavoid for a run without a swimlane diagram", { skip: skip }, function()
+{
+  assert.deepEqual(converter.ROUTED_TYPES, ["swimlane-beta"]);
+  assert.equal(results.plain.error, undefined, results.plain.error);
+  assert.equal(results.plain.type, "flowchart");
+  assert.ok(results.plainLog.indexOf(MERMAID_FILE) >= 0, results.plainLog.join(", "));
+  assert.deepEqual(results.plainLog.filter(function(f) { return f.indexOf("libavoid-js/") === 0; }), [],
+    results.plainLog.join(", "));
 });
 
 test("without libavoid the plugins' converter converts a swimlane diagram as before", { skip: skip }, function()
