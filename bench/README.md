@@ -24,6 +24,8 @@ The bench needs Node 20+, the `claude` CLI (signed in) and `chrome-headless-shel
 
 Output goes to `bench/out/` (ignored), `--out DIR` or `BENCH_OUT`.
 
+`agents/` is a separate measurement across coding agents (Claude Code and Codex CLI, with and without draw.io, and the formats they write themselves against the fast mode), judged by GPT through Codex CLI; it needs `mermaid` from this folder's packages and Graphviz for DOT. Method, results and how to run it in [`agents/README.md`](agents/README.md).
+
 ## Prompts
 
 `prompts.json` has, per prompt: the `type` it measures, a `split` (`dev` or `held-out`), an optional `size` (`large`: 25 to 35 elements) and an `edit`, the follow-up request of the second turn. Layouts are developed on the `dev` prompts only; the `held-out` prompts decide whether a type is switched on, and nobody looks at their renders while changing a layout. Architecture, cloud and network have 14 prompts (8 and 6), swimlanes and flowcharts 13 (7 and 6): the large diagrams lost every judgement of the third measurement, so three large `dev` prompts were added to develop on (a streaming platform, a Google Cloud landing zone, a loan flowchart without lanes). `--type`, `--split`, `--size` and `--prompts` select.
