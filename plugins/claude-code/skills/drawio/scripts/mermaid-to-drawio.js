@@ -25,6 +25,16 @@ var zlib = require("zlib");
 
 var BUNDLE_BASE = "https://viewer.diagrams.net/js/";
 var BUNDLES = ["viewer-static.min.js", "elk/drawio-elk.min.js", "mermaid/drawio-mermaid.min.js"];
+// libavoid as draw.io loads it, the router and then its routing core
+// (globalThis.Avoid, AvoidRouting): drawio-mermaid routes the edges of
+// swimlane diagrams with them. Unless both arrive within ROUTER_TIMEOUT,
+// neither runs, and a diagram converts as before, its swimlane edges as the
+// layout drew them.
+var ROUTER_BUNDLES = ["libavoid-js/libavoid.min.js", "libavoid-js/libavoid-routing.js"];
+var ROUTER_TIMEOUT = 20000;
+// The diagram types drawio-mermaid routes with libavoid. A run without one
+// of them loads no libavoid.
+var ROUTED_TYPES = ["swimlane-beta"];
 var EDITOR_URL = "https://app.diagrams.net/?pv=0&grid=0";
 
 // The defaults of Mermaid 12 (ELK layout, redux theme), as the MCP servers use
@@ -350,6 +360,67 @@ function loadConverter(base, bundles)
   return load(0);
 }
 
+// Runs in the page: loads optional scripts, all of them or none. They are
+// fetched together and run in their order only when every one has arrived
+// within timeout, so a late one never runs between two conversions. Resolves
+// to whether they ran.
+function loadOptional(base, files, timeout)
+{
+  var controller = new AbortController();
+  var timer = setTimeout(function()
+  {
+    controller.abort();
+  }, timeout);
+
+  return Promise.all(files.map(function(file)
+  {
+    return fetch(base + file, { signal: controller.signal }).then(function(res)
+    {
+      if (!res.ok)
+      {
+        throw new Error(res.status + " " + res.url);
+      }
+
+      return res.text();
+    });
+  })).then(function(texts)
+  {
+    clearTimeout(timer);
+
+    texts.forEach(function(text)
+    {
+      var script = document.createElement("script");
+      script.text = text;
+      document.head.appendChild(script);
+    });
+
+    return true;
+  }, function()
+  {
+    clearTimeout(timer);
+    controller.abort();
+
+    return false;
+  });
+}
+
+// Runs in the page: whether one of the texts is of one of the types, by
+// draw.io's own detection. Where the converter has none, any text may be.
+function hasDiagramType(texts, types)
+{
+  var ui = new HeadlessEditorUi();
+
+  if (typeof ui.getMermaidDiagramType !== "function")
+  {
+    return true;
+  }
+
+  return texts.some(function(text)
+  {
+    return types.indexOf(ui.getMermaidDiagramType(text)) >= 0;
+  });
+}
+
 // Runs in the page: the conversion the desktop app's CLI runs (export.js),
 // which loads the diagram's web fonts first, so labels are measured in the
 // font they are drawn in, and then makes the converted cells a page
@@ -373,7 +444,8 @@ function convertInPage(text, version)
 
 // Converts each Mermaid text to draw.io XML (an <mxGraphModel>). Returns
 // [{ type, xml } or { type, error }] in the order of the texts. Throws when no
-// browser is found or the converter can't be loaded.
+// browser is found or the converter can't be loaded. Options: browser,
+// version, and for tests bundleBase and routerTimeout.
 async function convertMermaid(texts, options)
 {
   options = options || {};
@@ -415,6 +487,22 @@ async function convertMermaid(texts, options)
     if (!(await evaluate(loadConverter, options.bundleBase || BUNDLE_BASE, BUNDLES)))
     {
       throw new Error("The draw.io converter did not load from " + (options.bundleBase || BUNDLE_BASE));
+    }
+
+    // libavoid within ROUTER_TIMEOUT, else none, and only for a run with a
+    // diagram that uses it: the converter is loaded, so a slow or missing
+    // router never keeps a diagram from converting
+    try
+    {
+      if (await evaluate(hasDiagramType, texts, ROUTED_TYPES))
+      {
+        await evaluate(loadOptional, options.bundleBase || BUNDLE_BASE, ROUTER_BUNDLES,
+          options.routerTimeout || ROUTER_TIMEOUT);
+      }
+    }
+    catch (e)
+    {
+      // Converted without libavoid, as the layout drew the edges
     }
 
     var results = [];
@@ -540,5 +628,7 @@ if (require.main === module)
 else
 {
   module.exports = { convertMermaid: convertMermaid, findBrowser: findBrowser, launch: launch,
-    openPage: openPage, mermaidLink: mermaidLink, MERMAID_DEFAULTS_VERSION: MERMAID_DEFAULTS_VERSION };
+    openPage: openPage, loadOptional: loadOptional, mermaidLink: mermaidLink,
+    MERMAID_DEFAULTS_VERSION: MERMAID_DEFAULTS_VERSION, ROUTER_BUNDLES: ROUTER_BUNDLES,
+    ROUTED_TYPES: ROUTED_TYPES };
 }
