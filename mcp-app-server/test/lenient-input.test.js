@@ -67,7 +67,9 @@ test("Mermaid passed as xml is drawn as Mermaid, and the model is told", async f
 {
   const result = await call("create_diagram", { xml: mermaid });
 
-  assert.equal(payload(result).mermaid, mermaid);
+  // a flowchart, converted on the server
+  assert.equal(payload(result).converted, "mermaid");
+  assert.match(payload(result).xml, /<mxCell id="A" value="Start"/);
   assert.match(texts(result), /Pass Mermaid as `mermaid`/);
 });
 

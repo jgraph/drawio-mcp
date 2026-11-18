@@ -58,8 +58,9 @@ test("a client that renders the app is told the user already sees the diagram", 
     assert.match(note, /^The user already sees this diagram in the chat, so don't describe or list what it shows\./);
     assert.match(note, /reply in at most two sentences unless the user asked for an explanation/);
     assert.doesNotMatch(note, /link/);
-    // The payload and the note, no link.
-    assert.equal(result.content.length, 2, JSON.stringify(args));
+    // The payload and the note, no link; a Mermaid flowchart, converted on
+    // the server, also says what it got.
+    assert.equal(result.content.length, args.mermaid != null ? 3 : 2, JSON.stringify(args));
   }
 });
 
@@ -67,9 +68,14 @@ test("the payload stays the first text block, where the viewer reads it", async 
 {
   const xmlResult = await callCreate(RENDERS, UI, { xml: xml });
   const mermaidResult = await callCreate(RENDERS, UI, { mermaid: mermaid, postLayout: "elk" });
+  const gantt = "gantt\n  title Plan\n  section A\n  Task :a1, 2024-01-01, 3d";
+  const ganttResult = await callCreate(RENDERS, UI, { mermaid: gantt });
 
   assert.equal(typeof JSON.parse(xmlResult.content[0].text).xml, "string");
-  assert.equal(JSON.parse(mermaidResult.content[0].text).mermaid, mermaid);
+  // a flowchart is converted on the server, a gantt chart in the viewer
+  assert.equal(JSON.parse(mermaidResult.content[0].text).converted, "mermaid");
+  assert.equal(typeof JSON.parse(mermaidResult.content[0].text).xml, "string");
+  assert.equal(JSON.parse(ganttResult.content[0].text).mermaid, gantt);
 });
 
 test("a client that declares nothing gets the note after the link, as a condition", async function()

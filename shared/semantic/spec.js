@@ -62,6 +62,28 @@ function str(v)
 // The start of JSON text: a list of objects, strings or lists, or an object.
 const JSON_START = /^\s*(?:\[\s*(?:[{"\[\]]|$)|\{\s*(?:["}]|$))/;
 
+// A size a converter gives a shape (0: from the text)
+function size(v)
+{
+  const n = Number(v);
+
+  return (isFinite(n) && n > 0 && n <= 2000) ? n : 0;
+}
+
+/**
+ * Style keys as the engine adds them to a cell's style: `key=value;` pairs,
+ * nothing that could leave the attribute.
+ *
+ * @param {*} v
+ * @returns {string}
+ */
+function styleText(v)
+{
+  const s = (typeof v === "string") ? v.replace(/[<>"\n\r]/g, "").trim() : "";
+
+  return (s === "" || s.endsWith(";")) ? s : s + ";";
+}
+
 // A list: an array, one item, or a string with `|` or line breaks between
 // the items. A string that is JSON (models send `nodes` and `edges` as JSON
 // text, which the app server parses too) is read as JSON; one that starts
@@ -160,8 +182,11 @@ export function fieldText(f)
 
 /**
  * @param {object|string} input - the description, or its JSON text
- * @param {{hints?: boolean}} [options] - hints: false drops the placement
- *   hints (row, col) of nodes and groups
+ * @param {{hints?: boolean, styles?: boolean}} [options] - hints: false drops
+ *   the placement hints (row, col) of nodes and groups; styles: true keeps
+ *   the `style` of nodes, groups and edges (draw.io style keys the engine
+ *   adds to its own, for the converters of shared/convert; the tool's
+ *   description and schema never offer it)
  * @returns {{diagram: object|null, warnings: string[], error: string|null, inUnknownGroup?: number}}
  *   inUnknownGroup: how many nodes name a group the description doesn't
  *   declare (their group is "" in the diagram)
@@ -169,6 +194,7 @@ export function fieldText(f)
 export function normalizeSpec(input, options)
 {
   const hints = !(options != null && options.hints === false);
+  const styles = options != null && options.styles === true;
   const warnings = [];
   let spec = input;
 
@@ -227,7 +253,8 @@ export function normalizeSpec(input, options)
     groupIds.add(id);
     groups.push({ id: id, label: str(g.label) || id, kind: str(g.kind).toLowerCase() || (entry.lane ? "lane" : ""),
       parent: str(g.parent != null ? g.parent : g.group), icon: str(g.icon),
-      row: hints ? ordinal(g.row) : null, col: hints ? ordinal(g.col != null ? g.col : g.column) : null });
+      row: hints ? ordinal(g.row) : null, col: hints ? ordinal(g.col != null ? g.col : g.column) : null,
+      style: styles ? styleText(g.style) : "" });
   }
 
   for (const g of groups)
@@ -267,7 +294,10 @@ export function normalizeSpec(input, options)
 
     nodes.push({
       id: id,
-      label: str(node.label) || id,
+      // with styles, a label of spaces is no label (a converter's start dot
+      // or fork bar); otherwise a node without one shows its id
+      label: (styles && typeof node.label === "string" && node.label !== "" && node.label.trim() === "") ? "" :
+        (str(node.label) || id),
       kind: str(node.kind).toLowerCase(),
       sub: str(node.sub),
       icon: str(node.icon),
@@ -276,7 +306,11 @@ export function normalizeSpec(input, options)
       row: hints ? ordinal(node.row) : null,
       col: hints ? ordinal(node.col != null ? node.col : node.column) : null,
       fields: readList(node.fields).map(fieldText).filter(function(s) { return s !== ""; }),
-      methods: readList(node.methods).map(fieldText).filter(function(s) { return s !== ""; })
+      methods: readList(node.methods).map(fieldText).filter(function(s) { return s !== ""; }),
+      style: styles ? styleText(node.style) : "",
+      // a size of its own, with styles (a converter's fork bar)
+      width: styles ? size(node.width) : 0,
+      height: styles ? size(node.height) : 0
     });
   }
 
@@ -308,7 +342,8 @@ export function normalizeSpec(input, options)
       fromCard: str(e.fromCard),
       toCard: str(e.toCard),
       fromField: str(e.fromField),
-      toField: str(e.toField)
+      toField: str(e.toField),
+      style: styles ? styleText(e.style) : ""
     });
   }
 

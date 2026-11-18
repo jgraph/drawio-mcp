@@ -469,6 +469,41 @@ function bundleEdges(d, links, fan)
 
 // ─── Cells ───────────────────────────────────────────────────────
 
+/**
+ * A style with the keys of another one set in place (a key of `extra` that
+ * `style` has replaces its value there, the others are appended).
+ *
+ * @param {string} style
+ * @param {string} extra
+ * @returns {string}
+ */
+function mergeStyle(style, extra)
+{
+  const parts = style.split(";").filter(function(p) { return p !== ""; });
+
+  extra.split(";").forEach(function(p)
+  {
+    if (p === "")
+    {
+      return;
+    }
+
+    const key = p.indexOf("=") >= 0 ? p.substring(0, p.indexOf("=")) : p;
+    const at = parts.findIndex(function(q) { return (q.indexOf("=") >= 0 ? q.substring(0, q.indexOf("=")) : q) === key; });
+
+    if (at >= 0)
+    {
+      parts[at] = p;
+    }
+    else
+    {
+      parts.push(p);
+    }
+  });
+
+  return parts.join(";") + ";";
+}
+
 function hintKeys(item)
 {
   return (item.row != null ? "row=" + item.row + ";" : "") + (item.col != null ? "col=" + item.col + ";" : "");
@@ -484,6 +519,13 @@ function cellXml(c)
   {
     return head + ' edge="1" parent="' + escapeXml(c.parent || "1") + '" source="' + escapeXml(c.source) +
       '" target="' + escapeXml(c.target) + '"/>';
+  }
+
+  // a size of its own (a converter's fork bar): placed, but not sized
+  if (c.width > 0 && c.height > 0)
+  {
+    return head + ' vertex="1" parent="' + escapeXml(c.parent || "1") + '"><mxGeometry width="' + c.width +
+      '" height="' + c.height + '" as="geometry"/></mxCell>';
   }
 
   return head + ' vertex="1" parent="' + escapeXml(c.parent || "1") + '"/>';
@@ -581,7 +623,7 @@ export function compactXml(d, kind)
     }
 
     cells.push({ id: id, value: htmlLabel(g.label), parent: g.parent !== "" ? idOf.get(g.parent) : "1",
-      style: style + "fontSize=" + font.shape + ";" + hintKeys(g) });
+      style: style + (g.style || "") + "fontSize=" + font.shape + ";" + hintKeys(g) });
   }
 
   for (const n of d.nodes)
@@ -637,8 +679,11 @@ export function compactXml(d, kind)
       }
     }
 
+    // Keys of the node's own (a converter's shape or colors) win over the
+    // role's, as in the shorthand: diagram-shorthand.js expands the role
+    // around them.
     cells.push({ id: id, value: labelValue(n.label, n.sub, font.shape, wrapAt), parent: parent,
-      style: style + "fontSize=" + font.shape + ";" + hintKeys(n) });
+      style: style + (n.style || "") + "fontSize=" + font.shape + ";" + hintKeys(n), width: n.width, height: n.height });
   }
 
   const edgeStyle = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=" + EDGE.stroke + ";fontColor=" +
@@ -671,6 +716,11 @@ export function compactXml(d, kind)
     if (kind.flow && e.label !== "" && (isYes(e.label) || isNo(e.label)))
     {
       style += "fontColor=" + (isYes(e.label) ? YES_COLOR : NO_COLOR) + ";";
+    }
+
+    if (e.style)
+    {
+      style = mergeStyle(style, e.style);
     }
 
     cells.push({ id: ids.take(e.from + "-" + e.to), value: htmlLabel(e.label), style: style, edge: true, parent: "1",

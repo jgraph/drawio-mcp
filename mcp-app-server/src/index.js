@@ -11,7 +11,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { readReference } from "./references.js";
-import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState, resolveSemanticTypes } from "./shared.js";
+import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, createServer, clientUiState, resolveSemanticTypes, resolveConvertFormats } from "./shared.js";
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
@@ -199,19 +199,28 @@ const drawioBaseUrl = process.env.DRAWIO_BASE_URL;
 // offered, the viewer gets the engine for its preview while a description
 // streams in.
 const semanticTypes = resolveSemanticTypes(process.env.DRAWIO_SEMANTIC_TYPES);
-const semanticJs = semanticTypes.length > 0 ? bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
+// The formats create_diagram converts into draw.io cells on the server
+// (shared/convert): unset all of them, "off" none (the viewer converts every
+// source with draw.io's own converters, as before), or a comma list of
+// mermaid, plantuml and csv. The viewer previews them with the same
+// conversion, from the engine script.
+const convertFormats = resolveConvertFormats(process.env.DRAWIO_CONVERT);
+const semanticJs = (semanticTypes.length > 0 || convertFormats.length > 0) ?
+  bundleSemanticEngine({ externals: VIEWER_GLOBALS }) : null;
 
 if (semanticTypes.length > 0)
 {
   console.error("Semantic diagram types: " + semanticTypes.join(", "));
 }
 
+console.error("Converted on the server: " + (convertFormats.length > 0 ? convertFormats.join(", ") : "none"));
+
 // Pre-build the HTML once. The buildId is baked into the HTML so the
 // iframe exposes it via window.__DRAWIO_BUILD (visible in DevTools).
 // `let` — the daily libavoid version check rebuilds it in place (each
 // /mcp request creates its McpServer from the current value).
 let html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl, semanticJs, plantumlJs });
+  { viewerJs, elkJs, buildId, libavoidUrls: libavoidScriptUrls, libavoidJs, drawioBaseUrl, semanticJs, plantumlJs, convertFormats });
 
 // --- Sessions ---
 
@@ -315,7 +324,7 @@ async function startStreamableHTTPServer()
       {
         libavoidScriptUrls = urls;
         html = buildHtml(appWithDepsJs, pakoDeflateJs, mermaidJs,
-          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl, semanticJs, plantumlJs });
+          { viewerJs, elkJs, buildId, libavoidUrls: urls, libavoidJs, drawioBaseUrl, semanticJs, plantumlJs, convertFormats });
         console.log("libavoid CDN versions changed; HTML rebuilt");
       }
     }
@@ -377,6 +386,7 @@ async function startStreamableHTTPServer()
       buildId,
       drawioBaseUrl,
       semanticTypes,
+      convertFormats,
       uiSession: session != null ? uiSessionFor(session) : null,
     });
 
@@ -430,7 +440,7 @@ async function startStreamableHTTPServer()
 
 async function startStdioServer()
 {
-  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl, semanticTypes }).connect(new StdioServerTransport());
+  await createServer(html, { domain: process.env.DOMAIN, xmlReference, mermaidReference, shapeIndex, iconServiceUrl, buildId, drawioBaseUrl, semanticTypes, convertFormats }).connect(new StdioServerTransport());
 }
 
 async function main()

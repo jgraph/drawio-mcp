@@ -6,7 +6,7 @@
 //
 // A bundler for this code only: every module becomes a function that returns
 // its exports, run in dependency order, and the script defines one global,
-// DrawioSemantic ({semanticToXml, SUPPORTED_TYPES}). It reads the subset of
+// DrawioSemantic ({semanticToXml, SUPPORTED_TYPES, convertSource, …}). It reads the subset of
 // module syntax the engine is written in: single-line named imports of
 // relative paths, `export` in front of a function, class, const, let or var,
 // and `export { a, b };`. Anything else throws, so a new construct fails the
@@ -28,6 +28,10 @@ import { fileURLToPath } from "node:url";
 
 const SHARED = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "shared");
 const ENTRY = path.join(SHARED, "semantic", "index.js");
+// The converters of Mermaid, PlantUML and CSV (shared/convert), which the
+// viewer runs for its preview of a diagram the server converts: their
+// exports are DrawioSemantic's too.
+const CONVERT_ENTRY = path.join(SHARED, "convert", "index.js");
 
 /**
  * The shared modules the viewer's script defines as globals (buildHtml in
@@ -163,6 +167,7 @@ export function bundleSemanticEngine(options)
   };
 
   visit(ENTRY, []);
+  visit(CONVERT_ENTRY, []);
 
   const parts = ["var DrawioSemantic = (function()", "{", "\"use strict\";", "var __modules = {};"];
 
@@ -178,7 +183,8 @@ export function bundleSemanticEngine(options)
       "return { " + m.exports.map(function(n) { return n + ": " + n; }).join(", ") + " };", "})();");
   }
 
-  parts.push("return __modules[" + JSON.stringify(key(ENTRY)) + "];", "})();");
+  parts.push("return Object.assign({}, __modules[" + JSON.stringify(key(ENTRY)) + "], __modules[" +
+    JSON.stringify(key(CONVERT_ENTRY)) + "]);", "})();");
 
   // The script goes into the HTML inline: no "</script" may end it early.
   return parts.join("\n").replace(/<\/script/gi, "<\\/script");
