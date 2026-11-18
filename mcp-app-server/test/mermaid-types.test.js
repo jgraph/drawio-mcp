@@ -425,6 +425,43 @@ function viewerConvert(texts)
   });
 }
 
+// Streamed Mermaid whose last partial is the final text: the preview's parse
+// of it, then the final conversion, as a host that streams the input does
+const STREAM_CASES = [
+  // The last line comes with the final text: the preview drops it
+  { name: "last line", text: "flowchart TD\n  A[Alpha] --> B[Beta]\n  B --> C[Gamma]" },
+  // Only a newline after the last line: the preview's parse is reused
+  { name: "newline", text: "flowchart TD\n  D[Delta] --> E[Epsilon]\n" },
+  // A statement the parser doesn't know: nothing to draw
+  { name: "empty", text: "classDiagram\n  ???\n" }
+];
+
+// Runs in the app's page, after viewerConvert has loaded the fonts
+function viewerStream(cases)
+{
+  var results = [];
+  var chain = Promise.resolve();
+
+  cases.forEach(function(c)
+  {
+    chain = chain.then(function()
+    {
+      handleMermaidPartial(c.text);
+      var reused = lastConvertedMermaidText === c.text;
+
+      return convertMermaidToXml(c.text).then(function(xml)
+      {
+        results.push({ xml: xml, reused: reused });
+      }, function(e)
+      {
+        results.push({ error: e.message, reused: reused });
+      });
+    });
+  });
+
+  return chain.then(function() { return results; });
+}
+
 // Until the app's page (not the blank one before it) has loaded
 async function pageLoaded(evaluate)
 {
@@ -500,6 +537,7 @@ async function convertAll()
 
     var cdp = converter.launch(browser);
     var viewer;
+    var stream;
 
     try
     {
@@ -527,6 +565,7 @@ async function convertAll()
       // that has to wait for the diagram's font
       var classText = TYPES.find(function(t) { return t.type === "class"; }).mermaid;
       viewer = await evaluate(viewerConvert, [classText].concat(texts));
+      stream = viewer != null ? await evaluate(viewerStream, STREAM_CASES) : null;
     }
     finally
     {
@@ -539,7 +578,7 @@ async function convertAll()
     }
 
     return { plugin: plugin.slice(0, texts.length), examples: plugin.slice(texts.length),
-      firstViewer: viewer[0], viewer: viewer.slice(1), exampleTexts: examples };
+      firstViewer: viewer[0], viewer: viewer.slice(1), exampleTexts: examples, stream: stream };
   }
   finally
   {
@@ -651,6 +690,28 @@ test("a Mermaid diagram without cells is an error in the viewer", { skip: skip }
   var source = fs.readFileSync(new URL("../src/shared.js", import.meta.url), "utf-8");
 
   assert.match(source, /if \(!mermaidXmlHasCells\(xml\)\)\s*\{\s*return Promise\.reject\(new Error\(MERMAID_NOTHING_TO_DRAW\)\);/);
+});
+
+test("a streamed Mermaid diagram ends as the final text, not as the preview's parse", { skip: skip }, function()
+{
+  var byName = {};
+
+  STREAM_CASES.forEach(function(c, i)
+  {
+    byName[c.name] = results.stream[i];
+  });
+
+  // The preview parsed the text without its last line
+  assert.equal(byName["last line"].reused, false);
+  assert.equal(byName["last line"].error, undefined, byName["last line"].error);
+  assert.match(byName["last line"].xml, /Gamma/);
+
+  assert.equal(byName.newline.reused, true);
+  assert.match(byName.newline.xml, /Epsilon/);
+
+  // A preview without cells isn't kept, so the final conversion says so
+  assert.equal(byName.empty.reused, false);
+  assert.match(byName.empty.error || "", /^Nothing to draw/);
 });
 
 test("write the report", { skip: !process.env.MERMAID_TYPES_REPORT || skip }, function()

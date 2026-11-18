@@ -8719,8 +8719,15 @@ function handleMermaidPartial(partialMermaid)
 
   // Pre-populate the convertMermaidToXml cache so finalize doesn't
   // re-parse this text. The finalize call passes the raw partial text
-  // (args.mermaid), which usually equals the last streamed partial.
-  rememberMermaidConversion(partialMermaid, xml, fontsReady);
+  // (args.mermaid), which usually equals the last streamed partial. The XML
+  // is the conversion of healed, without the text after the last newline, so
+  // it stands for partialMermaid only when that rest is blank. A conversion
+  // without cells is not kept, so the final one says there is nothing to draw.
+  if (/^\\s*$/.test(partialMermaid.substring(healed.length)) &&
+      mermaidXmlHasCells(xml))
+  {
+    rememberMermaidConversion(partialMermaid, xml, fontsReady);
+  }
 
   // Hand off to the same merge pipeline used by XML streaming.
   try
