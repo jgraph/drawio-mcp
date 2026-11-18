@@ -71,6 +71,21 @@ test("Mermaid passed as xml is drawn as Mermaid, and the model is told", async f
   assert.match(texts(result), /Pass Mermaid as `mermaid`/);
 });
 
+test("the headers draw.io converts that the reference doesn't teach are Mermaid too", async function()
+{
+  const headers = ["swimlane-beta LR", "usecase-beta", "agentflow-beta TB", "cynefin-beta",
+    "railroad-beta", "railroad-ebnf-beta", "railroad-abnf-beta", "railroad-peg-beta",
+    "eventmodeling-beta", "flowchart-elk TD"];
+
+  for (const header of headers)
+  {
+    const text = header + "\n  A --> B";
+    const result = await call("create_diagram", { xml: text });
+
+    assert.equal(payload(result).mermaid, text, header);
+  }
+});
+
 test("draw.io XML passed as mermaid is drawn as XML, and the model is told", async function()
 {
   const result = await call("create_diagram", { mermaid: xml });

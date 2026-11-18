@@ -1,8 +1,7 @@
 # Draw.io Plugin for GitHub Copilot
 
 A [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) plugin that
-generates native `.drawio` files. Copilot authors each diagram as **Mermaid** (converted and
-laid out by the draw.io desktop CLI) or as **draw.io XML** directly — with optional **ELK
+generates native `.drawio` files. Copilot authors each diagram as **Mermaid** (converted to editable draw.io shapes and laid out by the draw.io desktop CLI or, without it, by draw.io's converter in a headless Chrome, Edge or Chromium) or as **draw.io XML** directly — with optional **ELK
 auto-layout** for XML, export to PNG/SVG/PDF (with embedded XML so the file remains editable
 in draw.io), or a browser URL that opens the diagram directly in `app.diagrams.net`. No MCP
 setup required.
@@ -16,11 +15,9 @@ differs — the draw.io guidance itself is the shared single source of truth in
 
 When you ask Copilot to create a diagram, it will:
 
-1. Choose how to author it — **Mermaid** for standard types (flowchart, sequence, class,
-   state, ER, gantt, mindmap…) when the desktop app is installed, or **draw.io XML** for
-   custom styling, precise positioning, specific shape libraries, or when no desktop app is
-   present
-2. Produce a native `.drawio` file — convert the Mermaid with the desktop CLI, or write the
+1. Choose how to author it — **Mermaid** for standard types (flowchart, sequence, class, state, ER, gantt, mindmap…), or **draw.io XML** for
+   custom styling, precise positioning, specific shape libraries, or when nothing can convert Mermaid
+2. Produce a native `.drawio` file — convert the Mermaid with the desktop CLI (without it, with the bundled `scripts/mermaid-to-drawio.js`), or write the
    XML directly (optionally running an ELK `--layout` pass so you don't hand-place cells)
 3. Handle the requested output:
    - PNG / SVG / PDF — export using the draw.io desktop CLI
@@ -33,9 +30,7 @@ When you ask Copilot to create a diagram, it will:
 ## Prerequisites
 
 - [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) installed
-- [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases) installed — required
-  for Mermaid conversion, ELK layout, and PNG/SVG/PDF export. Not needed for plain XML
-  `.drawio` or `url` output, which Copilot can produce with no desktop app
+- [draw.io Desktop](https://github.com/jgraph/drawio-desktop/releases) installed — required for ELK layout and PNG/SVG/PDF export. Not needed for `.drawio` or `url` output: without it, Mermaid is converted in an installed Chrome, Edge or Chromium (or opened as a link that draw.io converts in the browser), and XML needs nothing, which Copilot can produce with no desktop app
 
 ## Installation
 

@@ -1,14 +1,15 @@
 # Copilot Plugin: drawio
 
 A GitHub Copilot CLI plugin that ships the `drawio` skill: it generates native `.drawio`
-files, authored either as Mermaid (converted + laid out by the draw.io desktop CLI) or as
+files, authored either as Mermaid (converted + laid out by the draw.io desktop CLI, or without it by
+`scripts/mermaid-to-drawio.js` in a headless Chrome, Edge or Chromium) or as
 draw.io XML directly, with optional ELK `--layout` for XML, export to PNG/SVG/PDF (with
 embedded XML) via the desktop CLI, or a browser URL that opens the diagram directly at
 `app.diagrams.net`. No MCP server required.
 
 This is the Copilot counterpart of the [Claude Code plugin](../claude-code/README.md). The
 skill body is host-agnostic — it drives the draw.io Desktop CLI directly — so
-`skills/drawio/` (`SKILL.md` and `scripts/find-shapes.js`) is kept **byte-identical** to the
+`skills/drawio/` (`SKILL.md` and `scripts/`) is kept **byte-identical** to the
 Claude plugin's copy. That includes the `/drawio:drawio` lines in its examples section: those are model-facing
 (request → output mapping), while the user-facing explicit command in Copilot is plain
 `/drawio` — Copilot does not prefix skills with the plugin name. Only the host wrapping
@@ -22,6 +23,7 @@ marketplace manifest location and schema.
 | `plugin.json` | Copilot plugin manifest at the plugin root — name, version, description, author, license, keywords, and the `skills` directory list |
 | `skills/drawio/SKILL.md` | The skill itself (its frontmatter `name` becomes the `/drawio` command); byte-identical to the Claude plugin's copy |
 | `skills/drawio/scripts/find-shapes.js` | The shape and icon lookup the skill runs; byte-identical to the Claude plugin's copy |
+| `skills/drawio/scripts/mermaid-to-drawio.js` | Mermaid to `.drawio` without draw.io Desktop, in a headless Chrome, Edge or Chromium; byte-identical to the Claude plugin's copy |
 | `README.md` | Installation and usage documentation |
 | `../../.github/plugin/marketplace.json` | Copilot marketplace manifest at the repo root; lists this plugin with `source: "./plugins/copilot"` |
 
@@ -33,7 +35,7 @@ Codex), so this directory is itself the plugin root — the same shape as `claud
 ```
 plugins/copilot/        ← Copilot plugin root
 ├── plugin.json
-├── skills/drawio/SKILL.md, scripts/find-shapes.js
+├── skills/drawio/SKILL.md, scripts/find-shapes.js, scripts/mermaid-to-drawio.js
 ├── README.md
 └── DEVELOPING.md
 ```
