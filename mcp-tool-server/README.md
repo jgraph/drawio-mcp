@@ -141,6 +141,16 @@ The tools are available on the next start; ask the agent to create a diagram and
 
 > **Tip:** OpenCode also loads the `drawio` *skill* (native `.drawio` files, PNG/SVG/PDF export) without any plugin wrapper — see the [plugins README](../plugins/README.md#opencode-no-plugin-needed).
 
+### Gemini CLI
+
+The repository is a Gemini CLI extension ([`gemini-extension.json`](../gemini-extension.json) at its root), which runs this server through `npx`:
+
+```bash
+gemini extensions install https://github.com/jgraph/drawio-mcp
+```
+
+`gemini mcp list` shows the server as `drawio`; ask for a diagram and it opens in the draw.io editor in your browser. `gemini extensions update drawio` picks up a changed manifest; the server itself is always the latest `@drawio/mcp`.
+
 ### Other MCP Clients
 
 Configure your MCP client to run the server via stdio:

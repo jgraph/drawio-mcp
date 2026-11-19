@@ -17,7 +17,7 @@ This repository offers four approaches for integrating draw.io with AI assistant
 | **Requires installation** | No (hosted at `mcp.draw.io`) | Yes (npm package) | One-line plugin install (draw.io Desktop only for PNG/SVG/PDF export) | No — just paste instructions |
 | **Supports XML, CSV, Mermaid** | ✅ All three, and PlantUML | ✅ All three | XML and Mermaid (Mermaid converted by draw.io Desktop or an installed Chrome, Edge or Chromium) | ✅ All three |
 | **Editable in draw.io** | Via "Open in draw.io" button | ✅ Directly | ✅ Directly | Via link |
-| **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, GitHub Copilot CLI, any MCP Apps host | Claude Desktop, Cursor, OpenCode, any MCP client | Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity, OpenCode | Claude.ai (with Projects) |
+| **Works with** | Claude.ai, ChatGPT, VS Code, Cursor, GitHub Copilot CLI, any MCP Apps host | Claude Desktop, Cursor, OpenCode, Gemini CLI, any MCP client | Claude Code, Codex CLI, GitHub Copilot, Cursor, Antigravity, OpenCode | Claude.ai (with Projects) |
 | **Best for** | Inline previews in chat | Local desktop workflows | Local development workflows | Quick setup, no install needed |
 
 ### Mermaid in, editable draw.io out
@@ -128,7 +128,7 @@ The original MCP server that opens diagrams directly in the draw.io editor. Supp
 
 Quick start: `npx @drawio/mcp`
 
-Setup instructions are available for Claude Desktop, Claude Code, VS Code (GitHub Copilot), Cursor (with one-click install), and OpenCode.
+Setup instructions are available for Claude Desktop, Claude Code, VS Code (GitHub Copilot), Cursor (with one-click install), OpenCode, and Gemini CLI (as an extension of this repository).
 
 **[Full documentation →](mcp-tool-server/README.md)**
 

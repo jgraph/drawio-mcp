@@ -1,0 +1,11 @@
+{
+  "name": "drawio",
+  "version": "1.0.0",
+  "description": "Create draw.io diagrams from XML, Mermaid or CSV and open them in the draw.io editor in your browser.",
+  "mcpServers": {
+    "drawio": {
+      "command": "npx",
+      "args": ["-y", "@drawio/mcp"]
+    }
+  }
+}
