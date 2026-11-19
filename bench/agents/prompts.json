@@ -1,0 +1,42 @@
+{
+ "flow-ticket": {
+  "type": "flowchart",
+  "prompt": "Make me a flowchart of how a support ticket is handled: it arrives, gets triaged by priority, urgent tickets page the on-call engineer and the others go to the queue; if the fix needs a code change it goes through code review and a deploy, otherwise the agent replies; the ticket is closed when the customer confirms, or reopened when the customer says it isn't fixed."
+ },
+ "flow-checkout": {
+  "type": "flowchart",
+  "prompt": "Make me a flowchart of an online checkout: review the cart, sign in or continue as a guest, enter the shipping address, choose a delivery option, pay; if the payment fails the customer can retry up to three times or pick another payment method, and after a success the shop shows a confirmation and sends an email."
+ },
+ "lanes-hiring": {
+  "type": "swimlane",
+  "prompt": "Make me a swimlane diagram of a job application with lanes for Candidate, Recruiter, Hiring Manager and HR: the application, screening, interview, decision, offer, background check and contract, with the paths where the candidate is rejected or declines the offer."
+ },
+ "lanes-restaurant": {
+  "type": "swimlane",
+  "prompt": "Make me a swimlane diagram of an order in a restaurant with lanes for Guest, Waiter, Kitchen and Cashier, from ordering to paying, including the case where the guest sends a dish back to the kitchen."
+ },
+ "arch-rides": {
+  "type": "architecture",
+  "prompt": "Make me an architecture diagram of a ride-sharing backend on Azure: rider and driver apps, Azure Front Door, API Management, an AKS cluster with rider, driver, trip and payment services, Cosmos DB for trips, Azure SQL for payments, Service Bus between the services, Event Hubs feeding Stream Analytics for live pricing, Azure Cache for Redis, Blob Storage for receipts, and Entra ID for sign-in."
+ },
+ "arch-banking": {
+  "type": "architecture",
+  "prompt": "Make me an architecture diagram of the backend of a mobile banking app: the mobile app, an API gateway, an auth service, accounts, transfers and notifications services, a message broker between them, the core banking system, a fraud detection service that checks every transfer, a PostgreSQL database per service, and a data warehouse fed by change data capture."
+ },
+ "seq-reset": {
+  "type": "sequence",
+  "prompt": "Make me a sequence diagram of a user resetting a forgotten password, between User, Web App, Auth Service, Database and Email Service: the reset request, a token stored with an expiry, the email with the link, the user setting a new password, the token checked and invalidated, and the case where the token has expired."
+ },
+ "seq-delivery": {
+  "type": "sequence",
+  "prompt": "Make me a sequence diagram of ordering food in a delivery app, between Customer, App, Order Service, Restaurant, Payment Provider and Courier: the payment authorized, the restaurant accepting or rejecting the order, a courier assigned, pickup and delivery, and the refund when the restaurant rejects."
+ },
+ "er-rental": {
+  "type": "er",
+  "prompt": "Make me an ER diagram for a car rental company: customers, driver licenses, branches, cars (each belongs to a branch), car models, reservations, rentals with a pickup and a return branch, payments and damage reports. Show primary and foreign keys."
+ },
+ "er-learning": {
+  "type": "er",
+  "prompt": "Make me an ER diagram for an online learning platform: users, courses, instructors (many-to-many with courses), modules with lessons, enrollments, the progress of each user in each lesson, quizzes with questions and answer options, and certificates. Show primary and foreign keys."
+ }
+}

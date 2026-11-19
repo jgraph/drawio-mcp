@@ -1,0 +1,1329 @@
+{
+ "generated": "2026-11-18T09:55:49.116Z",
+ "sessions": 354,
+ "dates": [
+  "2026-11-18"
+ ],
+ "agents": [
+  {
+   "agent": "claude-sonnet",
+   "label": "Claude Code, Sonnet",
+   "model": "claude-sonnet-5-5",
+   "version": "2.1.322"
+  },
+  {
+   "agent": "claude-opus",
+   "label": "Claude Code, Opus",
+   "model": "claude-opus-5-5",
+   "version": "2.1.322"
+  },
+  {
+   "agent": "codex",
+   "label": "Codex CLI",
+   "model": "gpt-6.1-sol",
+   "effort": "medium",
+   "version": null
+  }
+ ],
+ "plain": [
+  {
+   "agent": "claude-sonnet",
+   "condition": "plain",
+   "sessions": 10,
+   "diagrams": 10,
+   "formats": {
+    "drawio": 8,
+    "mermaid": 2
+   },
+   "drawio": 0.8,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 38.8,
+   "wallSecs": 42.9,
+   "outputTokens": 6361,
+   "diagramChars": 9260,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.99,
+   "attached": 0.85,
+   "positions": 0.8,
+   "findings": 2.2,
+   "viewerIssues": 3,
+   "judge": null
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "plain",
+   "sessions": 10,
+   "diagrams": 10,
+   "formats": {
+    "drawio": 10
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 86.1,
+   "wallSecs": 103.9,
+   "outputTokens": 9955,
+   "diagramChars": 10912,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.97,
+   "attached": 0.72,
+   "positions": 1,
+   "findings": 0.2,
+   "viewerIssues": 0.5,
+   "judge": null
+  },
+  {
+   "agent": "codex",
+   "condition": "plain",
+   "sessions": 10,
+   "diagrams": 10,
+   "formats": {
+    "drawio": 9,
+    "mermaid": 1
+   },
+   "drawio": 0.9,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 124.6,
+   "wallSecs": 130.9,
+   "outputTokens": 5750,
+   "diagramChars": 15012,
+   "timeouts": 0,
+   "parses": 0.9,
+   "renders": 0.9,
+   "valid": 0.9,
+   "labelsInShapes": 0.72,
+   "attached": 0.54,
+   "positions": 1,
+   "findings": 0.44,
+   "viewerIssues": 0.89,
+   "judge": null
+  }
+ ],
+ "plainByType": [
+  {
+   "agent": "claude-sonnet",
+   "byType": {
+    "architecture": {
+     "drawio": 2
+    },
+    "er": {
+     "mermaid": 1,
+     "drawio": 1
+    },
+    "flowchart": {
+     "drawio": 2
+    },
+    "swimlane": {
+     "drawio": 2
+    },
+    "sequence": {
+     "mermaid": 1,
+     "drawio": 1
+    }
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "byType": {
+    "architecture": {
+     "drawio": 2
+    },
+    "er": {
+     "drawio": 2
+    },
+    "flowchart": {
+     "drawio": 2
+    },
+    "swimlane": {
+     "drawio": 2
+    },
+    "sequence": {
+     "drawio": 2
+    }
+   }
+  },
+  {
+   "agent": "codex",
+   "byType": {
+    "architecture": {
+     "drawio": 2
+    },
+    "er": {
+     "drawio": 2
+    },
+    "flowchart": {
+     "drawio": 2
+    },
+    "swimlane": {
+     "drawio": 2
+    },
+    "sequence": {
+     "drawio": 1,
+     "mermaid": 1
+    }
+   }
+  }
+ ],
+ "help": [
+  {
+   "agent": "claude-sonnet",
+   "condition": "plain",
+   "sessions": 10,
+   "diagrams": 10,
+   "formats": {
+    "drawio": 8,
+    "mermaid": 2
+   },
+   "drawio": 0.8,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 38.8,
+   "wallSecs": 42.9,
+   "outputTokens": 6361,
+   "diagramChars": 9260,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.99,
+   "attached": 0.85,
+   "positions": 0.8,
+   "findings": 2.2,
+   "viewerIssues": 3,
+   "judge": {
+    "judgements": 20,
+    "overall": 3.9,
+    "first": 0.25,
+    "content": 4.7,
+    "layout": 3.85,
+    "readability": 4.05
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "mcp",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio-mcp": 20
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 56.2,
+   "wallSecs": 59,
+   "outputTokens": 9195,
+   "diagramChars": 7647,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.96,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.35,
+   "viewerIssues": 0.95,
+   "judge": {
+    "judgements": 20,
+    "overall": 4.4,
+    "first": 0.55,
+    "content": 4.95,
+    "layout": 4.1,
+    "readability": 4.8
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "plugin",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio": 20
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 1,
+   "diagramSecs": 31.8,
+   "wallSecs": 37,
+   "outputTokens": 5152,
+   "diagramChars": 9377,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.98,
+   "attached": 0.67,
+   "positions": 1,
+   "findings": 4.4,
+   "viewerIssues": 3.45,
+   "judge": {
+    "judgements": 20,
+    "overall": 3.2,
+    "first": 0.2,
+    "content": 4.2,
+    "layout": 3,
+    "readability": 3.55
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "plain",
+   "sessions": 10,
+   "diagrams": 10,
+   "formats": {
+    "drawio": 10
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 86.1,
+   "wallSecs": 103.9,
+   "outputTokens": 9955,
+   "diagramChars": 10912,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.97,
+   "attached": 0.72,
+   "positions": 1,
+   "findings": 0.2,
+   "viewerIssues": 0.5,
+   "judge": {
+    "judgements": 20,
+    "overall": 4.65,
+    "first": 0.7,
+    "content": 5,
+    "layout": 4.55,
+    "readability": 4.35
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "mcp",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio-mcp": 20
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 94.4,
+   "wallSecs": 136.4,
+   "outputTokens": 12021,
+   "diagramChars": 9012,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.95,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.35,
+   "viewerIssues": 1.95,
+   "judge": {
+    "judgements": 20,
+    "overall": 3.7,
+    "first": 0.1,
+    "content": 4.7,
+    "layout": 3.55,
+    "readability": 4.3
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "plugin",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio": 20
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 1,
+   "diagramSecs": 65.1,
+   "wallSecs": 79.1,
+   "outputTokens": 7547,
+   "diagramChars": 10706,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.97,
+   "attached": 0.7,
+   "positions": 1,
+   "findings": 0.1,
+   "viewerIssues": 0.4,
+   "judge": {
+    "judgements": 20,
+    "overall": 3.7,
+    "first": 0.2,
+    "content": 4.95,
+    "layout": 3.85,
+    "readability": 3.6
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "plain",
+   "sessions": 10,
+   "diagrams": 10,
+   "formats": {
+    "drawio": 9,
+    "mermaid": 1
+   },
+   "drawio": 0.9,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 124.6,
+   "wallSecs": 130.9,
+   "outputTokens": 5750,
+   "diagramChars": 15012,
+   "timeouts": 0,
+   "parses": 0.9,
+   "renders": 0.9,
+   "valid": 0.9,
+   "labelsInShapes": 0.72,
+   "attached": 0.54,
+   "positions": 1,
+   "findings": 0.44,
+   "viewerIssues": 0.89,
+   "judge": {
+    "judgements": 20,
+    "overall": 3.8,
+    "first": 0.45,
+    "content": 4.6,
+    "layout": 3.75,
+    "readability": 3.7
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "mcp",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio-mcp": 20
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 40.1,
+   "wallSecs": 45.1,
+   "outputTokens": 1561,
+   "diagramChars": 9691,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.93,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.8,
+   "viewerIssues": 3.35,
+   "judge": {
+    "judgements": 20,
+    "overall": 3.55,
+    "first": 0.2,
+    "content": 4.9,
+    "layout": 3.15,
+    "readability": 4.05
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "plugin",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio": 20
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 1,
+   "diagramSecs": 118.8,
+   "wallSecs": 126,
+   "outputTokens": 4766,
+   "diagramChars": 15245,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.9,
+   "attached": 0.68,
+   "positions": 1,
+   "findings": 0.7,
+   "viewerIssues": 3,
+   "judge": {
+    "judgements": 20,
+    "overall": 4,
+    "first": 0.35,
+    "content": 5,
+    "layout": 4,
+    "readability": 3.75
+   }
+  }
+ ],
+ "formats": [
+  {
+   "agent": "claude-sonnet",
+   "condition": "mermaid",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "mermaid": 20
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 5.8,
+   "wallSecs": 9.2,
+   "outputTokens": 1194,
+   "diagramChars": 1463,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 0,
+   "findings": 0.05,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 40,
+    "overall": 3.03,
+    "first": 0,
+    "content": 4.8,
+    "layout": 2.9,
+    "readability": 3.13
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "svg",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "svg": 20
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 38.6,
+   "wallSecs": 42.3,
+   "outputTokens": 5806,
+   "diagramChars": 6150,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.03,
+   "attached": 0,
+   "positions": 1,
+   "findings": 0.3,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 40,
+    "overall": 4.7,
+    "first": 0.7,
+    "content": 4.85,
+    "layout": 4.78,
+    "readability": 4.6
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "drawio",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio": 20
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 37.5,
+   "wallSecs": 42.6,
+   "outputTokens": 6187,
+   "diagramChars": 9739,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.99,
+   "attached": 0.72,
+   "positions": 1,
+   "findings": 0.45,
+   "viewerIssues": 1.4,
+   "judge": {
+    "judgements": 40,
+    "overall": 4.15,
+    "first": 0.25,
+    "content": 4.88,
+    "layout": 4.15,
+    "readability": 4.08
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "mcp",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio-mcp": 20
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 56.2,
+   "wallSecs": 59,
+   "outputTokens": 9195,
+   "diagramChars": 7647,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.96,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.35,
+   "viewerIssues": 0.95,
+   "judge": null
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "mermaid",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "mermaid": 20
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 10.5,
+   "wallSecs": 22.1,
+   "outputTokens": 1674,
+   "diagramChars": 1547,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 0,
+   "findings": 0.1,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 40,
+    "overall": 2.95,
+    "first": 0,
+    "content": 4.97,
+    "layout": 2.83,
+    "readability": 3.03
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "svg",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "svg": 20
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 93.5,
+   "wallSecs": 104.6,
+   "outputTokens": 9999,
+   "diagramChars": 8282,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.29,
+   "attached": 0,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 40,
+    "overall": 4.97,
+    "first": 0.9,
+    "content": 5,
+    "layout": 4.97,
+    "readability": 4.68
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "drawio",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio": 20
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 70.9,
+   "wallSecs": 83,
+   "outputTokens": 9214,
+   "diagramChars": 12508,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.97,
+   "attached": 0.72,
+   "positions": 1,
+   "findings": 0.15,
+   "viewerIssues": 0.4,
+   "judge": {
+    "judgements": 40,
+    "overall": 3.83,
+    "first": 0.05,
+    "content": 4.8,
+    "layout": 4,
+    "readability": 3.78
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "mcp",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio-mcp": 20
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 94.4,
+   "wallSecs": 136.4,
+   "outputTokens": 12021,
+   "diagramChars": 9012,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.95,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.35,
+   "viewerIssues": 1.95,
+   "judge": null
+  },
+  {
+   "agent": "codex",
+   "condition": "mermaid",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "mermaid": 20
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 24.4,
+   "wallSecs": 28.9,
+   "outputTokens": 842,
+   "diagramChars": 1850,
+   "timeouts": 0,
+   "parses": 0.85,
+   "renders": 0.85,
+   "valid": 0.85,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 0,
+   "findings": 0.24,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 40,
+    "overall": 2.28,
+    "first": 0,
+    "content": 4.38,
+    "layout": 2.23,
+    "readability": 2.17
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "svg",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "svg": 20
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 104.5,
+   "wallSecs": 111,
+   "outputTokens": 4366,
+   "diagramChars": 9113,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.28,
+   "attached": 0,
+   "positions": 1,
+   "findings": 0.45,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 40,
+    "overall": 4.7,
+    "first": 0.8,
+    "content": 4.97,
+    "layout": 4.58,
+    "readability": 4.7
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "drawio",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio": 20
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 87.2,
+   "wallSecs": 90.9,
+   "outputTokens": 3829,
+   "diagramChars": 21444,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.9,
+   "attached": 0.69,
+   "positions": 1,
+   "findings": 0.5,
+   "viewerIssues": 2.35,
+   "judge": {
+    "judgements": 40,
+    "overall": 4.05,
+    "first": 0.2,
+    "content": 4.95,
+    "layout": 3.95,
+    "readability": 3.93
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "mcp",
+   "sessions": 20,
+   "diagrams": 20,
+   "formats": {
+    "drawio-mcp": 20
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 40.1,
+   "wallSecs": 45.1,
+   "outputTokens": 1561,
+   "diagramChars": 9691,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.93,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.8,
+   "viewerIssues": 3.35,
+   "judge": null
+  }
+ ],
+ "formatsFlow": [
+  {
+   "agent": "claude-sonnet",
+   "condition": "mermaid",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "mermaid": 8
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 4.8,
+   "wallSecs": 8,
+   "outputTokens": 925,
+   "diagramChars": 907,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 0,
+   "findings": 0.13,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 16,
+    "overall": 2.75,
+    "first": 0,
+    "content": 4.5,
+    "layout": 2.75,
+    "readability": 2.88
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "svg",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "svg": 8
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 32.4,
+   "wallSecs": 35.2,
+   "outputTokens": 5143,
+   "diagramChars": 4703,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.01,
+   "attached": 0,
+   "positions": 1,
+   "findings": 0.5,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 16,
+    "overall": 4.81,
+    "first": 0.75,
+    "content": 4.88,
+    "layout": 4.94,
+    "readability": 4.63
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "drawio",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio": 8
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 36.1,
+   "wallSecs": 39.6,
+   "outputTokens": 5902,
+   "diagramChars": 8360,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": 2,
+   "judge": {
+    "judgements": 16,
+    "overall": 4.13,
+    "first": 0.13,
+    "content": 5,
+    "layout": 4,
+    "readability": 3.81
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "fast",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio-mcp": 8
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 13.5,
+   "wallSecs": 15.6,
+   "outputTokens": 2053,
+   "diagramChars": 1777,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.94,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": 0.5,
+   "judge": {
+    "judgements": 16,
+    "overall": 3.88,
+    "first": 0.13,
+    "content": 4.63,
+    "layout": 3.56,
+    "readability": 4.88
+   }
+  },
+  {
+   "agent": "claude-sonnet",
+   "condition": "mcp",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio-mcp": 8
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 43.9,
+   "wallSecs": 53.7,
+   "outputTokens": 7520,
+   "diagramChars": 6680,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.92,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.13,
+   "viewerIssues": 0.75,
+   "judge": null
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "mermaid",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "mermaid": 8
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 9.3,
+   "wallSecs": 19.1,
+   "outputTokens": 1304,
+   "diagramChars": 989,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 0,
+   "findings": 0,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 16,
+    "overall": 2.69,
+    "first": 0,
+    "content": 4.94,
+    "layout": 2.63,
+    "readability": 2.81
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "svg",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "svg": 8
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 53.5,
+   "wallSecs": 70.9,
+   "outputTokens": 6436,
+   "diagramChars": 5333,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.06,
+   "attached": 0,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 16,
+    "overall": 4.94,
+    "first": 0.75,
+    "content": 5,
+    "layout": 5,
+    "readability": 4.69
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "drawio",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio": 8
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 66.4,
+   "wallSecs": 75.8,
+   "outputTokens": 8300,
+   "diagramChars": 10238,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": 0.13,
+   "judge": {
+    "judgements": 16,
+    "overall": 3.81,
+    "first": 0.13,
+    "content": 5,
+    "layout": 4.19,
+    "readability": 3.56
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "fast",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio-mcp": 8
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 20.8,
+   "wallSecs": 25.6,
+   "outputTokens": 1971,
+   "diagramChars": 2069,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.94,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": 0.25,
+   "judge": {
+    "judgements": 16,
+    "overall": 3.94,
+    "first": 0.13,
+    "content": 4.88,
+    "layout": 3.69,
+    "readability": 4.63
+   }
+  },
+  {
+   "agent": "claude-opus",
+   "condition": "mcp",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio-mcp": 8
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 101.4,
+   "wallSecs": 139.3,
+   "outputTokens": 12021,
+   "diagramChars": 8084,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.91,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": 1.13,
+   "judge": null
+  },
+  {
+   "agent": "codex",
+   "condition": "mermaid",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "mermaid": 8
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 21.9,
+   "wallSecs": 25.9,
+   "outputTokens": 711,
+   "diagramChars": 1041,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 1,
+   "attached": 1,
+   "positions": 0,
+   "findings": 0,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 16,
+    "overall": 2.38,
+    "first": 0,
+    "content": 4.94,
+    "layout": 2.31,
+    "readability": 1.94
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "svg",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "svg": 8
+   },
+   "drawio": 0,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 81.3,
+   "wallSecs": 84.8,
+   "outputTokens": 3472,
+   "diagramChars": 6508,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0,
+   "attached": 0,
+   "positions": 1,
+   "findings": 0.5,
+   "viewerIssues": null,
+   "judge": {
+    "judgements": 16,
+    "overall": 4.69,
+    "first": 0.69,
+    "content": 4.94,
+    "layout": 4.63,
+    "readability": 4.88
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "drawio",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio": 8
+   },
+   "drawio": 1,
+   "toolUsed": 0,
+   "skillUsed": 0,
+   "diagramSecs": 72.6,
+   "wallSecs": 76.8,
+   "outputTokens": 2793,
+   "diagramChars": 16309,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.91,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.25,
+   "viewerIssues": 0.88,
+   "judge": {
+    "judgements": 16,
+    "overall": 4.44,
+    "first": 0.31,
+    "content": 5,
+    "layout": 4.25,
+    "readability": 4.38
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "fast",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio-mcp": 8
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 30.9,
+   "wallSecs": 34.1,
+   "outputTokens": 1167,
+   "diagramChars": 2243,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.95,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0,
+   "viewerIssues": 0.25,
+   "judge": {
+    "judgements": 16,
+    "overall": 3.81,
+    "first": 0,
+    "content": 4.94,
+    "layout": 3.81,
+    "readability": 4.44
+   }
+  },
+  {
+   "agent": "codex",
+   "condition": "mcp",
+   "sessions": 8,
+   "diagrams": 8,
+   "formats": {
+    "drawio-mcp": 8
+   },
+   "drawio": 1,
+   "toolUsed": 1,
+   "skillUsed": 0,
+   "diagramSecs": 37.7,
+   "wallSecs": 41.1,
+   "outputTokens": 1403,
+   "diagramChars": 9005,
+   "timeouts": 0,
+   "parses": 1,
+   "renders": 1,
+   "valid": 1,
+   "labelsInShapes": 0.9,
+   "attached": 1,
+   "positions": 1,
+   "findings": 0.25,
+   "viewerIssues": 3.5,
+   "judge": null
+  }
+ ]
+}
