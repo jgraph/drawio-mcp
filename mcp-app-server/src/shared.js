@@ -2085,10 +2085,12 @@ function drawioFileRequest(xml)
 }
 
 // The ui/download-file request behind the Download menu's image entries:
-// an SVG goes as text, a PNG (a data URI) as the base64 blob.
+// an SVG goes as text, a PNG (a data URI) as the base64 blob. Both carry the
+// .drawio file (exportPng, exportSvg), so they are named as draw.io names
+// such files, diagram.drawio.png and diagram.drawio.svg.
 function imageFileRequest(format, data)
 {
-  var resource = { uri: "file:///diagram." + format };
+  var resource = { uri: "file:///diagram.drawio." + format };
 
   if (format === "png")
   {

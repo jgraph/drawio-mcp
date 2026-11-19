@@ -60,12 +60,12 @@ test("an mxfile downloads as it is", function()
   assert.equal(fileOf(drawioFileRequest(mxfile)), mxfile);
 });
 
-test("an SVG downloads as text, a PNG as the base64 of its data URI", function()
+test("an SVG downloads as text, a PNG as the base64 of its data URI, both named .drawio", function()
 {
   assert.deepEqual(imageFileRequest("svg", "<svg/>"), { contents: [{ type: "resource", resource:
-    { uri: "file:///diagram.svg", mimeType: "image/svg+xml", text: "<svg/>" } }] });
+    { uri: "file:///diagram.drawio.svg", mimeType: "image/svg+xml", text: "<svg/>" } }] });
   assert.deepEqual(imageFileRequest("png", "data:image/png;base64,iVBORw0KGgo="), { contents: [{ type: "resource", resource:
-    { uri: "file:///diagram.png", mimeType: "image/png", blob: "iVBORw0KGgo=" } }] });
+    { uri: "file:///diagram.drawio.png", mimeType: "image/png", blob: "iVBORw0KGgo=" } }] });
 });
 
 // Each host as it declares itself; the menus follow what is declared, never
