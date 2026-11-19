@@ -68,9 +68,9 @@ You can also run the server locally via Node.js or the [`jgraph/drawio-mcp`](htt
 
 **Fast mode.** Ask for speed or economy in so many words, in any language, and the model describes a flowchart or swimlane diagram instead of placing every shape: the steps, the lanes, the transitions and a row and a column per step. The server lays it out, routes the lines and styles it. For example:
 
-- "**Quickly** draw a flowchart of returning a book at a library kiosk …"
-- "… **Just a rough sketch is fine.**" or "**Keep it cheap: use as few tokens as possible.**"
-- "Zeichne **schnell** ein Flussdiagramm für …", "… **Bitte mit wenig Aufwand.**" or "Erstelle **sparsam** ein Swimlane-Diagramm …"
+- "**Quickly** draw a flowchart of returning a book at a library kiosk: scan the library card, scan the book, check for a reservation or a late fee, then print a receipt. **Just a rough sketch is fine.**"
+- "Draw a swimlane diagram for requesting a new laptop, with lanes for Employee, Manager and IT. **Keep it cheap: use as few tokens as possible.**"
+- "Zeichne **schnell** ein Flussdiagramm für eine Pizzabestellung in einer App: Pizza wählen, Adresse eingeben, bezahlen, Bestätigung erhalten." or "Erstelle ein Swimlane-Diagramm für eine Reklamation im Onlineshop, mit Bahnen für Kunde, Kundendienst und Lager. **Bitte mit wenig Aufwand.**"
 
 Without such words, and for every other diagram type, the model uses `create_diagram`, which places the shapes with more care. In the benchmark of 15 November 2026 (Claude Code with Sonnet 5.5 and Opus 5.5, 20 prompts in English and German written for the test, three runs each), the models chose the right tool in 118 of 120 sessions. With the wish, the diagram came 3 to 4 times sooner (Sonnet 14 s instead of 46 s, Opus 27 s instead of 108 s), with less than half the output tokens. In blind comparisons with the diagrams the models placed themselves, the fast ones won 0.61 (Sonnet) and 0.67 (Opus) of the judgements, but each model lost on one flowchart without lanes. Limits:
 
