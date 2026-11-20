@@ -1032,7 +1032,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.basic.donut;dx=25;",
+    "style": "verticalLabelPosition=bottom;verticalAlign=top;html=1;shape=mxgraph.basic.donut;dx=25;perimeter=ellipsePerimeter;",
     "w": 100,
     "h": 100,
     "title": "Donut",
@@ -9992,7 +9992,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.integration;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.integration;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Integration",
@@ -10104,7 +10104,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.sales2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.sales2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Sales",
@@ -10112,7 +10112,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.service2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.service2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Service",
@@ -10120,7 +10120,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.marketing2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.marketing2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Marketing",
@@ -10128,7 +10128,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.commerce2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.commerce2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Commerce",
@@ -10136,7 +10136,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.platform2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.platform2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Platform",
@@ -10144,7 +10144,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.analytics2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.analytics2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Analytics",
@@ -10152,7 +10152,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.integration2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.integration2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Integration",
@@ -10160,7 +10160,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.employees2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.employees2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Employees",
@@ -10168,7 +10168,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.learning2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.learning2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Learning",
@@ -10176,7 +10176,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.industries2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.industries2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Industries",
@@ -10184,7 +10184,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.partners2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.partners2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Partners",
@@ -10192,7 +10192,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.success2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.success2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Success",
@@ -10200,7 +10200,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.inbox2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.inbox2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Inbox",
@@ -10208,7 +10208,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.field_service2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.field_service2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Field Service",
@@ -10216,7 +10216,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.iot2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.iot2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "IoT",
@@ -10224,7 +10224,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.social_studio2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.social_studio2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Social Studio",
@@ -10232,7 +10232,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.customer_3602;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.customer_3602;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Customer 360",
@@ -10240,7 +10240,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.heroku2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.heroku2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Heroku",
@@ -10248,7 +10248,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.work_com2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.work_com2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Work.com",
@@ -10256,7 +10256,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.loyalty2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.loyalty2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Loyalty",
@@ -10344,7 +10344,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.segments;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.segments;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Segments",
@@ -10360,7 +10360,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.apps2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.apps2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Apps",
@@ -10368,7 +10368,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.web2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.web2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Web",
@@ -10376,7 +10376,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.channels2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.channels2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Channels",
@@ -10384,7 +10384,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.bots2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.bots2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Bots",
@@ -10392,7 +10392,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.automation2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.automation2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Automation",
@@ -10400,7 +10400,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.workflow2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.workflow2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Workflow",
@@ -10408,7 +10408,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.personalization2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.personalization2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Personalization",
@@ -10416,7 +10416,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.builders2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.builders2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Builders",
@@ -10424,7 +10424,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.data2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.data2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Data",
@@ -10432,7 +10432,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.stream2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.stream2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Stream",
@@ -10440,7 +10440,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.segments2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.segments2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Segments",
@@ -10448,7 +10448,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.privacy2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.privacy2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Privacy",
@@ -10584,7 +10584,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.government2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.government2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Government",
@@ -10592,7 +10592,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.media2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.media2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Media",
@@ -10600,7 +10600,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.consumer_goods2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.consumer_goods2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Consumer Goods",
@@ -10608,7 +10608,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.transportation_and_technology2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.transportation_and_technology2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Transportation and Technology",
@@ -10616,7 +10616,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.financial_services2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.financial_services2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Financial Services",
@@ -10624,7 +10624,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.automotive2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.automotive2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Automotive",
@@ -10632,7 +10632,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.energy2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.energy2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Energy",
@@ -10640,7 +10640,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.smb2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.smb2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "SMB",
@@ -10648,7 +10648,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.communications2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.communications2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Communications",
@@ -10656,7 +10656,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.retail2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.retail2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Retail",
@@ -10664,7 +10664,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.manufacturing2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.manufacturing2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Manufacturing",
@@ -10672,7 +10672,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.health2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.health2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Health",
@@ -10680,7 +10680,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.philantrophy2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.philantrophy2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Philantrophy",
@@ -10688,7 +10688,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.non_profit2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.non_profit2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Non-profit",
@@ -10696,7 +10696,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.education2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.education2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Education",
@@ -10704,7 +10704,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.sustainability2;fillColor=none;strokeColor=none;",
+    "style": "verticalLabelPosition=bottom;aspect=fixed;html=1;shape=mxgraph.salesforce.sustainability2;fillColor=none;strokeColor=none;perimeter=ellipsePerimeter;",
     "w": 60,
     "h": 60,
     "title": "Sustainability",
@@ -28256,7 +28256,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;html=1;verticalAlign=top;strokeWidth=1;align=center;outlineConnect=0;dashed=0;outlineConnect=0;shape=mxgraph.aws3d.secureConnection;fillColor=#000000;strokeColor=#ffffff;aspect=fixed;",
+    "style": "verticalLabelPosition=bottom;html=1;verticalAlign=top;strokeWidth=1;align=center;outlineConnect=0;dashed=0;outlineConnect=0;shape=mxgraph.aws3d.secureConnection;fillColor=#000000;strokeColor=#ffffff;aspect=fixed;perimeter=ellipsePerimeter;",
     "w": 57,
     "h": 34,
     "title": "Secure Connection",
@@ -41712,7 +41712,7 @@
     "type": "vertex"
   },
   {
-    "style": "points=[[0.5,0,0],[1,0.34,0],[1,1],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,1,0],[0,0.34,0],[1,0.67,0],[0,0.67,0],[0.325,0,0],[0.675,0,0]];verticalLabelPosition=bottom;sketch=0;html=1;verticalAlign=top;aspect=fixed;align=center;pointerEvents=1;shape=mxgraph.cisco19.data_center2;fillColor=#fafafa;strokeColor=#005073;",
+    "style": "points=[[0.5,0,0],[1,0.34,0],[1,1,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,1,0],[0,0.34,0],[1,0.67,0],[0,0.67,0],[0.325,0,0],[0.675,0,0]];verticalLabelPosition=bottom;sketch=0;html=1;verticalAlign=top;aspect=fixed;align=center;pointerEvents=1;shape=mxgraph.cisco19.data_center2;fillColor=#fafafa;strokeColor=#005073;",
     "w": 100,
     "h": 70,
     "title": "Data Center",
@@ -59800,7 +59800,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volume;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volume;",
     "w": 50,
     "h": 50,
     "title": "Cinder Volume",
@@ -59808,7 +59808,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volumeattachment;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volumeattachment;",
     "w": 50,
     "h": 50,
     "title": "Cinder VolumeAttachment",
@@ -59816,7 +59816,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_recordset;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_recordset;",
     "w": 50,
     "h": 50,
     "title": "Designate RecordSet",
@@ -59824,7 +59824,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_zone;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_zone;",
     "w": 50,
     "h": 50,
     "title": "Designate Zone",
@@ -59832,7 +59832,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_autoscalinggroup;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_autoscalinggroup;",
     "w": 50,
     "h": 50,
     "title": "Heat AutoScalingGroup",
@@ -59840,7 +59840,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_resourcegroup;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_resourcegroup;",
     "w": 50,
     "h": 50,
     "title": "Heat ResourceGroup",
@@ -59848,7 +59848,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_scalingpolicy;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_scalingpolicy;",
     "w": 50,
     "h": 50,
     "title": "Heat ScalingPolicy",
@@ -59856,7 +59856,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingip;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingip;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIP",
@@ -59864,7 +59864,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingipassociation;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingipassociation;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIPAssociation",
@@ -59872,7 +59872,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_net;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_net;",
     "w": 50,
     "h": 50,
     "title": "Neutron Net",
@@ -59880,7 +59880,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_port;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_port;",
     "w": 50,
     "h": 50,
     "title": "Neutron Port",
@@ -59888,7 +59888,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_router;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_router;",
     "w": 50,
     "h": 50,
     "title": "Neutron Router",
@@ -59896,7 +59896,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_routerinterface;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_routerinterface;",
     "w": 50,
     "h": 50,
     "title": "Neutron RouterInterface",
@@ -59904,7 +59904,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_securitygroup;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_securitygroup;",
     "w": 50,
     "h": 50,
     "title": "Neutron SecurityGroup",
@@ -59912,7 +59912,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_subnet;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_subnet;",
     "w": 50,
     "h": 50,
     "title": "Neutron Subnet",
@@ -59920,7 +59920,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_keypair;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_keypair;",
     "w": 50,
     "h": 50,
     "title": "Nova Keypair",
@@ -59928,7 +59928,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_server;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_server;",
     "w": 50,
     "h": 50,
     "title": "Nova Server",
@@ -59936,7 +59936,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.swift_container;",
+    "style": "fillColor=#3F51B5;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.swift_container;",
     "w": 50,
     "h": 50,
     "title": "Swift Container",
@@ -59944,7 +59944,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volume;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volume;",
     "w": 50,
     "h": 50,
     "title": "Cinder Volume",
@@ -59952,7 +59952,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volumeattachment;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volumeattachment;",
     "w": 50,
     "h": 50,
     "title": "Cinder VolumeAttachment",
@@ -59960,7 +59960,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_recordset;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_recordset;",
     "w": 50,
     "h": 50,
     "title": "Designate RecordSet",
@@ -59968,7 +59968,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_zone;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_zone;",
     "w": 50,
     "h": 50,
     "title": "Designate Zone",
@@ -59976,7 +59976,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_autoscalinggroup;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_autoscalinggroup;",
     "w": 50,
     "h": 50,
     "title": "Heat AutoScalingGroup",
@@ -59984,7 +59984,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_resourcegroup;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_resourcegroup;",
     "w": 50,
     "h": 50,
     "title": "Heat ResourceGroup",
@@ -59992,7 +59992,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_scalingpolicy;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_scalingpolicy;",
     "w": 50,
     "h": 50,
     "title": "Heat ScalingPolicy",
@@ -60000,7 +60000,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingip;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingip;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIP",
@@ -60008,7 +60008,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingipassociation;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingipassociation;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIPAssociation",
@@ -60016,7 +60016,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_net;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_net;",
     "w": 50,
     "h": 50,
     "title": "Neutron Net",
@@ -60024,7 +60024,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_port;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_port;",
     "w": 50,
     "h": 50,
     "title": "Neutron Port",
@@ -60032,7 +60032,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_router;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_router;",
     "w": 50,
     "h": 50,
     "title": "Neutron Router",
@@ -60040,7 +60040,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_routerinterface;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_routerinterface;",
     "w": 50,
     "h": 50,
     "title": "Neutron RouterInterface",
@@ -60048,7 +60048,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_securitygroup;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_securitygroup;",
     "w": 50,
     "h": 50,
     "title": "Neutron SecurityGroup",
@@ -60056,7 +60056,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_subnet;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_subnet;",
     "w": 50,
     "h": 50,
     "title": "Neutron Subnet",
@@ -60064,7 +60064,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_keypair;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_keypair;",
     "w": 50,
     "h": 50,
     "title": "Nova Keypair",
@@ -60072,7 +60072,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_server;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_server;",
     "w": 50,
     "h": 50,
     "title": "Nova Server",
@@ -60080,7 +60080,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.swift_container;",
+    "style": "fillColor=#808080;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.swift_container;",
     "w": 50,
     "h": 50,
     "title": "Swift Container",
@@ -60088,7 +60088,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volume;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volume;",
     "w": 50,
     "h": 50,
     "title": "Cinder Volume",
@@ -60096,7 +60096,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volumeattachment;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volumeattachment;",
     "w": 50,
     "h": 50,
     "title": "Cinder VolumeAttachment",
@@ -60104,7 +60104,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_recordset;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_recordset;",
     "w": 50,
     "h": 50,
     "title": "Designate RecordSet",
@@ -60112,7 +60112,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_zone;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_zone;",
     "w": 50,
     "h": 50,
     "title": "Designate Zone",
@@ -60120,7 +60120,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_autoscalinggroup;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_autoscalinggroup;",
     "w": 50,
     "h": 50,
     "title": "Heat AutoScalingGroup",
@@ -60128,7 +60128,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_resourcegroup;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_resourcegroup;",
     "w": 50,
     "h": 50,
     "title": "Heat ResourceGroup",
@@ -60136,7 +60136,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_scalingpolicy;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_scalingpolicy;",
     "w": 50,
     "h": 50,
     "title": "Heat ScalingPolicy",
@@ -60144,7 +60144,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingip;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingip;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIP",
@@ -60152,7 +60152,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingipassociation;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingipassociation;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIPAssociation",
@@ -60160,7 +60160,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_net;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_net;",
     "w": 50,
     "h": 50,
     "title": "Neutron Net",
@@ -60168,7 +60168,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_port;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_port;",
     "w": 50,
     "h": 50,
     "title": "Neutron Port",
@@ -60176,7 +60176,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_router;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_router;",
     "w": 50,
     "h": 50,
     "title": "Neutron Router",
@@ -60184,7 +60184,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_routerinterface;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_routerinterface;",
     "w": 50,
     "h": 50,
     "title": "Neutron RouterInterface",
@@ -60192,7 +60192,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_securitygroup;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_securitygroup;",
     "w": 50,
     "h": 50,
     "title": "Neutron SecurityGroup",
@@ -60200,7 +60200,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_subnet;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_subnet;",
     "w": 50,
     "h": 50,
     "title": "Neutron Subnet",
@@ -60208,7 +60208,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_keypair;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_keypair;",
     "w": 50,
     "h": 50,
     "title": "Nova Keypair",
@@ -60216,7 +60216,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_server;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_server;",
     "w": 50,
     "h": 50,
     "title": "Nova Server",
@@ -60224,7 +60224,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.swift_container;",
+    "style": "fillColor=#008000;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.swift_container;",
     "w": 50,
     "h": 50,
     "title": "Swift Container",
@@ -60232,7 +60232,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volume;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volume;",
     "w": 50,
     "h": 50,
     "title": "Cinder Volume",
@@ -60240,7 +60240,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.cinder_volumeattachment;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.cinder_volumeattachment;",
     "w": 50,
     "h": 50,
     "title": "Cinder VolumeAttachment",
@@ -60248,7 +60248,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_recordset;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_recordset;",
     "w": 50,
     "h": 50,
     "title": "Designate RecordSet",
@@ -60256,7 +60256,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.designate_zone;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.designate_zone;",
     "w": 50,
     "h": 50,
     "title": "Designate Zone",
@@ -60264,7 +60264,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_autoscalinggroup;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_autoscalinggroup;",
     "w": 50,
     "h": 50,
     "title": "Heat AutoScalingGroup",
@@ -60272,7 +60272,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_resourcegroup;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_resourcegroup;",
     "w": 50,
     "h": 50,
     "title": "Heat ResourceGroup",
@@ -60280,7 +60280,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.heat_scalingpolicy;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.heat_scalingpolicy;",
     "w": 50,
     "h": 50,
     "title": "Heat ScalingPolicy",
@@ -60288,7 +60288,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingip;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingip;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIP",
@@ -60296,7 +60296,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_floatingipassociation;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_floatingipassociation;",
     "w": 50,
     "h": 50,
     "title": "Neutron FloatingIPAssociation",
@@ -60304,7 +60304,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_net;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_net;",
     "w": 50,
     "h": 50,
     "title": "Neutron Net",
@@ -60312,7 +60312,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_port;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_port;",
     "w": 50,
     "h": 50,
     "title": "Neutron Port",
@@ -60320,7 +60320,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_router;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_router;",
     "w": 50,
     "h": 50,
     "title": "Neutron Router",
@@ -60328,7 +60328,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_routerinterface;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_routerinterface;",
     "w": 50,
     "h": 50,
     "title": "Neutron RouterInterface",
@@ -60336,7 +60336,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_securitygroup;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_securitygroup;",
     "w": 50,
     "h": 50,
     "title": "Neutron SecurityGroup",
@@ -60344,7 +60344,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.neutron_subnet;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.neutron_subnet;",
     "w": 50,
     "h": 50,
     "title": "Neutron Subnet",
@@ -60352,7 +60352,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_keypair;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_keypair;",
     "w": 50,
     "h": 50,
     "title": "Nova Keypair",
@@ -60360,7 +60360,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.nova_server;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.nova_server;",
     "w": 50,
     "h": 50,
     "title": "Nova Server",
@@ -60368,7 +60368,7 @@
     "type": "vertex"
   },
   {
-    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;shape=mxgraph.openstack.swift_container;",
+    "style": "fillColor=#C82128;aspect=fixed;sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;labelPosition=center;verticalLabelPosition=bottom;outlineConnect=0;verticalAlign=top;align=center;perimeter=ellipsePerimeter;shape=mxgraph.openstack.swift_container;",
     "w": 50,
     "h": 50,
     "title": "Swift Container",
@@ -81304,7 +81304,7 @@
     "type": "vertex"
   },
   {
-    "style": "verticalLabelPosition=bottom;outlineConnect=0;align=center;dashed=0;html=1;verticalAlign=top;shape=mxgraph.pid2misc.fan;fanType=common",
+    "style": "verticalLabelPosition=bottom;outlineConnect=0;align=center;dashed=0;html=1;verticalAlign=top;shape=mxgraph.pid2misc.fan;fanType=common;perimeter=ellipsePerimeter;",
     "w": 50,
     "h": 50,
     "title": "Fan",
