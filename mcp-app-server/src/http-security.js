@@ -424,9 +424,11 @@ export function securityBanner(options)
     warnings.push(`WARNING: the token from ${auth.source} has only ${auth.token.length} characters; use a long random one, e.g. from \`openssl rand -hex 32\`.`);
   }
 
-  if (allowedOrigins != null && allowedOrigins.any && auth == null && allowedHosts == null)
+  // Every origin gets CORS headers: a page that calls localhost sends the
+  // Host ALLOWED_HOSTS lists, so only the token keeps it out
+  if (allowedOrigins != null && allowedOrigins.any && auth == null)
   {
-    warnings.push("WARNING: ALLOWED_ORIGINS=* without authentication or ALLOWED_HOSTS: a web page you open can call the server through DNS rebinding.");
+    warnings.push("WARNING: ALLOWED_ORIGINS=* without authentication: any web page you open can call the server and read its answers. Set AUTH_TOKEN, or list the origins you use.");
   }
 
   return { lines: lines, warnings: warnings };

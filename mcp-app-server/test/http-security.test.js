@@ -210,15 +210,24 @@ describe("securityBanner", function()
     assert.ok(!text.includes(TOKEN));
   });
 
-  test("warns about a short token and about ALLOWED_ORIGINS=* without any other check", function()
+  test("warns about a short token and about ALLOWED_ORIGINS=* without a token, also with ALLOWED_HOSTS", function()
   {
     const short = securityBanner({ host: "127.0.0.1", port: 3001, auth: { token: "abc", source: "AUTH_TOKEN" }, allowedOrigins: null });
 
     assert.match(short.warnings.join("\n"), /only 3 characters/);
 
-    const any = securityBanner({ host: "127.0.0.1", port: 3001, auth: null, allowedOrigins: parseAllowedOrigins("*") });
+    // CORS lets any page read the answers: a page calling localhost:3001
+    // sends the Host ALLOWED_HOSTS lists, so only the token keeps it out
+    for (const allowedHosts of [undefined, ["localhost", "127.0.0.1"]])
+    {
+      const any = securityBanner({ host: "127.0.0.1", port: 3001, auth: null, allowedHosts, allowedOrigins: parseAllowedOrigins("*") });
 
-    assert.match(any.warnings.join("\n"), /ALLOWED_ORIGINS=\* without authentication or ALLOWED_HOSTS/);
+      assert.match(any.warnings.join("\n"), /ALLOWED_ORIGINS=\* without authentication: any web page you open can call the server/, String(allowedHosts));
+    }
+
+    const withToken = securityBanner({ host: "127.0.0.1", port: 3001, auth: { token: TOKEN, source: "AUTH_TOKEN" }, allowedOrigins: parseAllowedOrigins("*") });
+
+    assert.doesNotMatch(withToken.warnings.join("\n"), /ALLOWED_ORIGINS/);
   });
 });
 
@@ -638,7 +647,7 @@ describe("the security docs", function()
     {
       const lines = doc.text.split("\n").filter(function(line)
       {
-        return /\b(claude|copilot|code|cursor) mcp\b|\bclaude mcp add/.test(line);
+        return /\b(claude|copilot) mcp\b|--add-mcp\b/.test(line);
       });
 
       for (const line of lines)
