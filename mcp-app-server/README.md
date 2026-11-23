@@ -209,7 +209,7 @@ Start the HTTP server (for Claude.ai and other web-based hosts):
 npm start
 ```
 
-The server listens on `http://localhost:3001/mcp` by default, on the loopback interface only. Set `PORT` to change the port, `LISTEN=0.0.0.0` to accept connections from the network, and `ALLOWED_HOSTS` (comma-separated hostnames) to reject requests whose `Host` header names anything else. Set `DRAWIO_BASE_URL` to a self-hosted draw.io (e.g. `https://drawio.example.com/`) to have "Open in draw.io" and the link for clients without inline diagrams open there instead of `https://app.diagrams.net/`; the inline viewer still loads from diagrams.net, so it needs no sign-in to your draw.io. Set `DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request), the fast mode, which is listed by default, and `DRAWIO_CONVERT=off` to leave Mermaid, PlantUML and CSV to the viewer's converters instead of converting them on the server. The server has no authentication of its own — put it behind an authenticating reverse proxy before exposing it beyond your machine. `GET /health` answers `200 ok`, for uptime monitors and container health checks.
+The server listens on `http://localhost:3001/mcp` by default, on the loopback interface only. Set `PORT` to change the port and `LISTEN=0.0.0.0` to accept connections from the network. `AUTH_TOKEN` (or `AUTH_TOKEN_FILE`) requires a bearer token, `ALLOWED_ORIGINS` sets the browser origins it answers and `ALLOWED_HOSTS` the hostnames: see [Security](#security) before you run it on a machine you share or open it to the network. Set `DRAWIO_BASE_URL` to a self-hosted draw.io (e.g. `https://drawio.example.com/`) to have "Open in draw.io" and the link for clients without inline diagrams open there instead of `https://app.diagrams.net/`; the inline viewer still loads from diagrams.net, so it needs no sign-in to your draw.io. Set `DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request), the fast mode, which is listed by default, and `DRAWIO_CONVERT=off` to leave Mermaid, PlantUML and CSV to the viewer's converters instead of converting them on the server. `GET /health` answers `200 ok`, for uptime monitors and container health checks. At startup the server prints its bind address, whether authentication is on, and the hosts and origins it answers, with a warning when it listens beyond loopback without a token.
 
 ### Running (Docker)
 
@@ -219,13 +219,96 @@ A prebuilt image for `linux/amd64` and `linux/arm64` is published to Docker Hub 
 docker run --rm -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
 ```
 
-The endpoint is `http://localhost:3001/mcp`, as with `npm start`. The image listens on all interfaces inside the container (`LISTEN=0.0.0.0`), so the `-p` mapping decides who can reach it: `127.0.0.1:3001:3001` is this machine only, a plain `3001:3001` is everyone on your network. Pass `-e PORT=8080 -p 127.0.0.1:8080:8080` to change the port, `-e ALLOWED_HOSTS=…` to restrict the accepted hostnames, `-e DRAWIO_BASE_URL=https://drawio.example.com/` to open diagrams in a self-hosted draw.io, `-e DRAWIO_ICON_SERVICE_URL=off` to keep `search_shapes` from querying the draw.io icon service, and `-e DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request). The container is stateless (no volume, no diagram content in its logs) and needs no outbound access to render diagrams — see [Deployment boundary](DOCKER_HUB.md#deployment-boundary) and [Data Residency & Offline Use](../README.md#data-residency--offline-use).
+The endpoint is `http://localhost:3001/mcp`, as with `npm start`. The image listens on all interfaces inside the container (`LISTEN=0.0.0.0`), so the `-p` mapping decides who can reach it: `127.0.0.1:3001:3001` is this machine only, a plain `3001:3001` is everyone on your network, and Docker's port rules bypass ufw and firewalld, so your firewall doesn't stop it ([Security](#security)). Pass `-e PORT=8080 -p 127.0.0.1:8080:8080` to change the port, `-e AUTH_TOKEN` or `-e AUTH_TOKEN_FILE=…` to require a token, `-e ALLOWED_HOSTS=…` to restrict the accepted hostnames, `-e DRAWIO_BASE_URL=https://drawio.example.com/` to open diagrams in a self-hosted draw.io, `-e DRAWIO_ICON_SERVICE_URL=off` to keep `search_shapes` from querying the draw.io icon service, and `-e DRAWIO_SEMANTIC_TYPES=off` to leave out [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request). The container is stateless (no volume, no diagram content in its logs) and needs no outbound access to render diagrams — see [Deployment boundary](DOCKER_HUB.md#deployment-boundary) and [Data Residency & Offline Use](../README.md#data-residency--offline-use).
 
 To build the image yourself, use the [`Dockerfile`](Dockerfile) from the **repository root**, not from this directory — at startup the server reads the shared references and the shape index from the sibling `shared/` and `shape-search/` directories:
 
 ```bash
 docker build -f mcp-app-server/Dockerfile -t drawio-mcp-app .
 docker run --rm -p 127.0.0.1:3001:3001 drawio-mcp-app
+```
+
+### Security
+
+The Node server and the Docker image are built for one person on their own machine: by default they are reachable from this machine only (the image with `-p 127.0.0.1:…`), keep no state and need no sign-in. What a caller can do is use the four tools. The server stores nothing (no diagrams, files, credentials or sessions to read), so a caller can't see your diagrams, but they can have it render diagrams for them, use its CPU and have it query the draw.io icon service. Before it runs on a machine you share or on a network, check these:
+
+- **Loopback is not an auth boundary.** `127.0.0.1` keeps the server off the network, not off the machine: every user and every process on it (another agent, a script, a package's install script) can call the port. On a shared dev box or a team server, set a token. With `AUTH_TOKEN`, or `AUTH_TOKEN_FILE` naming a file that holds it (a Docker or Compose secret), `/mcp` answers only requests that send `Authorization: Bearer <token>`; others get `401` with a `WWW-Authenticate: Bearer` header. The token is compared in constant time and never logged, `GET /health` stays open for health checks, and a setting that would leave authentication off by mistake (both variables, an empty token, a file it can't read) stops the server at startup. It is off by default, so existing setups keep working. What it can't do: a process running as your own user can read the token from your MCP client's configuration, as it can read anything else of yours, so the token keeps out other users, the network and callers that don't have it, not code you run yourself.
+- **Docker publishes past your firewall.** `-p 3001:3001` (or `ports: ["3001:3001"]` in Compose) publishes the port on every interface of the host, and Docker inserts its own packet filter rules ahead of ufw and firewalld, so the firewall doesn't block it. Always name the address, `-p 127.0.0.1:3001:3001`. The image has to listen on all interfaces inside the container for `-p` to work, so it can't see how you published it, and it warns at startup whenever no token is set.
+- **The Origin check stops DNS rebinding.** A web page you open can point its own hostname at `127.0.0.1` and call a local server from your browser. As the [MCP Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#security-warning) requires, the server checks the `Origin` header: requests that carry one are answered only from `http(s)://localhost`, `127.0.0.1` or `[::1]` (any port), others get `403`. Requests without an `Origin` pass, since MCP clients outside a browser (Claude Code, VS Code, Cursor, Copilot CLI, and the cloud hosts behind a tunnel) send none. For a client that runs in a browser, list its origins in `ALLOWED_ORIGINS` (comma-separated, e.g. `https://chat.example.com`), which replaces the default; `*` turns the check off. A page from an allowed origin gets CORS headers that name it, so it can read the answers, and its preflight is answered before the token check, since browsers send it without the token.
+- **`ALLOWED_HOSTS` checks the `Host` header.** With a comma-separated list of hostnames, the server refuses requests addressed to any other name. That stops DNS rebinding too, since a rebound page sends its own name, and pins a team server to the name it is reached by. It is off by default because tunnels such as cloudflared and Tailscale Funnel connect to localhost but forward their public hostname. A value that names no hostname (only commas or spaces) stops the server at startup rather than turning the check off.
+- **For a team, put a reverse proxy in front.** Let a reverse proxy terminate TLS (the token travels in plain HTTP otherwise) and authenticate clients in a way your MCP clients support, keep the server on loopback or an internal network behind it, and set `ALLOWED_HOSTS` to the proxy's hostname. The token can stay on as a second check.
+- **The hosted endpoint and the Worker are public by design.** `https://mcp.draw.io/mcp` and the [Cloudflare Workers](#deploying-to-cloudflare-workers) entry have none of these settings; to restrict a Worker of your own, put Cloudflare Access in front of it.
+
+Run with a token, generated once and kept out of your shell history:
+
+```bash
+export DRAWIO_MCP_TOKEN="$(openssl rand -hex 32)"
+AUTH_TOKEN="$DRAWIO_MCP_TOKEN" npm start
+# or
+AUTH_TOKEN="$DRAWIO_MCP_TOKEN" docker run --rm --pull always -e AUTH_TOKEN -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
+```
+
+`-e AUTH_TOKEN` without a value passes the variable from your shell, so the token isn't on the command line; `docker inspect` still shows it to anyone who can use Docker. A file doesn't show there. `--pull always` fetches the current image: an image from before authentication, still cached from an earlier run, would ignore `AUTH_TOKEN` and answer without a token. Check that the token is required: the `Authentication:` line of the startup output says `on`, and a request without the token gets `401`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3001/mcp   # 401
+```
+
+In Compose, as a secret:
+
+```yaml
+services:
+  drawio-mcp:
+    image: jgraph/drawio-mcp
+    pull_policy: always   # an image from before authentication would ignore the token
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      AUTH_TOKEN_FILE: /run/secrets/drawio_mcp_token
+    secrets:
+      - drawio_mcp_token
+
+secrets:
+  drawio_mcp_token:
+    file: ./drawio-mcp-token   # the token alone, readable by the container's user node (uid 1000)
+```
+
+With plain `docker run`, mount the file instead: `docker run --rm --pull always -v "$PWD/drawio-mcp-token:/run/secrets/drawio_mcp_token:ro" -e AUTH_TOKEN_FILE=/run/secrets/drawio_mcp_token -p 127.0.0.1:3001:3001 jgraph/drawio-mcp`.
+
+The client then sends the header. Give it the token from the environment or a prompt, as below, never as a command-line argument (such as `--header` of `claude mcp add` with the token expanded by the shell): on a shared machine other users can read the arguments of running processes. In VS Code, `.vscode/mcp.json` asks for the token once and stores it encrypted:
+
+```json
+{
+  "inputs": [
+    { "type": "promptString", "id": "drawio-token", "description": "draw.io MCP token", "password": true }
+  ],
+  "servers": {
+    "drawio": {
+      "type": "http",
+      "url": "http://localhost:3001/mcp",
+      "headers": { "Authorization": "Bearer ${input:drawio-token}" }
+    }
+  }
+}
+```
+
+| Client | Where the header goes |
+|---|---|
+| Claude Code | `"headers": { "Authorization": "Bearer ${DRAWIO_MCP_TOKEN}" }` next to `"type": "http"` and `"url"` in the server's entry under `mcpServers` in the project's `.mcp.json`; Claude Code fills in the variable when it connects, so the token is neither in the file nor on a command line |
+| GitHub Copilot CLI | `"headers": { "Authorization": "Bearer <token>" }` in the server's entry in `~/.copilot/mcp-config.json` |
+| Cursor | `"headers": { "Authorization": "Bearer ${env:DRAWIO_MCP_TOKEN}" }` next to `"url"` in `mcp.json` |
+| OpenCode | `"headers": { "Authorization": "Bearer {env:DRAWIO_MCP_TOKEN}" }` in the remote server's entry in `opencode.json` |
+| Claude.ai, through a tunnel | Not possible: custom connectors sign in with OAuth or not at all (see [Connecting to Claude.ai](#connecting-to-claudeai)) |
+
+The startup output says which of this is in effect, before any client connects:
+
+```
+MCP App server listening on http://127.0.0.1:3001/mcp
+  Bind address:     127.0.0.1 (loopback: only this machine can connect)
+  Authentication:   off: anyone who can connect can call the tools (set AUTH_TOKEN or AUTH_TOKEN_FILE)
+  Allowed hosts:    any Host header (set ALLOWED_HOSTS to restrict)
+  Allowed origins:  http(s)://localhost, 127.0.0.1 and [::1], any port (set ALLOWED_ORIGINS to change); requests without an Origin header (MCP clients outside a browser) pass
+  Shared machine:   NOT SAFE: the bind address is no auth boundary, any user or process on this machine can call it; set AUTH_TOKEN
 ```
 
 ### Connecting to Claude.ai
@@ -236,7 +319,7 @@ Since Claude.ai needs a public URL, use a tunnel:
 npx cloudflared tunnel --url http://localhost:3001
 ```
 
-Then add the tunnel URL (with `/mcp` appended) as a custom connector in Claude.ai settings.
+Then add the tunnel URL (with `/mcp` appended) as a custom connector in Claude.ai settings. The tunnel makes the server public: anyone who has the URL can use it, and Claude.ai's custom connectors sign in with OAuth or not at all, so they can't send an `AUTH_TOKEN`. Stop the tunnel when you're done.
 
 Claude.ai and the draw.io plugin for Claude Code, which bundles the hosted server, read the tool list from the server, so [`create_semantic_diagram`](#tool-create_semantic_diagram-on-request) appears there with the deploy that lists it; `DRAWIO_SEMANTIC_TYPES=off` leaves it out of a self-hosted server.
 

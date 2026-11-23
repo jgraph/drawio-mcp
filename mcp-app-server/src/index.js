@@ -15,6 +15,7 @@ import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, cr
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
+import { parseAllowedHosts, readAuthToken, parseAllowedOrigins, bearerAuth, originValidation, corsHeaders, securityBanner } from "./http-security.js";
 
 // Build identifier: git SHA + ISO timestamp + "-dirty" if uncommitted
 // changes. Same logic as build-html.js — kept in sync for the Node
@@ -294,21 +295,42 @@ async function startStreamableHTTPServer()
   // container must listen on all its interfaces for -p to work); the host
   // side of the -p mapping then decides who can reach it.
   const host = process.env.LISTEN ?? "127.0.0.1";
-  const allowedHosts = process.env.ALLOWED_HOSTS
-    ? process.env.ALLOWED_HOSTS.split(",").map(function(h) { return h.trim(); })
-    : undefined;
+  // A value that names no hostname stops the server rather than turning the
+  // Host check off
+  const allowedHosts = parseAllowedHosts(process.env.ALLOWED_HOSTS);
+  // Loopback is no auth boundary on a shared machine: any user or process on
+  // it can connect. AUTH_TOKEN / AUTH_TOKEN_FILE (a Docker secret) turn on a
+  // bearer token for /mcp; a setting that would silently leave it off (both
+  // set, an empty token, an unreadable file) stops the server here.
+  const auth = readAuthToken(process.env);
+  // The Origin check against DNS rebinding is always on: requests without an
+  // Origin (MCP clients outside a browser) pass, browser requests only from a
+  // loopback origin unless ALLOWED_ORIGINS lists others.
+  const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 
   // Host header validation only when ALLOWED_HOSTS is set. Not implied by a
   // loopback bind (as createMcpExpressApp would) — tunnels such as
   // cloudflared and Tailscale Funnel connect to localhost but forward their
-  // public hostname in the Host header.
+  // public hostname in the Host header. The checks come before the body is
+  // parsed, so a refused request costs nothing.
   const app = express();
-  app.use(express.json());
 
   if (allowedHosts)
   {
     app.use(hostHeaderValidation(allowedHosts));
   }
+
+  app.use(originValidation(allowedOrigins));
+  // CORS for the origins that check allows, its preflight answered here:
+  // browsers send that without the token
+  app.use(corsHeaders(allowedOrigins));
+
+  if (auth != null)
+  {
+    app.use("/mcp", bearerAuth(auth.token));
+  }
+
+  app.use(express.json());
 
   // Re-check the libavoid CDN ETags daily and rebuild the HTML when a
   // draw.io release changed them — each /mcp request creates its McpServer
@@ -424,7 +446,11 @@ async function startStreamableHTTPServer()
 
   const httpServer = app.listen(port, host, function()
   {
-    console.log(`MCP App server listening on http://${host}:${port}/mcp`);
+    // What protects the server, before any client connects (never the token)
+    const banner = securityBanner({ host, port: httpServer.address().port, auth, allowedHosts, allowedOrigins });
+
+    banner.lines.forEach(function(line) { console.log(line); });
+    banner.warnings.forEach(function(line) { console.warn(line); });
   });
 
   const shutdown = function()

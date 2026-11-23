@@ -5,9 +5,12 @@
 # ../shared and ../shape-search directories.
 #
 #   docker build -f mcp-app-server/Dockerfile -t drawio-mcp-app .
-#   docker run --rm -p 3001:3001 drawio-mcp-app
+#   docker run --rm -p 127.0.0.1:3001:3001 drawio-mcp-app
 #
 # The endpoint is then http://localhost:3001/mcp (PORT overrides the port).
+# Keep the 127.0.0.1: a plain -p 3001:3001 publishes the port on every
+# interface of the host, past ufw and firewalld. AUTH_TOKEN or
+# AUTH_TOKEN_FILE require a bearer token (README, "Security").
 #
 # Published to Docker Hub as jgraph/drawio-mcp (linux/amd64 + linux/arm64) by
 # .github/workflows/publish-app-server-image.yml.
@@ -17,6 +20,7 @@ FROM node:24-alpine
 ENV NODE_ENV=production
 # Listen on all interfaces inside the container (the server defaults to
 # loopback); which host interface is exposed is decided by `docker run -p`.
+# The server can't see that mapping, so it warns at startup without a token.
 ENV LISTEN=0.0.0.0
 WORKDIR /app/mcp-app-server
 
