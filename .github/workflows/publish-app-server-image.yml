@@ -83,15 +83,15 @@ jobs:
 
       - name: Smoke test
         run: |
-          cid=$(docker run -d -p 3001:3001 "$IMAGE:smoke")
+          cid=$(docker run -d -p 127.0.0.1:3001:3001 "$IMAGE:smoke")
           trap 'echo "--- container log ---"; docker logs "$cid"; docker rm -f "$cid" > /dev/null' EXIT
 
           for i in $(seq 1 30); do
-            if curl -s -o /dev/null localhost:3001/mcp; then break; fi
+            if curl -s -o /dev/null 127.0.0.1:3001/mcp; then break; fi
             sleep 1
           done
 
-          response=$(curl -sS -X POST localhost:3001/mcp \
+          response=$(curl -sS -X POST 127.0.0.1:3001/mcp \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
             -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}')
