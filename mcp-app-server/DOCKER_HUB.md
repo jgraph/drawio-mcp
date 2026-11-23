@@ -16,15 +16,22 @@ On a machine you share with other users, agents or scripts, require a token as w
 
 ```bash
 export DRAWIO_MCP_TOKEN="$(openssl rand -hex 32)"
-AUTH_TOKEN="$DRAWIO_MCP_TOKEN" docker run --rm -e AUTH_TOKEN -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
+AUTH_TOKEN="$DRAWIO_MCP_TOKEN" docker run --rm --pull always -e AUTH_TOKEN -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
 ```
 
-Clients then send `Authorization: Bearer <token>`, e.g. `claude mcp add --transport http drawio http://localhost:3001/mcp --header "Authorization: Bearer $DRAWIO_MCP_TOKEN"`. As a Compose secret:
+`--pull always` fetches the current image: an image from before authentication, still cached from an earlier run, would ignore `AUTH_TOKEN` and answer without a token. Check that the token is required: the `Authentication:` line of the startup output says `on`, and a request without the token gets `401`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3001/mcp   # 401
+```
+
+Clients then send `Authorization: Bearer <token>`. Give them the token from the environment, not as a command-line argument, which other users of the machine can read: in Claude Code, `"headers": { "Authorization": "Bearer ${DRAWIO_MCP_TOKEN}" }` in the server's entry in the project's `.mcp.json`, which it fills in when it connects ([other clients](https://github.com/jgraph/drawio-mcp/tree/main/mcp-app-server#security)). As a Compose secret:
 
 ```yaml
 services:
   drawio-mcp:
     image: jgraph/drawio-mcp
+    pull_policy: always   # an image from before authentication would ignore the token
     ports:
       - "127.0.0.1:3001:3001"
     environment:
@@ -44,8 +51,8 @@ At startup the container prints its bind address, whether authentication is on a
 | `PORT` | Listening port inside the container (default `3001`); map it with `-p` |
 | `AUTH_TOKEN` | Bearer token that `/mcp` requires (`Authorization: Bearer <token>`); others get `401`. Compared in constant time, never logged; `/health` stays open. Unset: no authentication |
 | `AUTH_TOKEN_FILE` | Path of a file holding the token, e.g. a secret at `/run/secrets/drawio_mcp_token` (keeps it out of `docker inspect`). Use one of the two |
-| `ALLOWED_HOSTS` | Comma-separated hostnames the server answers to (checked against the `Host` header), e.g. `drawio-mcp.internal,localhost`. Unset: any |
-| `ALLOWED_ORIGINS` | Comma-separated browser origins the server answers (checked against the `Origin` header, against DNS rebinding), e.g. `https://chat.example.com`; `*` for any. Unset: `http(s)://localhost`, `127.0.0.1` and `[::1]` on any port. Requests without an `Origin` (MCP clients outside a browser) always pass |
+| `ALLOWED_HOSTS` | Comma-separated hostnames the server answers to (checked against the `Host` header), e.g. `drawio-mcp.internal,localhost`. Unset: any. A value that names no hostname stops the container at startup |
+| `ALLOWED_ORIGINS` | Comma-separated browser origins the server answers (checked against the `Origin` header, against DNS rebinding), e.g. `https://chat.example.com`; `*` for any. Unset: `http(s)://localhost`, `127.0.0.1` and `[::1]` on any port. Requests without an `Origin` (MCP clients outside a browser) always pass. Pages from an allowed origin get CORS headers, and their preflight is answered before the token check |
 | `DRAWIO_BASE_URL` | The draw.io editor that "Open in draw.io" opens, e.g. a self-hosted `https://drawio.example.com/` (default `https://app.diagrams.net/`) |
 | `DRAWIO_ICON_SERVICE_URL` | Set to `off` to keep `search_shapes` from querying the draw.io icon service |
 | `DRAWIO_SEMANTIC_TYPES` | Set to `off` to leave out `create_semantic_diagram`, which is listed by default and used when the user asks for a quick diagram: the model describes a flowchart or swimlane diagram (steps, lanes, transitions, a row and a column per step) and the server lays it out. Flowcharts without lanes are drawn with up to 24 steps; the model draws larger ones with `create_diagram` ([details](https://github.com/jgraph/drawio-mcp/tree/main/mcp-app-server#tool-create_semantic_diagram-on-request)) |

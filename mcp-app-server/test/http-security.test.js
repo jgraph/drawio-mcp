@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { readAuthToken, tokenMatches, parseAllowedOrigins, originAllowed, normalizeOrigin, isLoopbackAddress, securityBanner, parseList } from "../src/http-security.js";
+import { readAuthToken, tokenMatches, parseAllowedOrigins, originAllowed, normalizeOrigin, isLoopbackAddress, securityBanner, parseList, parseAllowedHosts } from "../src/http-security.js";
 
 // The access control of the Node HTTP entry: the optional bearer token
 // (AUTH_TOKEN / AUTH_TOKEN_FILE), the Origin check against DNS rebinding
@@ -141,10 +141,20 @@ describe("the Origin check", function()
   });
 });
 
-test("parseList and isLoopbackAddress", function()
+test("parseList, parseAllowedHosts and isLoopbackAddress", function()
 {
   assert.deepEqual(parseList(" localhost, drawio.internal ,,"), ["localhost", "drawio.internal"]);
   assert.equal(parseList(""), undefined);
+
+  // ALLOWED_HOSTS: unset or empty is no Host check, a value without a hostname a slip
+  assert.deepEqual(parseAllowedHosts("localhost, drawio.internal"), ["localhost", "drawio.internal"]);
+  assert.equal(parseAllowedHosts(undefined), undefined);
+  assert.equal(parseAllowedHosts(""), undefined);
+
+  for (const value of [" ", ",", " , ,"])
+  {
+    assert.throws(function() { parseAllowedHosts(value); }, /ALLOWED_HOSTS is set but names no hostname/, JSON.stringify(value));
+  }
 
   for (const host of ["127.0.0.1", "127.1.2.3", "::1", "[::1]", "localhost", "::ffff:127.0.0.1"])
   {
@@ -277,8 +287,8 @@ function startServer(env)
   });
 }
 
-/** A POST of an initialize with exactly these headers, through node:http (fetch won't set Host). */
-function post(port, headers, body)
+/** A request to /mcp with exactly these headers, through node:http (fetch won't set Host or Origin). */
+function send(port, method, headers, body)
 {
   return new Promise(function(resolve, reject)
   {
@@ -287,12 +297,8 @@ function post(port, headers, body)
       host: "127.0.0.1",
       port,
       path: "/mcp",
-      method: "POST",
-      headers: Object.assign(
-      {
-        "Content-Type": "application/json",
-        "Accept": "application/json, text/event-stream",
-      }, headers),
+      method,
+      headers,
     }, function(res)
     {
       let data = "";
@@ -303,8 +309,35 @@ function post(port, headers, body)
     });
 
     req.on("error", reject);
-    req.end(body ?? INITIALIZE);
+    req.end(body);
   });
+}
+
+/** A POST of an initialize with these headers. */
+function post(port, headers, body)
+{
+  return send(port, "POST", Object.assign(
+  {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream",
+  }, headers), body ?? INITIALIZE);
+}
+
+/** The CORS preflight a browser sends before a POST with a token. */
+function preflight(port, origin)
+{
+  return send(port, "OPTIONS",
+  {
+    "Origin": origin,
+    "Access-Control-Request-Method": "POST",
+    "Access-Control-Request-Headers": "authorization, content-type, mcp-protocol-version",
+  });
+}
+
+/** The names of a comma-separated header, lower case. */
+function headerList(value)
+{
+  return String(value || "").toLowerCase().split(",").map(function(entry) { return entry.trim(); });
 }
 
 function get(port, urlPath)
@@ -476,5 +509,143 @@ test("src/index.js stops with an error on an empty AUTH_TOKEN instead of running
     assert.notEqual(e.code, 0);
     assert.match(e.output.stderr, /AUTH_TOKEN is set but the token is empty/);
     return true;
+  });
+});
+
+test("src/index.js stops with an error on an ALLOWED_HOSTS without hostnames instead of answering any Host", async function()
+{
+  let server = null;
+
+  try
+  {
+    server = await startServer({ ALLOWED_HOSTS: " , " });
+  }
+  catch (e)
+  {
+    assert.notEqual(e.code, 0);
+    assert.match(e.output.stderr, /ALLOWED_HOSTS is set but names no hostname/);
+    return;
+  }
+
+  const res = await post(server.port, { Host: "evil.example:3001" });
+
+  await server.stop();
+  assert.fail("the server started and answered Host evil.example with " + res.status);
+});
+
+describe("src/index.js with a token, for a browser client ALLOWED_ORIGINS lists", function()
+{
+  const ORIGIN = "https://chat.example.com";
+  let server;
+
+  before(async function()
+  {
+    server = await startServer({ AUTH_TOKEN: TOKEN, ALLOWED_ORIGINS: ORIGIN });
+  });
+
+  after(async function()
+  {
+    await server.stop();
+  });
+
+  test("answers its CORS preflight, which carries no token, before the token check", async function()
+  {
+    const res = await preflight(server.port, ORIGIN);
+
+    assert.equal(res.status, 204);
+    assert.equal(res.headers["access-control-allow-origin"], ORIGIN);
+    assert.ok(headerList(res.headers["access-control-allow-methods"]).includes("post"));
+
+    for (const name of ["authorization", "content-type", "mcp-protocol-version", "mcp-session-id"])
+    {
+      assert.ok(headerList(res.headers["access-control-allow-headers"]).includes(name), name);
+    }
+
+    assert.ok(headerList(res.headers["vary"]).includes("origin"));
+  });
+
+  test("lets the page read the answer, the session id and a 401", async function()
+  {
+    const ok = await post(server.port, { Origin: ORIGIN, Authorization: "Bearer " + TOKEN });
+
+    assert.equal(ok.status, 200);
+    assert.equal(ok.headers["access-control-allow-origin"], ORIGIN);
+    assert.ok(headerList(ok.headers["access-control-expose-headers"]).includes("mcp-session-id"));
+
+    const refused = await post(server.port, { Origin: ORIGIN });
+
+    assert.equal(refused.status, 401);
+    assert.equal(refused.headers["access-control-allow-origin"], ORIGIN);
+    assert.ok(headerList(refused.headers["access-control-expose-headers"]).includes("www-authenticate"));
+  });
+
+  test("gives an origin it doesn't list neither a preflight nor CORS headers", async function()
+  {
+    const res = await preflight(server.port, "https://evil.example");
+
+    assert.equal(res.status, 403);
+    assert.equal(res.headers["access-control-allow-origin"], undefined);
+  });
+});
+
+// --- the commands the docs give ---
+
+describe("the security docs", function()
+{
+  const DOCS = ["README.md", "DOCKER_HUB.md"].map(function(name)
+  {
+    return { name, text: fs.readFileSync(fileURLToPath(new URL("../" + name, import.meta.url)), "utf-8") };
+  });
+
+  /** The fenced code blocks of a Markdown text. */
+  function codeBlocks(text)
+  {
+    return Array.from(text.matchAll(/```[a-z]*\n([\s\S]*?)```/g), function(match) { return match[1]; });
+  }
+
+  test("a docker run with a token pulls the image, since a cached one from before tokens would ignore it", function()
+  {
+    for (const doc of DOCS)
+    {
+      const runs = doc.text.split("\n").filter(function(line) { return /docker run\b.*AUTH_TOKEN/.test(line); });
+
+      assert.ok(runs.length > 0, doc.name);
+
+      for (const line of runs)
+      {
+        assert.match(line, /--pull[ =]always/, doc.name + ": " + line);
+      }
+
+      for (const block of codeBlocks(doc.text).filter(function(b) { return /AUTH_TOKEN_FILE/.test(b) && /services:/.test(b); }))
+      {
+        assert.match(block, /pull_policy: always/, doc.name + ": Compose example");
+      }
+    }
+  });
+
+  test("they say how to check that the server refuses a request without the token", function()
+  {
+    for (const doc of DOCS)
+    {
+      assert.match(doc.text, /curl [^\n`]*localhost:3001\/mcp[^\n`]*/, doc.name);
+      assert.match(doc.text, /\b401\b/, doc.name);
+    }
+  });
+
+  test("no client command gets the token's value as an argument, where other users can read it", function()
+  {
+    for (const doc of DOCS)
+    {
+      const lines = doc.text.split("\n").filter(function(line)
+      {
+        return /\b(claude|copilot|code|cursor) mcp\b|\bclaude mcp add/.test(line);
+      });
+
+      for (const line of lines)
+      {
+        // Unquoted or in double quotes the shell puts the value in the command line
+        assert.doesNotMatch(line.replace(/'[^']*'/g, ""), /\$\{?DRAWIO_MCP_TOKEN/, doc.name + ": " + line);
+      }
+    }
   });
 });

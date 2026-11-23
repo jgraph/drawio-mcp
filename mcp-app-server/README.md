@@ -234,8 +234,8 @@ The Node server and the Docker image are built for one person on their own machi
 
 - **Loopback is not an auth boundary.** `127.0.0.1` keeps the server off the network, not off the machine: every user and every process on it (another agent, a script, a package's install script) can call the port. On a shared dev box or a team server, set a token. With `AUTH_TOKEN`, or `AUTH_TOKEN_FILE` naming a file that holds it (a Docker or Compose secret), `/mcp` answers only requests that send `Authorization: Bearer <token>`; others get `401` with a `WWW-Authenticate: Bearer` header. The token is compared in constant time and never logged, `GET /health` stays open for health checks, and a setting that would leave authentication off by mistake (both variables, an empty token, a file it can't read) stops the server at startup. It is off by default, so existing setups keep working. What it can't do: a process running as your own user can read the token from your MCP client's configuration, as it can read anything else of yours, so the token keeps out other users, the network and callers that don't have it, not code you run yourself.
 - **Docker publishes past your firewall.** `-p 3001:3001` (or `ports: ["3001:3001"]` in Compose) publishes the port on every interface of the host, and Docker inserts its own packet filter rules ahead of ufw and firewalld, so the firewall doesn't block it. Always name the address, `-p 127.0.0.1:3001:3001`. The image has to listen on all interfaces inside the container for `-p` to work, so it can't see how you published it, and it warns at startup whenever no token is set.
-- **The Origin check stops DNS rebinding.** A web page you open can point its own hostname at `127.0.0.1` and call a local server from your browser. As the [MCP Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#security-warning) requires, the server checks the `Origin` header: requests that carry one are answered only from `http(s)://localhost`, `127.0.0.1` or `[::1]` (any port), others get `403`. Requests without an `Origin` pass, since MCP clients outside a browser (Claude Code, VS Code, Cursor, Copilot CLI, and the cloud hosts behind a tunnel) send none. For a client that runs in a browser, list its origins in `ALLOWED_ORIGINS` (comma-separated, e.g. `https://chat.example.com`), which replaces the default; `*` turns the check off.
-- **`ALLOWED_HOSTS` checks the `Host` header.** With a comma-separated list of hostnames, the server refuses requests addressed to any other name. That stops DNS rebinding too, since a rebound page sends its own name, and pins a team server to the name it is reached by. It is off by default because tunnels such as cloudflared and Tailscale Funnel connect to localhost but forward their public hostname.
+- **The Origin check stops DNS rebinding.** A web page you open can point its own hostname at `127.0.0.1` and call a local server from your browser. As the [MCP Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#security-warning) requires, the server checks the `Origin` header: requests that carry one are answered only from `http(s)://localhost`, `127.0.0.1` or `[::1]` (any port), others get `403`. Requests without an `Origin` pass, since MCP clients outside a browser (Claude Code, VS Code, Cursor, Copilot CLI, and the cloud hosts behind a tunnel) send none. For a client that runs in a browser, list its origins in `ALLOWED_ORIGINS` (comma-separated, e.g. `https://chat.example.com`), which replaces the default; `*` turns the check off. A page from an allowed origin gets CORS headers that name it, so it can read the answers, and its preflight is answered before the token check, since browsers send it without the token.
+- **`ALLOWED_HOSTS` checks the `Host` header.** With a comma-separated list of hostnames, the server refuses requests addressed to any other name. That stops DNS rebinding too, since a rebound page sends its own name, and pins a team server to the name it is reached by. It is off by default because tunnels such as cloudflared and Tailscale Funnel connect to localhost but forward their public hostname. A value that names no hostname (only commas or spaces) stops the server at startup rather than turning the check off.
 - **For a team, put a reverse proxy in front.** Let a reverse proxy terminate TLS (the token travels in plain HTTP otherwise) and authenticate clients in a way your MCP clients support, keep the server on loopback or an internal network behind it, and set `ALLOWED_HOSTS` to the proxy's hostname. The token can stay on as a second check.
 - **The hosted endpoint and the Worker are public by design.** `https://mcp.draw.io/mcp` and the [Cloudflare Workers](#deploying-to-cloudflare-workers) entry have none of these settings; to restrict a Worker of your own, put Cloudflare Access in front of it.
 
@@ -245,15 +245,22 @@ Run with a token, generated once and kept out of your shell history:
 export DRAWIO_MCP_TOKEN="$(openssl rand -hex 32)"
 AUTH_TOKEN="$DRAWIO_MCP_TOKEN" npm start
 # or
-AUTH_TOKEN="$DRAWIO_MCP_TOKEN" docker run --rm -e AUTH_TOKEN -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
+AUTH_TOKEN="$DRAWIO_MCP_TOKEN" docker run --rm --pull always -e AUTH_TOKEN -p 127.0.0.1:3001:3001 jgraph/drawio-mcp
 ```
 
-`-e AUTH_TOKEN` without a value passes the variable from your shell, so the token isn't on the command line; `docker inspect` still shows it to anyone who can use Docker. A file doesn't show there. In Compose, as a secret:
+`-e AUTH_TOKEN` without a value passes the variable from your shell, so the token isn't on the command line; `docker inspect` still shows it to anyone who can use Docker. A file doesn't show there. `--pull always` fetches the current image: an image from before authentication, still cached from an earlier run, would ignore `AUTH_TOKEN` and answer without a token. Check that the token is required: the `Authentication:` line of the startup output says `on`, and a request without the token gets `401`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3001/mcp   # 401
+```
+
+In Compose, as a secret:
 
 ```yaml
 services:
   drawio-mcp:
     image: jgraph/drawio-mcp
+    pull_policy: always   # an image from before authentication would ignore the token
     ports:
       - "127.0.0.1:3001:3001"
     environment:
@@ -266,9 +273,9 @@ secrets:
     file: ./drawio-mcp-token   # the token alone, readable by the container's user node (uid 1000)
 ```
 
-With plain `docker run`, mount the file instead: `-v "$PWD/drawio-mcp-token:/run/secrets/drawio_mcp_token:ro" -e AUTH_TOKEN_FILE=/run/secrets/drawio_mcp_token`.
+With plain `docker run`, mount the file instead: `docker run --rm --pull always -v "$PWD/drawio-mcp-token:/run/secrets/drawio_mcp_token:ro" -e AUTH_TOKEN_FILE=/run/secrets/drawio_mcp_token -p 127.0.0.1:3001:3001 jgraph/drawio-mcp`.
 
-The client then sends the header. In VS Code, `.vscode/mcp.json` asks for the token once and stores it encrypted:
+The client then sends the header. Give it the token from the environment or a prompt, as below, never as a command-line argument (such as `--header` of `claude mcp add` with the token expanded by the shell): on a shared machine other users can read the arguments of running processes. In VS Code, `.vscode/mcp.json` asks for the token once and stores it encrypted:
 
 ```json
 {
@@ -287,7 +294,7 @@ The client then sends the header. In VS Code, `.vscode/mcp.json` asks for the to
 
 | Client | Where the header goes |
 |---|---|
-| Claude Code | `claude mcp add --transport http drawio http://localhost:3001/mcp --header "Authorization: Bearer $DRAWIO_MCP_TOKEN"` |
+| Claude Code | `"headers": { "Authorization": "Bearer ${DRAWIO_MCP_TOKEN}" }` next to `"type": "http"` and `"url"` in the server's entry under `mcpServers` in the project's `.mcp.json`; Claude Code fills in the variable when it connects, so the token is neither in the file nor on a command line |
 | GitHub Copilot CLI | `"headers": { "Authorization": "Bearer <token>" }` in the server's entry in `~/.copilot/mcp-config.json` |
 | Cursor | `"headers": { "Authorization": "Bearer ${env:DRAWIO_MCP_TOKEN}" }` next to `"url"` in `mcp.json` |
 | OpenCode | `"headers": { "Authorization": "Bearer {env:DRAWIO_MCP_TOKEN}" }` in the remote server's entry in `opencode.json` |

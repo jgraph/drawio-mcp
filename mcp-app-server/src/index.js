@@ -15,7 +15,7 @@ import { buildHtml, processAppBundle, processMermaidBundle, processElkBundle, cr
 import { bundleSemanticEngine, VIEWER_GLOBALS } from "./semantic-bundle.js";
 import { resolveIconServiceUrl } from "../../shared/icon-search.js";
 import { libavoidUrls } from "./libavoid-versions.js";
-import { parseList, readAuthToken, parseAllowedOrigins, bearerAuth, originValidation, securityBanner } from "./http-security.js";
+import { parseAllowedHosts, readAuthToken, parseAllowedOrigins, bearerAuth, originValidation, corsHeaders, securityBanner } from "./http-security.js";
 
 // Build identifier: git SHA + ISO timestamp + "-dirty" if uncommitted
 // changes. Same logic as build-html.js — kept in sync for the Node
@@ -295,7 +295,9 @@ async function startStreamableHTTPServer()
   // container must listen on all its interfaces for -p to work); the host
   // side of the -p mapping then decides who can reach it.
   const host = process.env.LISTEN ?? "127.0.0.1";
-  const allowedHosts = parseList(process.env.ALLOWED_HOSTS);
+  // A value that names no hostname stops the server rather than turning the
+  // Host check off
+  const allowedHosts = parseAllowedHosts(process.env.ALLOWED_HOSTS);
   // Loopback is no auth boundary on a shared machine: any user or process on
   // it can connect. AUTH_TOKEN / AUTH_TOKEN_FILE (a Docker secret) turn on a
   // bearer token for /mcp; a setting that would silently leave it off (both
@@ -319,6 +321,9 @@ async function startStreamableHTTPServer()
   }
 
   app.use(originValidation(allowedOrigins));
+  // CORS for the origins that check allows, its preflight answered here:
+  // browsers send that without the token
+  app.use(corsHeaders(allowedOrigins));
 
   if (auth != null)
   {

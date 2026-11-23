@@ -1,7 +1,7 @@
 // Access control of the Node HTTP entry (src/index.js): the optional bearer
-// token, the Origin check against DNS rebinding and the startup banner that
-// states both. The Worker entry is a public endpoint (mcp.draw.io) and has
-// none of them.
+// token, the Origin check against DNS rebinding, the CORS headers for the
+// browser origins that check allows and the startup banner that states them.
+// The Worker entry is a public endpoint (mcp.draw.io) and has none of them.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -14,6 +14,11 @@ const REALM = "drawio-mcp";
 
 /** Tokens shorter than this get a warning at startup. */
 const SHORT_TOKEN = 16;
+
+/** What a browser client of the Streamable HTTP transport sends and reads (CORS). */
+const CORS_ALLOW_METHODS = "GET, POST, DELETE, OPTIONS";
+const CORS_ALLOW_HEADERS = "Authorization, Content-Type, Accept, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID";
+const CORS_EXPOSE_HEADERS = "Mcp-Session-Id, Mcp-Protocol-Version, WWW-Authenticate";
 
 /**
  * A comma-separated list from the environment, entries trimmed, empty ones
@@ -29,6 +34,29 @@ export function parseList(value)
   const list = value.split(",").map(function(entry) { return entry.trim(); }).filter(Boolean);
 
   return list.length > 0 ? list : undefined;
+}
+
+/**
+ * ALLOWED_HOSTS as a list of hostnames; undefined when unset or empty (no
+ * Host check). Throws on a value that names no hostname (only commas or
+ * white space): read as unset, a slip in it would turn the check off without
+ * saying so.
+ */
+export function parseAllowedHosts(value)
+{
+  if (value == null || value === "")
+  {
+    return undefined;
+  }
+
+  const hosts = parseList(value);
+
+  if (hosts == null)
+  {
+    throw new Error(`ALLOWED_HOSTS is set but names no hostname ("${value}"). List the hostnames the server is reached by, comma-separated (e.g. drawio-mcp.internal,localhost), or unset ALLOWED_HOSTS to answer any Host.`);
+  }
+
+  return hosts;
 }
 
 /**
@@ -275,6 +303,43 @@ export function originValidation(allowed, log)
 
     logLine(`[origin] 403 ${req.method} ${req.originalUrl.split("?")[0]}: Origin ${origin} is not allowed`);
     jsonRpcError(res, 403, `Forbidden: Origin ${origin} is not allowed (set ALLOWED_ORIGINS to allow it)`);
+  };
+}
+
+/**
+ * Express middleware for the browser clients the Origin check lets through:
+ * a request with such an Origin gets CORS headers that name it, so the page
+ * can read the answer (a 401 and its WWW-Authenticate too), and its preflight
+ * (OPTIONS with Access-Control-Request-Method, which browsers send without
+ * the token) is answered here with 204. Goes after the Origin check and
+ * before the token. Requests without an Origin get nothing.
+ */
+export function corsHeaders(allowed)
+{
+  return function(req, res, next)
+  {
+    const origin = req.headers.origin;
+
+    if (origin == null || !originAllowed(origin, allowed))
+    {
+      next();
+      return;
+    }
+
+    res.vary("Origin");
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Access-Control-Expose-Headers", CORS_EXPOSE_HEADERS);
+
+    if (req.method === "OPTIONS" && req.headers["access-control-request-method"] != null)
+    {
+      res.set("Access-Control-Allow-Methods", CORS_ALLOW_METHODS);
+      res.set("Access-Control-Allow-Headers", CORS_ALLOW_HEADERS);
+      res.set("Access-Control-Max-Age", "600");
+      res.status(204).end();
+      return;
+    }
+
+    next();
   };
 }
 
