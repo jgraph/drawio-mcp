@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased: MCP App Server, the release after 1.10.0
+## MCP App Server 1.11.0 (23 November 2026)
 
 Mermaid, PlantUML and CSV become editable draw.io diagrams. Blog post: [Mermaid, PlantUML and CSV become editable draw.io diagrams in your AI assistant](https://www.drawio.com/blog/mcp-mermaid-plantuml-csv/).
 
@@ -16,4 +16,6 @@ Mermaid, PlantUML and CSV become editable draw.io diagrams. Blog post: [Mermaid,
 - The viewer shows the conversion while the source is still being written.
 - A Mermaid flowchart with `postLayout: "elk"` is laid out again with ELK in the viewer. The other conversions have their own layout and ignore `postLayout`.
 - Self-hosted servers: `DRAWIO_CONVERT=off` leaves all three formats to the viewer's converters; a comma list (`mermaid,csv`) converts only the formats it names.
-- The MCP Registry entry (`io.draw/mcp`) and the plugin directory listing for ChatGPT and Codex name Mermaid, PlantUML and CSV.
+- The MCP Registry entry (`io.draw/mcp`) and the plugin directory listing for ChatGPT and Codex name Mermaid, PlantUML and CSV. The registry entry also lists the tool server, `@drawio/mcp` 1.13.1 on npm ([#117](https://github.com/jgraph/drawio-mcp/pull/117)).
+- The viewer's Download menu saves images as `diagram.drawio.png` and `diagram.drawio.svg`, the names draw.io gives images that carry the diagram and open for editing ([#125](https://github.com/jgraph/drawio-mcp/pull/125)).
+- Self-hosted servers (Node and the `jgraph/drawio-mcp` Docker image) get an optional bearer token (`AUTH_TOKEN` or `AUTH_TOKEN_FILE`, off by default), an `Origin` check against DNS rebinding, and a startup banner that states the protection. Browser clients on an origin other than localhost now need `ALLOWED_ORIGINS`. The Docker examples publish the port on `127.0.0.1`. The hosted endpoint is unchanged ([#128](https://github.com/jgraph/drawio-mcp/pull/128)).
