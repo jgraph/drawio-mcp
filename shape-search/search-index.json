@@ -29160,6 +29160,14 @@
     "type": "vertex"
   },
   {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/ai_machine_learning/AI_Manager.svg;points=[[0.5,0.253,0],[0.39,1,0],[0.09,0.5,0],[0.91,0.5,0],[0.898,0,0],[0.69,0.858,0],[0.05,0.861,0]];",
+    "w": 68,
+    "h": 53,
+    "title": "AI Manager",
+    "tags": "azure2 ai manager azure ai machine learning artificial intelligence  AI Manager",
+    "type": "vertex"
+  },
+  {
     "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/ai_machine_learning/AI_Studio.svg;points=[[0.594,0,0],[0.5,0.985,0],[0.18,0.5,0],[0.995,0.43,0],[0.734,0.023,0],[0.957,0.635,0],[0.011,0.992,0],[0.357,0.068,0]];",
     "w": 64,
     "h": 68,
@@ -29637,6 +29645,14 @@
     "h": 60,
     "title": "API Management Services",
     "tags": "azure2 api application programming interface management services azure app services  API Management Services",
+    "type": "vertex"
+  },
+  {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/app_services/App_Service_Builder.svg;points=[[0.389,0,0],[0.389,1,0],[0,0.5,0],[1,0.5,0],[0,0.944,0]];",
+    "w": 68,
+    "h": 68,
+    "title": "App Service Builder",
+    "tags": "azure2 app service builder azure app services  App Service Builder",
     "type": "vertex"
   },
   {
@@ -30152,6 +30168,14 @@
     "type": "vertex"
   },
   {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/containers/ACA_Sandboxes.svg;points=[[0.5,0,0],[0.5,1,0],[0.05,0.5,0],[0.95,0.5,0],[0.991,0.245,0],[0.946,0.877,0],[0.009,0.755,0],[0.009,0.245,0]];",
+    "w": 60,
+    "h": 68,
+    "title": "ACA Sandboxes",
+    "tags": "azure2 aca container apps sandboxes sandbox azure containers  ACA Sandboxes",
+    "type": "vertex"
+  },
+  {
     "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/containers/AKS_Network_Policy.svg;points=[[0.409,0,0],[0.409,1,0],[0.003,0.5,0],[1,0.517,0],[0.975,0.182,0],[0.967,0.859,0],[0.155,0.843,0],[0.015,0.155,0]];",
     "w": 68,
     "h": 62,
@@ -30261,6 +30285,14 @@
     "h": 68,
     "title": "Azure DocumentDB",
     "tags": "azure2 documentdb document db azure database db  Azure DocumentDB",
+    "type": "vertex"
+  },
+  {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/databases/Azure_HorizonDB.svg;points=[[0.5,0,0],[0.5,1,0],[0,0.5,0],[1,0.5,0],[0.983,0.098,0],[0.983,0.9,0],[0.017,0.9,0],[0.017,0.098,0]];",
+    "w": 52,
+    "h": 68,
+    "title": "Azure HorizonDB",
+    "tags": "azure2 horizondb horizon db postgresql postgres azure database db  Azure HorizonDB",
     "type": "vertex"
   },
   {
@@ -32112,6 +32144,14 @@
     "type": "vertex"
   },
   {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/iot/Azure_Device_Registry.svg;points=[[0.497,0,0],[0.505,1,0],[0,0.525,0],[1,0.528,0],[0.695,0.078,0],[0.927,0.713,0],[0.078,0.719,0],[0.295,0.087,0]];",
+    "w": 68,
+    "h": 61,
+    "title": "Azure Device Registry",
+    "tags": "azure2 device registry devices azure iot internet of things  Azure Device Registry",
+    "type": "vertex"
+  },
+  {
     "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/iot/Device_Provisioning_Services.svg;points=[[0.499,0,0],[0.501,1,0],[0,0.484,0],[1,0.486,0],[0.92,0.15,0],[0.878,0.805,0],[0.142,0.825,0],[0.088,0.158,0]];",
     "w": 64,
     "h": 66,
@@ -32669,6 +32709,14 @@
     "h": 68,
     "title": "ATM Multistack",
     "tags": "azure2 atm multistack azure network networking  ATM Multistack",
+    "type": "vertex"
+  },
+  {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/networking/Azure_Encrypted_Transport.svg;points=[[0.5,0,0],[0.521,1,0],[0,0.489,0],[1,0.487,0],[0.825,0.118,0],[0.869,0.82,0],[0.113,0.8,0],[0.139,0.15,0]];",
+    "w": 66,
+    "h": 68,
+    "title": "Azure Encrypted Transport",
+    "tags": "azure2 encrypted transport encryption azure network networking  Azure Encrypted Transport",
     "type": "vertex"
   },
   {
@@ -33880,14 +33928,6 @@
     "type": "vertex"
   },
   {
-    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/other/Microsoft_Discovery.svg;points=[[0.499,0,0],[0.5,1,0],[0.113,0.5,0],[0.887,0.5,0],[0.96,0.165,0],[0.935,0.806,0],[0.04,0.84,0],[0.055,0.201,0]];",
-    "w": 68,
-    "h": 66,
-    "title": "Microsoft Discovery",
-    "tags": "azure2 microsoft discovery science azure other  Microsoft Discovery",
-    "type": "vertex"
-  },
-  {
     "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/other/Mission_Landing_Zone.svg;points=[[0.514,0,0],[0.505,1,0],[0.001,0.5,0],[1,0.5,0],[0.717,0.08,0],[0.982,0.901,0],[0.025,0.909,0],[0.093,0.266,0]];",
     "w": 68,
     "h": 64,
@@ -33933,6 +33973,14 @@
     "h": 68,
     "title": "MS Dev Box",
     "tags": "azure2 ms dev box azure other  MS Dev Box",
+    "type": "vertex"
+  },
+  {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/other/MS_Discovery.svg;points=[[0.5,0.045,0],[0.5,1,0],[0,0.5,0],[1,0.58,0],[0.761,0.183,0],[0.776,0.952,0],[0.02,0.962,0],[0.017,0.18,0]];",
+    "w": 61,
+    "h": 68,
+    "title": "MS Discovery",
+    "tags": "azure2 ms discovery microsoft science azure other  MS Discovery",
     "type": "vertex"
   },
   {
@@ -34485,6 +34533,14 @@
     "h": 68,
     "title": "Application Security Groups",
     "tags": "azure2 application security groups azure security  Application Security Groups",
+    "type": "vertex"
+  },
+  {
+    "style": "image;aspect=fixed;html=1;align=center;fontSize=12;image=img/lib/azure2/security/Azure_Confidential_Clean_Rooms.svg;points=[[0.5,0.241,0],[0.5,0.829,0],[0.27,0.5,0],[0.723,0.5,0],[0.965,0.018,0],[0.947,0.979,0],[0.045,0.979,0],[0.035,0.018,0]];",
+    "w": 68,
+    "h": 58,
+    "title": "Azure Confidential Clean Rooms",
+    "tags": "azure2 confidential clean rooms data collaboration azure security  Azure Confidential Clean Rooms",
     "type": "vertex"
   },
   {
